@@ -1,0 +1,122 @@
+---
+# Bond lengths in organic compounds in picometres.
+# ==============================================================================
+# A steric number is given to an atom by determining the # of atoms that are
+# bonded to it, and the number of lone pairs it has. For example, NH3 ammonia
+# has a Steric number of SN=4 (sp3), as it's bonded to 3 hydrogens and has 1 lp.
+#
+# This document is ordered by source, and each entry for a source is ordered by
+# the lightest atom, followed by a dash to signify at least one bond, and then
+# increasingly heavier atoms. Once an atom pair is identfied as being bonded,
+# the type of bond can be explored (based on steric number or # of bonds).
+# ==============================================================================
+
+# Fox, Marye Anne; Whitesell, James K. (1995). Organische Chemie: Grundlagen,
+# Mechanismen, Bioorganische Anwendungen. Springer. ISBN 978-3-86025-249-9.
+C-H:
+  sp3-H: 110   # Carbon's Steric number SN=4 (sp3)
+  sp2-H: 109   # Carbon's Steric number SN=3 (sp2)
+  sp-H: 108    # Carbon's Steric number SN=2 (sp)
+C-C:
+  sp3-sp3: 154
+  sp3-sp2: 150
+  sp2-sp2: 147
+  sp3-sp: 146
+  sp2-sp: 143
+  sp-sp: 137
+  c-c: 140
+  C=C: 134
+  =C=: 130
+  C#C: 120
+
+# Google
+# Bond lengths in organic compounds in picometres.
+C-N:
+  C-N: 143
+  C=N: 138
+  C#N: 116
+C-O:
+  C-O: 143
+  C=O: 120
+  C#O: 113
+C-F:
+  C-F: 135
+C-Cl:
+  C-Cl: 177
+C-Br:
+  C-Br: 194
+C-I:
+  C-I: 214
+
+H-H:
+  H-H: 74
+H-N:
+  sp3-H: 101
+H-O:
+  sp3-H: 96
+H-F:
+  H-F: 91.8
+H-S:
+  H-S: 134
+H-Cl:
+  H-Cl: 127
+H-Br:
+  H-Br: 142
+H-I:
+  H-I: 161
+
+N-N:
+  N-N: 145
+  N=N: 125
+  N#N: 110
+N-O:
+  N#O: 106  # Questionable
+N-F:
+  N-F: 136
+N-Cl:
+  N-Cl: 175
+N-Br:
+  N-Br: 189
+
+O-O:
+  O-O: 148
+  O=O: 121
+O-F:
+  O-F: 142
+O-Cl:
+  O-Cl: 172
+O-I:
+  O-I: 206
+
+F-F:
+  F-F: 144
+F-S:
+  F-S: 156
+F-Cl:
+  F-Cl: 165
+F-Br:
+  F-Br: 176
+F-I:
+  F-I: 191
+
+S-S:
+  S-S: 205
+S-Cl:
+  S-Cl: 207
+S-Br:
+  S-Br: 216
+
+Cl-Cl:
+  Cl-Cl: 195
+Cl-Br:
+  Cl-Br: 214
+Cl-I:
+  Cl-I: 232
+
+Br-Br:
+  Br-Br: 228
+Br-I:
+  Br-I: 247
+
+I-I:
+  I-I: 268

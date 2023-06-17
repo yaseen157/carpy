@@ -1,0 +1,43 @@
+---
+# Bond Force Constants k, given in units of Newtons per centimetre
+# ==============================================================================
+
+# Handbook of Chemistry and Physics Online
+# https://hbcp.chemnetbase.com/faces/documents/09_06/09_06_0001.xhtml
+# Accessed 27/01/2023, and then I was promptly kicked out of the site?
+C-H:
+  CH: 4.48
+  CH4: 5.44
+  C2H6: 4.83
+  CH3CN: 5.33
+  CH3Cl: 5.02
+  CCl2CH2: 5.57
+  HCN: 6.22
+C-O:
+  CO: 18.9572  # Not terribly sure on this, from Google, but it's triple bond...
+
+H-H:
+  HH: 5.10  # From Google
+
+H-N:
+  NH: 5.97
+H-O:
+  OH: 7.80
+  H2O: 8.45
+H-F:
+  HF: 9.66
+H-P:
+  PH: 3.22
+H-S:
+  SH: 4.23
+  H2S: 4.28
+H-Cl:
+  HCl: 5.16
+H-Br:
+  HBr: 4.12
+
+N-N:
+  N2: 22.87
+
+O-O:
+  O2: 11.33
