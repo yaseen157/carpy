@@ -44,3 +44,9 @@ documentation = "https://pypi.org/project/carpy/"
 
 [tool.setuptools.dynamic]
 version = {attr = "carpy.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.csv", "*.xlsx", "*.yaml"]
