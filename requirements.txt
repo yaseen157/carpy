@@ -1,0 +1,20 @@
+# Development (build and documentation)
+setuptools>=67.0.0
+
+# Development/Deployment
+matplotlib
+numpy
+openpyxl
+pandas
+periodictable
+pytest
+python-metar
+pyyaml
+requests
+scipy
+streamlit
+sympy
+
+# Optional
+jupyter
+notebook

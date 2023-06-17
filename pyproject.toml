@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=67.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ADRpy"
+description = """Consolidated aircraft recipes in Python."""
+readme = "README.md"
+requires-python = ">=3.9.5"
+license = {file = "LICENSE.md"}
+authors =[
+    { name="Yaseen Reza", email="yaseen605@gmail.com" },
+    { name="Luana Defourny", email="luanadefourny@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "openpyxl",
+    "pandas",
+    "periodictable",
+    "pytest",
+    "python-metar",
+    "pyyaml",
+    "requests",
+    "scipy",
+    "setuptools>=67.0.0",
+    "streamlit",
+    "sympy",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+ipynb = ["jupyter", "notebook"]
+
+[project.urls]
+homepage = "https://github.com/yaseen157/carpy"
+documentation = "https://pypi.org/project/carpy/"
+
+[tool.setuptools.dynamic]
+version = {attr = "carpy.__version__"}
