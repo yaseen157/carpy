@@ -620,6 +620,12 @@ for sheet, x_pct in itertools.product(list(df_MILHDBK310), ["1pct", "10pct"]):
 # Doesn't matter what the name of the parent is, instantiate a catalogue of atms
 class MILHDBK310(type("catalogue", (object,), milhdbk310_atms)):
     """A collection of atmospheric property models as given in MIL-HDBK-310."""
+    def __init__(self):
+        errormsg = (
+            "This is a catalogue of atmospheres, and it should not be "
+            "instantiated directly. Try one of my attributes!"
+        )
+        raise RuntimeError(errormsg)
 
 
 # ---------------------------------------------------------------------------- #
