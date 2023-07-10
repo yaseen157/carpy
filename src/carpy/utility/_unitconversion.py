@@ -52,7 +52,7 @@ class Dimensions(object):
         Args:
             units: A space delimited string designating the units to instantiate
                 this object with. If the unit symbol is ambiguous, the unit
-                should be followed by '.<unit-system>' i.e. .SI, .metric, .USCS,
+                should be followed by '.<unit-system>' i.e. .SI, .metric, .USC,
                 or .imperial tags.
         """
         self._unitstring = "" if units is None else units
@@ -593,7 +593,7 @@ class Quantity(np.ndarray):
         Args:
             units: A space delimited string designating the units to instantiate
                 this object with. If the unit symbol is ambiguous, the unit
-                should be followed by '.<unit-system>' i.e. .SI, .metric, .USCS,
+                should be followed by '.<unit-system>' i.e. .SI, .metric, .USC,
                 or .imperial tags.
 
         Returns:
