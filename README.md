@@ -16,8 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-[comment]: <> (![HARpy]&#40;&#41;)
-
+![CARPy](./docs/source/_static/carpy.svg)
 <h2 align="center">
     <p>Consolidated Aircraft Recipes in Python</p>
 </h2>
@@ -32,10 +31,10 @@
 
 [comment]: <> ([![Build Status]&#40;https://travis-ci.com/yaseen157/carpy.svg?branch=master&#41;]&#40;https://travis-ci.com/yaseen157/carpy&#41;)
 
-carpy is an open source project for those interested in the methodology and
+CARPy is an open source project for those interested in the methodology and
 approach to the conceptual-level design of fixed-wing aircraft. This library
 provides its users with access to a variety of design tools for conceptual
-analysis - carpy is designed to complement and not substitute a comprehensive
+analysis - CARPy is designed to complement and not substitute a comprehensive
 and detailed study of a vehicle concept.
 
 - [Documentation](https://carpy.readthedocs.io/en/latest/)
@@ -101,7 +100,7 @@ copy and paste them into a Jupyter notebook
 (`.ipynb` file) cell and execute the cell.
 
 ```python
-"""'Hello World' example to introduce users to carpy atmospheres."""
+"""'Hello World' example to introduce users to CARPy atmospheres."""
 from carpy.environment import ISA1975
 from carpy.utility import Quantity
 
@@ -119,7 +118,7 @@ You should see the following output:
 
     ISA1975(+10°C) density at 41,000 feet: [0.28740209] kg m⁻³
 
-You can learn more about `carpy`'s capabilities through the exemplary
+You can learn more about `CARPy`'s capabilities through the exemplary
 [notebooks](./docs/carpy/notebooks).
 
 ## 🐍 Acknowledgements
@@ -129,6 +128,6 @@ The library was authored by:
 - Yaseen Reza
 - Luana Defourny
 
-[comment]: <> (Thank you to the following people for their various contributions to carpy:)
+[comment]: <> (Thank you to the following people for their various contributions to CARPy:)
 
 [comment]: <> (- Dr. András Sóbester, for expert guidance.)

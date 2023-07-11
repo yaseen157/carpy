@@ -1,4 +1,4 @@
-Consolidated aircraft recipes in Python - a Guide for Contributors
+Consolidated Aircraft Recipes in Python - a Guide for Contributors
 =============================================================
 
 Thank you for considering contributing to carpy! Please follow our guidelines on
