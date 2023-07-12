@@ -15,7 +15,7 @@ __author__ = "Yaseen Reza"
 def set_gamma(gamma: Hint.nums = None, /) -> np.ndarray:
     """Return default sea-level gamma if it is not provided."""
     gamma = co.STANDARD.SL.gamma if gamma is None else gamma
-    return cast2numpy(gamma)
+    return np.array(cast2numpy(gamma))
 
 
 def set_beta(beta: Hint.nums = None) -> np.ndarray:
@@ -577,6 +577,11 @@ class ObliqueShock(object):
             try:
                 # Try to compute weak shock result
                 beta_weakshock = newton(f_opt, np.pi / 180)
+
+                # M=2, gamma=1.3, theta=28 deg gives a weird beta = 200 rad case
+                if not (0 <= beta_weakshock <= np.pi / 2):
+                    raise RuntimeError
+
             except RuntimeError as _:
                 # Failure to compute suggests the shock has detached (bow shock)
                 beta_weakshock = np.nan
