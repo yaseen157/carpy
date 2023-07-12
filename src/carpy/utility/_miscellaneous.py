@@ -65,7 +65,7 @@ def cast2numpy(scalar_or_vector: Hint.any, /, dtype=None) -> np.ndarray:
     raise ValueError(errormsg)
 
 
-def isNone(*args):
+def isNone(*args) -> map:
     """True or False for every arg that is None."""
     return map(lambda x: x is None, args)
 
@@ -186,4 +186,43 @@ def call_depth(func):
     return wrapper
 
 
-__all__ += [call_count.__name__, call_depth.__name__]
+def idx0(func):
+    """
+    Decorator for returning the first element of a series returned by the
+    wrapped function.
+
+    Args:
+        func: Function returning a Pandas series.
+
+    Returns:
+        The first element of the series returned by the wrapped function.
+
+    Notes:
+        Can also find the first index of an array, but this use case isn't
+            officially supported for users - internal use only at this time.
+
+    """
+    if callable(func):
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            """Function wrapper, giving the 1st element in a pd.series obj."""
+            result = func(*args, **kwargs)
+            if isinstance(result, pd.Series):
+                return result.iloc[0]
+            else:
+                return result[0]
+
+        return wrapper
+
+    # Technically the below are exceptions for unexpected uses...
+    elif isinstance(func, pd.Series):
+        # Oops, not a function returning a series. It's an actual series!
+        return func.iloc[0]
+
+    else:
+        # Who knows. Just index 0 and hope for the best
+        return func[0]
+
+
+__all__ += [call_count.__name__, call_depth.__name__, idx0.__name__]
