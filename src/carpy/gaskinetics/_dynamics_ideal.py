@@ -827,7 +827,7 @@ class ExpansionFan(object):
 
     def __repr__(self):
         reprstring = (
-            f"{type(self).__name__}(M1={self._M1}, gamma={self._gamma}), "
+            f"{type(self).__name__}(M1={self._M1}, gamma={self._gamma}, "
             f"theta={self._theta})"
         )
         return reprstring
