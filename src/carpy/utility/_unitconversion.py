@@ -581,7 +581,7 @@ class Quantity(np.ndarray):
         flattened = self.flatten()
         # If Quantity only contains a single scalar value, take it!
         if len(flattened) == 1:
-            return self.flat[0]
+            return float(self.flat[0])  # *actually* cast it as a float
         # Otherwise we're losing information unintentionally, raise an error
         else:
             errormsg = "Conversion of multi-element array to scalar is lossy"
