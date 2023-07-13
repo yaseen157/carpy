@@ -24,7 +24,7 @@ dependencies = [
     "openpyxl",
     "pandas",
     "periodictable",
-    "pytest",
+    "pytest>=7",
     "python-metar",
     "pyyaml",
     "requests",
@@ -41,6 +41,9 @@ ipynb = ["jupyter", "notebook"]
 [project.urls]
 homepage = "https://github.com/yaseen157/carpy"
 documentation = "https://pypi.org/project/carpy/"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 [tool.setuptools.dynamic]
 version = {attr = "carpy.__version__"}
