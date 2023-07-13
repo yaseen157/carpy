@@ -118,7 +118,7 @@ You should see the following output:
     ISA1975(+10°C) density at 41,000 feet: [0.28740209] kg m⁻³
 
 You can learn more about `CARPy`'s capabilities through the exemplary
-[notebooks](./docs/carpy/notebooks).
+[notebooks](./docs/source/).
 
 ## 🐍 Acknowledgements
 
