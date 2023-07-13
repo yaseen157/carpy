@@ -18,7 +18,7 @@
 
 ![CARPy](./docs/source/_static/carpy.svg)
 <h2 align="center">
-    <p>Consolidated Aircraft Recipes in Python</p>
+<p>Consolidated Aircraft Recipes in Python</p>
 </h2>
 <p align="center">
     Yaseen Reza, Luana Defourny
@@ -26,11 +26,9 @@
 
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.9.5](https://img.shields.io/badge/python-3.9.5-blue.svg)](https://www.python.org/downloads/release/python-395/)
-
-[comment]: <> ([![PyPI version]&#40;https://badge.fury.io/py/carpy.svg&#41;]&#40;https://badge.fury.io/py/carpy&#41;)
-
-[comment]: <> ([![Build Status]&#40;https://travis-ci.com/yaseen157/carpy.svg?branch=master&#41;]&#40;https://travis-ci.com/yaseen157/carpy&#41;)
+[![Python 3.9.5](https://img.shields.io/badge/python-3.7.0-blue.svg)](https://www.python.org/downloads/release/python-370/)
+[![PyPI version](https://badge.fury.io/py/carpy.svg)](https://badge.fury.io/py/carpy)
+[![Build Status](https://travis-ci.com/yaseen157/carpy.svg?branch=master)](https://travis-ci.com/yaseen157/carpy)
 
 CARPy is an open source project for those interested in the methodology and
 approach to the conceptual-level design of fixed-wing aircraft. This library
