@@ -514,7 +514,7 @@ class Constants(object):
     _standard = Standards()
 
     @property
-    def MATERIAL(self) -> Material:
+    def _MATERIAL(self) -> Material:
         """A library of assorted reference material properties."""
         return self._material
 

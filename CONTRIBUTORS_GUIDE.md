@@ -40,7 +40,9 @@ General principles
 
 5. Beyond the simple example in each docstring, a more extensive case study,
    with detailed, step-by-step explanations, should be included in a Jupyter
-   notebook and placed in carpy/docs/carpy/notebooks.
+   notebook and placed in carpy/docs/source. Subdirectories at this location
+   allow for the categorisation of notebooks into those targetting CARPy
+   **dev**(elopment), **user**( manuals), and (technical )**theory**.
 
 6. Every new function/method needs a test, the more extensive the better. The
    test should be based on public domain data. Please include a reference to the
