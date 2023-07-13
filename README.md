@@ -26,9 +26,9 @@
 
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.9.5](https://img.shields.io/badge/python-3.7.0-blue.svg)](https://www.python.org/downloads/release/python-370/)
+[![Python Version](https://img.shields.io/badge/python-3.9.5-blue.svg)](https://www.python.org/downloads/release/python-395/)
 [![PyPI version](https://badge.fury.io/py/carpy.svg)](https://badge.fury.io/py/carpy)
-[![Build Status](https://travis-ci.com/yaseen157/carpy.svg?branch=master)](https://travis-ci.com/yaseen157/carpy)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
 
 CARPy is an open source project for those interested in the methodology and
 approach to the conceptual-level design of fixed-wing aircraft. This library
