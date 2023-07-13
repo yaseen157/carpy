@@ -562,7 +562,7 @@ class Quantity(np.ndarray):
         return self.__pow__(power)
 
     # ---------------------- #
-    # Arithmetic Convenience #
+    # Arithmetic Overloading #
     # ---------------------- #
 
     def __round__(self, n=None):
@@ -576,6 +576,9 @@ class Quantity(np.ndarray):
 
     def __ceil__(self):
         return np.ceil(self)
+
+    def __float__(self):
+        return self.flat[0]
 
     @property
     def x(self) -> Union[float, np.ndarray]:
