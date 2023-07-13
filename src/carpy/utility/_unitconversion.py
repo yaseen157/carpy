@@ -578,7 +578,14 @@ class Quantity(np.ndarray):
         return np.ceil(self)
 
     def __float__(self):
-        return self.flat[0]
+        flattened = self.flatten()
+        # If Quantity only contains a single scalar value, take it!
+        if len(flattened) == 1:
+            return self.flat[0]
+        # Otherwise we're losing information unintentionally, raise an error
+        else:
+            errormsg = "Conversion of multi-element array to scalar is lossy"
+            raise ValueError(errormsg)
 
     @property
     def x(self) -> Union[float, np.ndarray]:
