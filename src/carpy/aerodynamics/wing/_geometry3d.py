@@ -4,7 +4,6 @@ import warnings
 import numpy as np
 from scipy.integrate import simpson as sint_simpson
 
-from carpy.aerodynamics.aerofoil import BaseProfile
 from carpy.utility import Hint, Quantity
 
 __all__ = ["Wings"]
@@ -19,14 +18,14 @@ class Station(object):
     included in this representation.
     """
 
-    def __init__(self, profile: BaseProfile, incidence: float, dihedral: float):
+    def __init__(self, profile, incidence: float, dihedral: float):
         self._profile = profile
         self._incidence = incidence
         self._dihedral = dihedral
         return
 
     @property
-    def profile(self) -> BaseProfile:
+    def profile(self):
         """Profile object describing the 2D cross-section of a wing."""
         return self._profile
 
@@ -63,7 +62,7 @@ class Monoplane(object):
         """Two-dimensional projected planform of the wing."""
         return self._planform
 
-    def set_station(self, eta: Hint.num, profile: BaseProfile,
+    def set_station(self, eta: Hint.num, profile,
                     incidence: Hint.num = None,
                     dihedral: Hint.num = None) -> None:
         """

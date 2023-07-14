@@ -2,27 +2,23 @@
 import re
 
 import numpy as np
+import requests
 from scipy.integrate import simpson as sint_simpson
 
 from carpy.utility import Hint, cast2numpy
 
-__all__ = ["BaseProfile", "Profiles"]
+__all__ = ["NewNDAerofoil"]
 __author__ = "Yaseen Reza"
 
 
+# ============================================================================ #
+# Base classes for procedural aerofoil generators
+# ---------------------------------------------------------------------------- #
 class BaseProfile(object):
     """General parameters of aerofoil profiles."""
 
     _f_nd_yz: Hint.func = lambda self, x: x * 0
     _f_nd_yt: Hint.func = lambda self, x: x * 0
-
-    def __init__(self):
-        errormsg = (
-            f"Objects of type '{type(self).__name__}' should not be "
-            f"instantiated under normal circumstances, this is the parent of "
-            f"child classes you may consider wanting to instantiate from."
-        )
-        raise EnvironmentError(errormsg)
 
     def nd_yz(self, x: Hint.nums) -> np.ndarray:
         """
@@ -84,61 +80,6 @@ class BaseProfile(object):
             return np.concatenate([u_coords, l_coords], axis=1)
 
         return u_coords, l_coords
-
-    @property
-    def nd_P(self) -> float:
-        """Non-dimensional wetted perimeter (scales linearly with chord)."""
-        xy = self.nd_xy(N=100, concatenate=True, closeTE=True)
-        P = (np.sum(np.diff(xy) ** 2, axis=0) ** 0.5).sum()
-        return P
-
-    @property
-    def nd_S(self) -> float:
-        """Non-dimensional cross-section area (scales with chord ** 2)."""
-        # Find when x stops decreasing in CCW coords and starts increasing
-        xy = self.nd_xy(N=100, concatenate=True, closeTE=False)
-        dx, _ = np.diff(xy)
-        switchpoint = np.argmax(np.isfinite(np.where(dx < 0, np.nan, dx)))
-
-        # Find the area under each curve using Simpson's rule
-        xyupper, xylower = xy[:, :switchpoint + 1], xy[:, switchpoint:]
-        area_under_upper = sint_simpson(*np.flip(xyupper[::-1], axis=1))
-        area_under_lower = sint_simpson(*xylower[::-1])
-        S = area_under_upper - area_under_lower
-        return S
-
-    def view(self):
-        """
-        Compute the coordinates of and draw a wing planform in matplotlib.
-
-        Returns:
-            A tuple of figure and axes (subplot) objects from matplotlib.
-
-        """
-        # Compute coordinates of aerofoil
-        panelres = 25
-        coords_u, coords_l = self.nd_xy(
-            N=panelres, concatenate=False, closeTE=True)
-        ords_z = self.nd_yz(x=np.linspace(0, 1, panelres))
-
-        # Create a figure and plot things
-        from matplotlib import pyplot as plt
-        fig, ax = plt.subplots(dpi=140)
-
-        # Plot 2d section
-        ax.plot(*coords_u, c="blue")
-        ax.plot(*coords_l, c="orange")
-        ax.plot(np.linspace(0, 1, panelres), ords_z, c="k", ls="-.")
-
-        ax.axhline(y=0, c="k", alpha=0.3)  # Origin line
-
-        ax.set_title("2D Section View")
-        ax.set_xlabel("x/c")
-        ax.set_ylabel("y/c")
-        ax.set_aspect(1)  # Ensure scale of x and y axes is comparable/accurate
-        ax.set_ylim(-0.4, 0.6)
-
-        return fig, ax
 
 
 class BaseNACA(BaseProfile):
@@ -214,6 +155,10 @@ class BaseNACA(BaseProfile):
 
         return string_sliced, string_popped
 
+
+# ============================================================================ #
+# Procedural aerofoil generators
+# ---------------------------------------------------------------------------- #
 
 class NACA4DigitSeries(BaseNACA):
     """
@@ -740,16 +685,327 @@ class NACA16Series(BaseNACA):
         return
 
 
-class Profiles(object):
-    """A collection of aerofoil profiles, packaged for easy access."""
+class ProceduralProfiles(object):
+    """A collection of procedural aerofoil profile generators."""
 
-    # NACA 4-digit series
-    NACA4DigitSeries = NACA4DigitSeries
-    NACA4DigitModifiedSeries = NACA4DigitModifiedSeries
+    @staticmethod
+    def NACA(code: str, N=50):
+        """
+        Create a NACA 4-digit, 4-digit modified, 5-digit, 5-digit modified,
+        or 16 series aerofoil.
 
-    # NACA 5-digit series
-    NACA5DigitSeries = NACA5DigitSeries
-    NACA5DigitModifiedSeries = NACA5DigitModifiedSeries
+        Args:
+            code: The aerofoil code.
+            N: The number of control points on each of upper and lower surfaces.
+                Optional, defaults to 50 points on each surface (N=50).
 
-    # NACA x, xx, and xy series
-    NACA16Series = NACA16Series
+        Returns:
+            An Aerofoil object.
+
+        Examples:
+
+            >>> naca_codes = {
+            ...     "4-digit": "2412", "4-digit modified": "2412-63",
+            ...     "5-digit": "24012", "5-digit modified": "24012-33",
+            ...     "16": "16-012", "16 modified": "16-012,a=0.5"
+            ... }
+
+
+            >>> for _, (_, v) in enumerate(naca_codes.items()):
+            >>>     ProceduralProfiles.NACA(code=v, N=60).show()
+
+        """
+        naca_classes = [
+            NACA4DigitSeries, NACA4DigitModifiedSeries,
+            NACA5DigitSeries, NACA5DigitModifiedSeries,
+            NACA16Series
+        ]
+        for naca_class in naca_classes:
+            # noinspection PyProtectedMember
+            if re.match(naca_class._pattern_valid, code):
+                aerofoil = \
+                    NDAerofoil(*parse_datfile(naca_class(code).nd_xy(N=N).T))
+                return aerofoil
+        else:
+            errormsg = (
+                f"{code=} is not a recognised member of any of the following "
+                f"series: {naca_classes}"
+            )
+            raise ValueError(errormsg)
+
+
+# ============================================================================ #
+# Support functions
+# ---------------------------------------------------------------------------- #
+
+
+def parse_datfile(coordinates) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Given information to describe an aerofoil's profile, parse it into two
+    arrays (describing upper and lower surface points, respectively). The
+    data must be two-dimensional, and contain a point passing through (0, 0).
+
+    Args:
+        coordinates: Raw Selig format, raw Lednicer format, tuple of arrays,
+            list of arrays, or an array describing aerofoil geometry. The data
+            must be two dimensional, with one axis of size two.
+
+    Returns:
+        tuple: Two 2D arrays, describing points in upper and lower surfaces of
+            the geometry.
+
+    """
+    # If instantiated with a string
+    if isinstance(coordinates, str):
+        parsed_groups = [[]]
+        for line in coordinates.splitlines():
+            # If line contains 2 numbers, np.array contents and add to group
+            if len(matches := re.findall(r"[-+.e\d]+", line)) == 2:
+                parsed_groups[-1].append(np.array(matches, dtype=float))
+            # If line is empty, prepare next grouping
+            elif line == "":
+                parsed_groups.append([])
+        else:
+            # No aerofoil is described with 1 coordinate
+            coordinates = [np.array(x) for x in parsed_groups if len(x) > 1]
+
+    # If instantiated with an array
+    elif isinstance(coordinates, np.ndarray):
+        coordinates = [coordinates]
+
+    # If instantiated with a tuple or list of arrays
+    elif isinstance(coordinates, (tuple, list)) and all(
+            [isinstance(x, np.ndarray) for x in coordinates]):
+        pass
+
+    else:
+        errormsg = f"Unsupported input type: {type(coordinates)}"
+        raise NotImplementedError(errormsg)
+
+    # Sanity check: Coordinates should be 2D with array shape (n, 2)
+    for i, array in enumerate(coordinates):
+        if (dims := array.ndim) != 2:
+            raise ValueError(f"Coordinate array should be 2D (got {dims})")
+        if array.shape[0] == 2:
+            coordinates[i] = array.T
+
+    # All non-dimensional coordinate descriptions pass through (0, 0)
+    # if Selig style (continuous surface)
+    if (n_arrays := len(coordinates)) == 1:
+        zeroes_idx = np.where(~coordinates[0].any(axis=1))[0][0]
+        coordinates = \
+            [coordinates[0][:zeroes_idx + 1][::-1], coordinates[0][zeroes_idx:]]
+    # if Lednicer style
+    elif n_arrays == 2:
+        pass
+    else:
+        errormsg = (
+            f"Got {n_arrays} arrays that could describe coordinates when "
+            f"only 1 or 2 arrays are expected"
+        )
+        raise ValueError(errormsg)
+
+    # The upper surface's ordinates average greater than lower surface's...
+    surface_u, surface_l = coordinates
+    if (surface_u - surface_l)[:, 1].sum() < 0:
+        surface_u, surface_l = surface_l, surface_u  # ..., swap if they weren't
+
+    return surface_u, surface_l
+
+
+# ============================================================================ #
+# Public-facing Aerofoil class
+# ---------------------------------------------------------------------------- #
+
+
+class NDAerofoil(object):
+    """Non-dimensional Aerofoil object."""
+
+    def __init__(self, upper_points, lower_points):
+        self._rawpoints_u = cast2numpy(upper_points)
+        self._rawpoints_l = cast2numpy(lower_points)
+        return
+
+    @property
+    def closedTE(self):
+        """True if the trailing edge is closed, False otherwise."""
+        if np.array(self._rawpoints_u[-1] == self._rawpoints_l[-1]).all():
+            return True
+        return False
+
+    def nd_xyCCW(self, closeTE=None) -> np.ndarray:
+        """
+        Non-dimensional, CCW coordinates of the aerofoil.
+
+        Args:
+            closeTE: Flag, set to control if the output coordinates produce a
+                closed geometry. Optional, defaults to False.
+
+        Returns:
+            np.ndarray: A 2D array of points.
+
+        """
+        closeTE = False if closeTE is None else closeTE
+        surface_u = self._rawpoints_u
+        surface_l = self._rawpoints_l
+
+        # If current TE closure status doesn't match demanded status, match it
+        if self.closedTE is False:
+
+            # If need to close the TE
+            if closeTE is True:
+                te_coord = np.array([[1, 0]])
+
+                # When necessary, add TE point to both of upper/lower surfaces
+                if not (te_coord == surface_u[-1]).all():
+                    surface_u = np.concatenate([surface_u, te_coord], axis=0)
+                if not (te_coord == surface_l[-1]).all():
+                    surface_l = np.concatenate([surface_l, te_coord], axis=0)
+        else:
+            # If need to open the TE
+            if closeTE is False:
+                surface_u = self._rawpoints_u[:-1]
+                surface_l = self._rawpoints_l[:-1]
+
+        # Concatenate CCW, and remove duplicated LE point
+        xy = np.concatenate([surface_u[::-1], surface_l[1:]], axis=0)
+        return xy
+
+    @property
+    def nd_P(self) -> float:
+        """Non-dimensional wetted perimeter (scales linearly with chord)."""
+        xy = self.nd_xyCCW(closeTE=True).T
+        P = (np.sum(np.diff(xy) ** 2, axis=0) ** 0.5).sum()
+        return P
+
+    @property
+    def nd_S(self) -> float:
+        """Non-dimensional cross-section area (scales with chord ** 2)."""
+        # Find when x stops decreasing in CCW coords and starts increasing
+        xy = self.nd_xyCCW(closeTE=False).T
+        dx, _ = np.diff(xy)
+        switchpoint = np.argmax(np.isfinite(np.where(dx < 0, np.nan, dx)))
+
+        # Find the area under each curve using Simpson's rule
+        xyupper, xylower = xy[:, :switchpoint + 1], xy[:, switchpoint:]
+        area_under_upper = sint_simpson(*np.flip(xyupper[::-1], axis=1))
+        area_under_lower = sint_simpson(*xylower[::-1])
+        S = area_under_upper - area_under_lower
+        return S
+
+    def show(self) -> None:
+        """Simple 2D render of the aerofoil geometry."""
+
+        # Gather data to resize the primary plot
+        ymax = self._rawpoints_u[:, 1].max()
+        ymin = self._rawpoints_l[:, 1].min()
+        # Gather data to resize the inset plot
+        zoom = 25
+        dte_u = self._rawpoints_u[-1] - np.array([1, 0])
+        dte_l = self._rawpoints_l[-1] - np.array([1, 0])
+        inset_ax_radius = ((dte_u ** 2 + dte_l ** 2) ** 0.5).sum() * 2
+        te_xm, te_ym = (dte_u + dte_l) / 2 + np.array([1, 0])
+
+        # Imports
+        from matplotlib import pyplot as plt
+        from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+        from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+
+        # Create primary axes and inset axes
+        fig, ax = plt.subplots(1, dpi=140)
+        axins = zoomed_inset_axes(parent_axes=ax, zoom=zoom, loc="upper right")
+
+        # Draw on both axes objects
+        for axes in (ax, axins):
+            axes.plot(*self._rawpoints_u.T, "blue")
+            axes.plot(*self._rawpoints_l.T, "gold")
+            axes.fill_between(*self.nd_xyCCW().T, 0, alpha=.1, fc="k")
+            axes.axhline(y=0, ls="-.", c="k", alpha=0.3)
+
+        # Make the primary plot pretty
+        fig.canvas.manager.set_window_title(f"{self}.show()")
+        ax.set_title("Aerofoil 2D Profile")
+        ax.set_aspect(1)
+        ax.set_xlim(-0.1, 1.16 + zoom * 2 * inset_ax_radius)
+        ylo, yhi = ax.get_ylim()
+        ax.set_ylim(ylo - (ymax - ymin), yhi + 2 * (ymax - ymin))
+        ax.set_xlabel("x/c")
+        ax.set_ylabel("y/c")
+        ax.grid(alpha=0.3)
+
+        # Make the zoomed-in plot pretty
+        axins.set_xlim(te_xm - inset_ax_radius, te_xm + inset_ax_radius)
+        axins.set_ylim(te_ym - inset_ax_radius, te_ym + inset_ax_radius)
+        axins.set_xlabel(f"{zoom}x zoom", fontsize="small")
+        plt.xticks(visible=False)
+        plt.yticks(visible=False)
+        mark_inset(ax, axins, loc1=2, loc2=3, fc="none", edgecolor="limegreen")
+
+        plt.show()
+        return None
+
+
+class NewNDAerofoil(object):
+    """
+    A class of methods for generating non-dimensional aerofoil geometries.
+    """
+
+    # From online sources
+    @classmethod
+    def from_url(cls, url: str):
+        """
+        Return an aerofoil object, given the URL to a coordinates data file.
+
+        Args:
+            url: A web-URL to a Selig or Lednicer format coordinate data file.
+
+        Returns:
+            An Aerofoil object.
+
+        Examples:
+
+            >>> my_url = "https://m-selig.ae.illinois.edu/ads/coord/n0012.dat"
+            >>> n0012 = NewNDAerofoil.from_url(url=my_url)
+            >>> n0012.show()
+
+        """
+        response = requests.get(url=url)
+
+        # On successful request
+        if response.status_code == 200:
+            geometry = parse_datfile(response.text)
+            aerofoil = NDAerofoil(*geometry)
+        else:
+            raise ConnectionError("Couldn't access given URL")
+
+        return aerofoil
+
+    # From local filepath
+    @classmethod
+    def from_path(cls, filepath):
+        """
+        Return an aerofoil object, given the path to a coordinates data file.
+
+        Args:
+            url: A filepath to a Selig or Lednicer format coordinate data file.
+
+        Returns:
+            An Aerofoil object.
+
+        Examples:
+
+            >>> my_path = "https://m-selig.ae.illinois.edu/ads/coord/n0012.dat"
+            >>> n0012 = NewNDAerofoil.from_path(filepath=my_path)
+            >>> n0012.show()
+
+        """
+        with open(filepath, "r") as f:
+            filecontents = f.read()
+
+        geometry = parse_datfile(filecontents)
+        aerofoil = NDAerofoil(*geometry)
+
+        return aerofoil
+
+    # From procedural generators of aerofoil geometry
+    from_procedure = ProceduralProfiles
