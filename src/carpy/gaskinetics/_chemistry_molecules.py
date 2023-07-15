@@ -492,10 +492,6 @@ class MoleculeAcyclic(object):
 
         # Instantiate a molecule using condensed structural formula,
         # e.g. 'CH3[CH2]2CH3' is butane, and 'CH3C(CH3)3' is isobutane.
-        # Users must be very careful here, as 'H2SO4' is not a valid
-        # structure for sulphuric acid but will not throw an error. The
-        # correct input is '(OH)2SO2' - likewise, 'N2O4' does not specify
-        # dinitrogen tetroxide but '(NO2)2' does.
         >>> butane = MoleculeAcyclic("CH3[CH2]2CH3")
 
     """
@@ -510,9 +506,11 @@ class MoleculeAcyclic(object):
         """
         self._formula = formula
 
-        # Looks weird, but I promise this really does assign bonds to self
-        self._bondtuples = []
-        get_connectivity(self._formula, self._bondtuples)
+        # VVV Below bonding algorithm is *definitely* broken, do not use!!!
+
+        # # Looks weird, but I promise this really does assign bonds to self
+        # self._bondtuples = []
+        # get_connectivity(self._formula, self._bondtuples)
 
         return
 

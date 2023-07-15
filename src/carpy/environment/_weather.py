@@ -47,8 +47,13 @@ def _metar_from_api(*station_ids: str, hours: int = None) -> str:
     api_querytext = ",".join(station_ids) + f"&hours={hours}"
 
     # Perform query
-    link = f"{url_base}{api_path}{api_querytext}"
-    response = requests.get(url=link)
+    try:
+        link = f"{url_base}{api_path}{api_querytext}"
+        response = requests.get(url=link)
+    except Exception as _:
+        errormsg = "Couldn't access weather service. Is your device connected?"
+        raise ConnectionError(errormsg)
+
     if response.status_code != 200:
         errormsg = f"Couldn't access METAR data ({response.status_code=})"
         raise ConnectionError(errormsg)

@@ -919,7 +919,8 @@ class NDAerofoil(object):
         for axes in (ax, axins):
             axes.plot(*self._rawpoints_u.T, "blue")
             axes.plot(*self._rawpoints_l.T, "gold")
-            axes.fill_between(*self.nd_xyCCW().T, 0, alpha=.1, fc="k")
+            axes.fill_between(
+                *self.nd_xyCCW(closeTE=True).T, 0, alpha=.1, fc="k")
             axes.axhline(y=0, ls="-.", c="k", alpha=0.3)
 
         # Make the primary plot pretty
@@ -987,14 +988,14 @@ class NewNDAerofoil(object):
         Return an aerofoil object, given the path to a coordinates data file.
 
         Args:
-            url: A filepath to a Selig or Lednicer format coordinate data file.
+            filepath: A path to a Selig or Lednicer format coordinate data file.
 
         Returns:
             An Aerofoil object.
 
         Examples:
 
-            >>> my_path = "https://m-selig.ae.illinois.edu/ads/coord/n0012.dat"
+            >>> my_path = "C:\\Users\\Public\\Documents\\naca0012.txt"
             >>> n0012 = NewNDAerofoil.from_path(filepath=my_path)
             >>> n0012.show()
 
