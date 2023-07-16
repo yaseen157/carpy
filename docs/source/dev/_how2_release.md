@@ -36,6 +36,6 @@ versions of CARPy.
 See: [Official Packaging Instructions](https://packaging.python.org/en/latest/tutorials/packaging-projects/)
 
 1. Generate distribution archives
-2. Upload distribution archives
+2. Upload distribution archives to GitHub's release/tags section.
 3. ???
 4. Profit
