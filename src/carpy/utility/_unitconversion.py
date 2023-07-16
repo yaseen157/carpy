@@ -1,4 +1,5 @@
 """A module for the conversion of units."""
+import copy
 import functools
 import itertools
 import os
@@ -47,6 +48,15 @@ class Dimensions(object):
     # Order base units as per the MKS (metre, kilogram, second) system of units
     _sibase = np.array(["kg", "m", "s", "A", "K", "mol", "cd"])
 
+    # This cache is *very* important to performance. pandas.series lookups in
+    # this class are very slow. By saving __init__ outcomes to a cache, some
+    # downstream functions see a 5-7x speed improvement! This cache does depend
+    # on users sticking to a regular way of writing units though, for example,
+    # 'm s^{-1}' and 's^{-1} m' are not equivalent. The hope is that users do
+    # stick a regular way of writing units (due to inherent user preferences),
+    # which may even coincide with units used by the library.
+    _sessioncache = {}
+
     def __init__(self, units: str = None, /):
         """
         Args:
@@ -56,6 +66,14 @@ class Dimensions(object):
                 or .imperial tags.
         """
         self._unitstring = "" if units is None else units
+
+        # Check cache for an easy answer
+        # (use deepcopy because of dictionary memory persistence nonsense)
+        if self._unitstring in self._sessioncache:
+            self._pairings = copy.deepcopy(self._sessioncache[self._unitstring])
+            return
+
+        # Otherwise, break units into components and proceed
         units = self._unitstring.split()
 
         # Dictionary will collapse repeated units into singular elements
@@ -153,7 +171,9 @@ class Dimensions(object):
             pairings[key]["symbol"] = symbol
             pairings[key]["system"] = df_dims["System"][sym_id]
 
+        # Store and write to cache
         self._pairings = pairings
+        self._sessioncache[self._unitstring] = copy.deepcopy(self._pairings)
         return
 
     def __repr__(self):
