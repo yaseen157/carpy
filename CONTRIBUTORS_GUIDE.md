@@ -35,21 +35,22 @@ General principles
 4. Each function/method exposed to the user must have a docstring containing
    three main sections: Parameters, Returns and a simple Example (plus an
    optional Notes section if it helps with clarity and usability, e.g., to place
-   the item in a broader context).
+   the item in a broader context). The References heading may be used to further
+   indicate relevant or related scientific literature.
 
-5. Beyond the simple example in each docstring, a more extensive case study,
+6. Beyond the simple example in each docstring, a more extensive case study,
    with detailed, step-by-step explanations, should be included in a Jupyter
    notebook and placed in carpy/docs/source. Subdirectories at this location
    allow for the categorisation of notebooks into those targetting CARPy
    **dev**(elopment), **user**( manuals), and (technical )**theory**.
 
-6. Every new function/method needs a test, the more extensive the better. The
+7. Every new function/method needs a test, the more extensive the better. The
    test should be based on public domain data. Please include a reference to the
    data, going back as close to its original source as you can get. If your new
    code/test has new dependencies, remember to add these to
    the `requirements.txt` file at the top level of this directory structure.
 
-7. If your code requires a unit conversion not provided by the `Quantity`
+8. If your code requires a unit conversion not provided by the `Quantity`
    objects, please add missing conversions to the 'quantities.xlsx' worksheet
    (along with appropriate dimensions as all the other units have). Look to
    other units in the spreadsheet for guidance on how to make a new entry - if a
@@ -58,7 +59,7 @@ General principles
    converisons. Make sure to include an appropriate test for this exceptional
    case.
 
-8. Don't Repeat Yourself - never write the same code in multiple different
+9. Don't Repeat Yourself - never write the same code in multiple different
    places. "Every piece of knowledge must have a single, unambiguous,
    authoritative representation within a system." (Hunt and Thomas)
 
