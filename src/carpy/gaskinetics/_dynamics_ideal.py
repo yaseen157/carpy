@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 from scipy.optimize import newton
 
-from carpy.utility import Hint, cast2numpy, constants as co, Quantity
+from carpy.utility import Hint, cast2numpy, constants as co, Quantity, isNone
 
 __all__ = ["V_max", "nu_max", "IsentropicFlow", "NormalShock", "ObliqueShock",
            "ExpansionFan", "RayleighFlow", "FannoFlow"]
@@ -321,6 +321,49 @@ class IsentropicFlow(object):
         nu = term1 * np.arctan(term2 / term1) - np.arctan(term2)
 
         return nu
+
+    @staticmethod
+    def M(T_T0: Hint.nums = None, p_p0: Hint.nums = None,
+          rho_rho0: Hint.nums = None, gamma: Hint.nums = None):
+        """
+        Compute the flow Mach number.
+
+        Only one of the temperature, pressure, and density ratios need be
+        specified.
+
+        Args:
+            T_T0: The static to total temperature ratio.
+            p_p0: The static to total pressure ratio.
+            rho_rho0: The static to total density ratio.
+            gamma: Adiabatic index of the flow. Optional, defaults to 1.4.
+
+        Returns:
+            The flow Mach number as a function of one of the ratios and gamma.
+
+        """
+        # Recast as necessary
+        # Verify validity of inputs, and that only one input is given
+        if tuple(isNone(T_T0, p_p0, rho_rho0)).count(True) == 2:
+            # Temperature ratio is given
+            if p_p0 is None and rho_rho0 is None:
+                pass
+            # Pressure ratio is given
+            elif T_T0 is None and rho_rho0 is None:
+                T_T0 = p_p0 ** ((gamma - 1) / gamma)
+            # Density ratio is given
+            elif T_T0 is None and p_p0 is None:
+                T_T0 = rho_rho0 ** (gamma - 1)
+        else:
+            errormsg = (
+                f"Expected one of T_T0, p_p0, and rho_rho0 arguments should be "
+                f"used (got {T_T0=}, {p_p0=}, {rho_rho0=})"
+            )
+            raise ValueError(errormsg)
+        gamma = set_gamma(gamma)
+
+        M = ((1 / T_T0 - 1) * (2 / (gamma - 1))) ** 0.5
+
+        return M
 
 
 class NormalShock(object):

@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from carpy.aerodynamics.wing import Planforms
+from carpy.aerodynamics.wing_bkup0 import Planforms
 from carpy.utility import Quantity
 
 

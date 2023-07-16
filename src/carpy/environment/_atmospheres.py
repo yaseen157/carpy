@@ -3,11 +3,12 @@ import functools
 import itertools
 import os
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
 
-from carpy.gaskinetics import GasModels
+from carpy.gaskinetics import GasModels, IsentropicFlow
 from carpy.utility import (
     GetPath, Hint, Pretty, Quantity,
     cast2numpy, cast2quantity, constants as co, isNone, interp_lin, interp_exp
@@ -499,6 +500,101 @@ class Atmosphere(object):
         """
         return self._f_k_thermal(altitude, geometric)
 
+    def airspeeds(self, altitude: Hint.nums = None, geometric=False, *,
+                  CAS: Hint.nums = None, EAS: Hint.nums = None,
+                  TAS: Hint.nums = None, Mach: Hint.nums = None) -> tuple:
+        """
+        Return calibrated, equivalent, and true airspeed at the query altitude.
+
+        Args:
+            altitude: Altitude at which to query the atmosphere model. By
+                default, the altitude is considered geopotentially scaled
+                (unless otherwise specified using the 'geometric' argument).
+            geometric: Flag specifying if given altitudes are geometric or not.
+                Optional, defaults to False.
+            CAS: Calibrated (indicated) airspeed.
+            EAS: Equivalent airspeed at sea level.
+            TAS: True airspeed of the fluid.
+            Mach: The Mach number of flight.
+
+        Returns:
+            tuple: (CAS, EAS, TAS, M) in metres per second (where applicable).
+
+        """
+        # Recast inputs as necessary
+        altitude = cast2numpy(altitude)
+        kwargs = {"altitude": altitude, "geometric": geometric}
+        CAS = CAS if CAS is None else Quantity(CAS, "m s^{-1}")
+        EAS = EAS if EAS is None else Quantity(EAS, "m s^{-1}")
+        TAS = TAS if TAS is None else Quantity(TAS, "m s^{-1}")
+        Mach = Mach if Mach is None else cast2numpy(Mach)
+
+        # Verify validity of inputs, and that only one input is given
+        if tuple(isNone(CAS, EAS, TAS, Mach)).count(True) == 3:
+            pass
+        else:
+            errormsg = (
+                f"Expected one of CAS, EAS, TAS, and Mach arguments should be "
+                f"used (got {CAS=}, {EAS=}, {TAS=}, {Mach=})"
+            )
+            raise ValueError(errormsg)
+
+        # Solve for the missing speeds!
+        rho = self.rho(**kwargs)
+        rho_sl = self.rho(altitude=0)
+        p = self.p(**kwargs)
+        p_sl = self.p(altitude=0)
+        a = self.c_sound(**kwargs)
+        a_sl = self.c_sound(altitude=0)
+        gamma = self.gamma(**kwargs)
+        while True:
+            # EAS can be computed from TAS
+            if EAS is None and TAS is not None:
+                EAS = TAS * np.sqrt(rho / rho_sl)
+            # TAS can be computed from EAS
+            elif TAS is None and EAS is not None:
+                TAS = EAS / np.sqrt(rho / rho_sl)
+            # CAS can be computed from TAS
+            elif CAS is None and EAS is not None and TAS is not None:
+                # Use isentropic flow relations to find the Mach number
+                Mach = TAS / a
+                pt_p = 1 / IsentropicFlow.p_p0(M=Mach, gamma=gamma)
+                qc = p * (pt_p - 1)
+                Tt_Tsl = (qc / p_sl + 1) ** ((gamma - 1) / gamma)
+                Tt_T = (qc / p + 1) ** ((gamma - 1) / gamma)
+                # If Mach is zero, there is a divide by zero error. Suppress it.
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    CAS = EAS * ((p_sl / p) * (Tt_Tsl - 1) / (Tt_T - 1)) ** 0.5
+                CAS = np.where(np.isnan(CAS), 0, CAS)  # replace the nans with 0
+            # TAS can be computed from CAS
+            elif TAS is None and CAS is not None:
+                # Use isentropic flow relations to find the Mach number
+                M_sl = CAS / a_sl
+                pt_psl = 1 / IsentropicFlow.p_p0(M=M_sl, gamma=gamma)
+                qc = p_sl * (pt_psl - 1)
+                Mach = IsentropicFlow.M(p_p0=(p / (p + qc)), gamma=gamma)
+                TAS = Mach * a
+            # TAS can be computed from Mach
+            elif TAS is None and Mach is not None:
+                TAS = Mach * a
+            # It is only possible to reach this stage if we have all the params
+            else:
+                break  # Leave the while loop
+
+        # Find the shape of the output array by finding the biggest shape
+        oshape = max([
+            x.shape for x in [altitude, CAS, EAS, TAS, Mach] if x is not None])
+        # These speed arrays are flattened, 1D and need to be cast back to shape
+        speeds = np.array(np.broadcast_arrays(CAS, EAS, TAS, Mach))
+
+        # Cast back into the right shape
+        speeds = tuple([
+            (Quantity(x, "m s^{-1}") if i != 3 else x).reshape(oshape)
+            for i, x in enumerate(speeds)
+        ])
+        return speeds
+
 
 # ---------------------------------------------------------------------------- #
 # International Standard Atmosphere (1975)
@@ -620,6 +716,7 @@ for sheet, x_pct in itertools.product(list(df_MILHDBK310), ["1pct", "10pct"]):
 # Doesn't matter what the name of the parent is, instantiate a catalogue of atms
 class MILHDBK310(type("catalogue", (object,), milhdbk310_atms)):
     """A collection of atmospheric property models as given in MIL-HDBK-310."""
+
     def __init__(self):
         errormsg = (
             "This is a catalogue of atmospheres, and it should not be "

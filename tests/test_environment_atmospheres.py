@@ -1,6 +1,8 @@
 """Tests for atmosphere models in carpy."""
 import unittest
 
+import numpy as np
+
 from carpy.environment import ISA1975
 
 
@@ -42,3 +44,25 @@ class ISA1975Quantities(unittest.TestCase):
         self.assertTrue(round(isa.p(71e3 + 802, geometric=True)) == 4)
 
         return
+
+    def test_airspeeds(self):
+        """Test conversions between airspeed types."""
+        isa = ISA1975()
+
+        goldspeeds = {
+            "CAS": np.array([124.20454408, 377.49844212]),
+            "EAS": np.array([100., 200.]),
+            "TAS": np.array([415.60659989, 831.21319978]),
+            "Mach": np.array([1.40418125, 2.8083625])
+        }
+
+        for i, (k, v) in enumerate(goldspeeds.items()):
+            # 70,000 [ft] == 21_336 [m]
+            speeds = isa.airspeeds(altitude=21_336, geometric=False, **{k: v})
+            cas, eas, tas, mach = speeds
+
+            self.assertTrue(np.isclose(goldspeeds["CAS"], cas, atol=1e-1).all())
+            self.assertTrue(np.isclose(goldspeeds["EAS"], eas, atol=1e-1).all())
+            self.assertTrue(np.isclose(goldspeeds["TAS"], tas, atol=1e-1).all())
+            self.assertTrue(
+                np.isclose(goldspeeds["Mach"], mach, atol=1e-1).all())

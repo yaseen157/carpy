@@ -506,11 +506,10 @@ class MoleculeAcyclic(object):
         """
         self._formula = formula
 
-        # VVV Below bonding algorithm is *definitely* broken, do not use!!!
-
-        # # Looks weird, but I promise this really does assign bonds to self
-        # self._bondtuples = []
-        # get_connectivity(self._formula, self._bondtuples)
+        # VVV Below bonding algorithm is broken, do not use publicly!!!
+        # Looks weird, but I promise this really does assign bonds to self
+        self._bondtuples = []
+        get_connectivity(self._formula, self._bondtuples)
 
         return
 
