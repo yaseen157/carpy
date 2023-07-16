@@ -12,8 +12,8 @@ General principles
    speed.
 
 2. The consistency of physical units in the library is maintained using the
-   `carpy.libutils.recastasarray` function and `carpy.tools.Quantity` objects.
-    1. `recastasarray(...)`should be used to sanitise numerical inputs, ensuring
+   `carpy.utility.cast2numpy` function and `carpy.tools.Quantity` objects.
+    1. `cast2numpy(...)`should be used to sanitise numerical inputs, ensuring
        that the following code is always dealing with `numpy.ndarray` objects.
     2. Wherever possible, the numbers returned to a user (if dimensioned) should
        be returned within a `Quantity` object. The result of adherence to this
@@ -35,8 +35,7 @@ General principles
 4. Each function/method exposed to the user must have a docstring containing
    three main sections: Parameters, Returns and a simple Example (plus an
    optional Notes section if it helps with clarity and usability, e.g., to place
-   the item in a broader context). Always check afterwards that your docstring
-   has rendered correctly on `readthedocs`.
+   the item in a broader context).
 
 5. Beyond the simple example in each docstring, a more extensive case study,
    with detailed, step-by-step explanations, should be included in a Jupyter
