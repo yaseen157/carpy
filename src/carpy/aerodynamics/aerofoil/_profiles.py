@@ -826,6 +826,26 @@ class NDAerofoil(object):
         self._rawpoints_l = cast2numpy(lower_points)
         return
 
+    def __mul__(self, other):
+        new_object = type(self)(
+            upper_points=self._rawpoints_u * other,
+            lower_points=self._rawpoints_l * other
+        )
+        return new_object
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __add__(self, other):
+        if not isinstance(other, type(self)):
+            raise TypeError(f"Cannot add {type(self)=} to {type(other)=}")
+
+        new_object = type(self)(
+            upper_points=self._rawpoints_u + other._rawpoints_u,
+            lower_points=self._rawpoints_l + other._rawpoints_l
+        )
+        return new_object
+
     @property
     def closedTE(self):
         """True if the trailing edge is closed, False otherwise."""
@@ -833,7 +853,7 @@ class NDAerofoil(object):
             return True
         return False
 
-    def nd_xyCCW(self, closeTE=None) -> np.ndarray:
+    def xyCCW(self, closeTE=None) -> np.ndarray:
         """
         Non-dimensional, CCW coordinates of the aerofoil.
 
@@ -872,17 +892,17 @@ class NDAerofoil(object):
         return xy
 
     @property
-    def nd_P(self) -> float:
+    def perimeter(self) -> float:
         """Non-dimensional wetted perimeter (scales linearly with chord)."""
-        xy = self.nd_xyCCW(closeTE=True).T
+        xy = self.xyCCW(closeTE=True).T
         P = (np.sum(np.diff(xy) ** 2, axis=0) ** 0.5).sum()
         return P
 
     @property
-    def nd_S(self) -> float:
+    def area(self) -> float:
         """Non-dimensional cross-section area (scales with chord ** 2)."""
         # Find when x stops decreasing in CCW coords and starts increasing
-        xy = self.nd_xyCCW(closeTE=False).T
+        xy = self.xyCCW(closeTE=False).T
         dx, _ = np.diff(xy)
         switchpoint = np.argmax(np.isfinite(np.where(dx < 0, np.nan, dx)))
 
@@ -920,7 +940,7 @@ class NDAerofoil(object):
             axes.plot(*self._rawpoints_u.T, "blue")
             axes.plot(*self._rawpoints_l.T, "gold")
             axes.fill_between(
-                *self.nd_xyCCW(closeTE=True).T, 0, alpha=.1, fc="k")
+                *self.xyCCW(closeTE=True).T, 0, alpha=.1, fc="k")
             axes.axhline(y=0, ls="-.", c="k", alpha=0.3)
 
         # Make the primary plot pretty
@@ -944,6 +964,36 @@ class NDAerofoil(object):
 
         plt.show()
         return None
+
+    @property
+    def alpha_zl(self) -> float:
+        """
+        A property of the non-dimensional aerofoil profile attached to this
+        station, the angle of zero-lift with respect to the aerofoil's
+        chordline.
+
+        Returns:
+            Angle of zero-lift, in radians.
+
+        """
+        # Does angle of zero lift change with compressibility? I don't forsee
+        # needing to change the property name, but I probably will change the
+        # documentation if so...
+        raise NotImplementedError
+
+    def CLalpha(self, alpha: Hint.nums) -> NotImplemented:
+        """
+        The incompressible lift curve slope of the aerofoil profile.
+
+        Args:
+            alpha: Angle of attack, in radians.
+
+        Returns:
+
+        """
+        # Recast as necessary
+        alpha = cast2numpy(alpha)
+        raise NotImplementedError
 
 
 class NewNDAerofoil(object):

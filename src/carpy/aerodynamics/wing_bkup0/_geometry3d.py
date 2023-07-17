@@ -166,7 +166,7 @@ class Monoplane(object):
 
         for i, (eta, station) in enumerate(stations.items()):
             # Wetted cross-sectional perimeter of the station
-            nd_perimeter = station.profile.nd_P
+            nd_perimeter = station.profile.perimeter
             nd_perimeters.append(nd_perimeter)
 
         # Linearly interpolate the answer between stations
