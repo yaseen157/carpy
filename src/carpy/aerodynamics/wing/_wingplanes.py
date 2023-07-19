@@ -158,8 +158,19 @@ class NDWing(object):
         self._stations[key] = new_station
         return None
 
-    def interp_station(self, y: Hint.nums):
+    def interp_station(self, y: Hint.nums) -> np.ndarray[WingStation]:
+        """
+        For non-dimensional station position y (element of [0, 1]), interpolate
+        reference station coordinates to produce intermediary stations.
 
+        Args:
+            y: Numbers from 0 (wing root) to 1 (wing tip) at which stations are
+                requested.
+
+        Returns:
+            np.ndarray: WingStation objects at the requested spans.
+
+        """
         # Recast as necessary
         y = cast2numpy(y)
 
@@ -306,12 +317,13 @@ class NDWing(object):
 
         return fourier_coeff
 
-    def optimise(
+    def optimise_planform(
             self, C_L: float, AR: float, n_sections: int = None,
-            N: int = None) -> tuple[np.ndarray, np.ndarray]:
+            N: int = None, constant_inner: bool = None) -> tuple[
+        np.ndarray, np.ndarray]:
         """
-        A gradient descent algorithm that optimises the lift distribution of the
-        wing by the manipulation of chord length along the span of the wing.
+        An algorithm that optimises the lift distribution of the wing through
+        the manipulation of chord length along the span of the wing.
 
         The wing stations themselves are not changed in any way, so as to best
         preserve characteristics such as prescribed stalling behaviour of the
@@ -326,6 +338,9 @@ class NDWing(object):
                 tapered wing).
             N: The number of sine-spaced samples to compute over the span of the
                 [-1, 1] wing domain. Optional, defaults to 100.
+            constant_inner: A boolean flag, specifies whether or not the
+                innermost section of the wing has a constant chord or not.
+                Optional, defaults to False.
 
         Returns:
             tuple: Non-dimensional
@@ -334,12 +349,24 @@ class NDWing(object):
         # Recast as necessary
         n_sections = 1 if n_sections is None else n_sections
         N = 100 if N is None else N  # ~3 d.p. precision
+        constant_inner = False if constant_inner is None else constant_inner
 
         # Initialise a solution based on elliptical planforms
         n_ctrlpts = (2 * n_sections) + 1
-        xp = np.linspace(-1, 1, n_ctrlpts)
-        fp = np.sin(np.arccos(xp))
-        f_chord = lambda x: np.interp(x, xp, fp)
+        my_xp = np.linspace(-1, 1, n_ctrlpts)
+        my_fp = np.sin(np.arccos(my_xp))
+
+        def factory_f_chord(xp, fp):
+            """Given xp, fp, return the function numpy.interp(x, xp, fp)."""
+
+            def procedural_f_chord(y_b2):
+                """A function describing chord given position y / (b/2)."""
+                return np.interp(y_b2, xp, fp)
+
+            return procedural_f_chord
+
+        # A function with domain [-1, 1] and range [0, 1]
+        f_chord = factory_f_chord(xp=my_xp, fp=my_fp)
 
         # Constrain AoA optimisation solutions
         # Check that the set of elements representing AoA are of length > 1
@@ -357,44 +384,59 @@ class NDWing(object):
         )
         warnings.warn(message=warnmsg, category=RuntimeWarning)
 
-        # Constrain wing optimisation solutions
-        # package boundaries as (chord0, position0, chord1, position1, ...)
-        bound_chord_lo = np.zeros(n_ctrlpts)
-        bound_chord_hi = np.ones(n_ctrlpts)
-        bound_chord_lo[n_sections] = 1  # Make root chord unchangeable length
-        bound_posn_lo = -np.ones(n_ctrlpts)
-        bound_posn_hi = np.ones(n_ctrlpts)
-        bound_posn_hi[:n_sections] = 0  # Anything port is bounded by centreline
-        bound_posn_lo[n_sections:] = 0  # Anything stbd is bounded by centreline
-        bound_posn_hi[n_sections:] = 1  # Anything stbd is bounded by wingtip
-        bound_posn_lo[n_sections] = 0  # Fix the root control point position
-        bound_posn_hi[n_sections] = 0
-        bound_posn_lo[-1] = 1  # Fix the starboard tip control point position
-        bound_posn_hi[-1] = 1
-        bound_posn_lo[0] = -1  # Fix the port tip control point position
-        bound_posn_hi[0] = -1
-        # Bounds currently represent full span. Because of mirror symmetry, we
-        # can reduce the size of the problem to just centreline --> starboard
-        bound_chord_lo = bound_chord_lo[n_sections:]
-        bound_chord_hi = bound_chord_hi[n_sections:]
-        bound_posn_lo = bound_posn_lo[n_sections:]
-        bound_posn_hi = bound_posn_hi[n_sections:]
+        # Constrain wing optimisation solutions (add bounds)
+        bound_chord_lo, bound_posns_lo = np.zeros((2, n_sections + 1))
+        bound_chord_hi, bound_posns_hi = np.ones((2, n_sections + 1))
+        # Force wing root to be length 1, and position 0
+        bound_chord_lo[0] = 1
+        bound_posns_hi[0] = 0
+        # Force inboard section to be constant chord
+        if constant_inner is True and n_sections > 1:
+            bound_chord_lo[1] = 1
+        # Force wing tip position
+        bound_posns_lo[-1] = 1
+        # Build bounds
         bounds = sopt.Bounds(
-            [x for pair in zip(bound_chord_lo, bound_posn_lo) for x in pair],
-            [x for pair in zip(bound_chord_hi, bound_posn_hi) for x in pair]
+            [x for pair in zip(bound_chord_lo, bound_posns_lo) for x in pair],
+            [x for pair in zip(bound_chord_hi, bound_posns_hi) for x in pair]
         )
-        # This represents x0 for port --> starboard
-        x0 = np.array([x for pair in zip(fp, xp) for x in pair])
-        # The wing is symmetric, so reduce to centreline --> starboard
+
+        # This represents initial solution for x0, from port --> starboard
+        x0 = np.array([x for pair in zip(my_fp, my_xp) for x in pair])
+        # The wing is symmetric, so reduce solution to centreline --> starboard
         x0 = x0[2 * n_sections:]
+
+        def parse_interspersed_x(x) -> tuple:
+            """
+            Given interwoven chord length and spanwise position of this chord
+            value, return x parsed into respective arrays.
+
+            Args:
+                x: Interwoven chord length and spanwise position of this chord.
+
+            Returns:
+                tuple: (chord lengths, semispan-wise position of chord lengths).
+
+            """
+            # Even indices for chord length, odd indices for ctrlpt posn.
+            my_chord_lengths = x[::2]  # Ordered port --> starboard
+            my_ctrlpt_posns = x[1::2]  # Ordered port --> starboard
+
+            # Since we have centreline -> starboard (symmetry), duplicate
+            # and mirror arguments to produce the whole planform
+            my_chord_lengths = np.concatenate(
+                [my_chord_lengths[:0:-1], my_chord_lengths])
+            my_ctrlpt_posns = np.concatenate(
+                [-my_ctrlpt_posns[:0:-1], my_ctrlpt_posns])
+            return my_chord_lengths, my_ctrlpt_posns
 
         steps_max = 5
         for step in range(steps_max):
-
             print(f"\rOptimisation step {step + 1} of {steps_max=}...", end="")
 
             # Step 1: optimise the freestream angle of attack that gives C_L
-            def f_opt(aoa_rad):
+            def f_opt(aoa_rad) -> float:
+                """Given AoA (radians), compute error w.r.t target C_L."""
                 fourier_coeffs = self._compute_gld(
                     f_nd_chord=f_chord, AR=AR, alpha_inf=aoa_rad, N=N)
                 matX = fourier_coeffs[0]
@@ -405,60 +447,73 @@ class NDWing(object):
             alpha_inf = sopt.brentq(f_opt, a=alpha_lo, b=alpha_hi, xtol=1e-3)
 
             # Step 2: Minimise delta
-            def f_opt(args):
-                # Unpack arguments received
-                # Even indices for chord length, odd indices for ctrlpt posn.
-                chord_lengths = args[::2]  # Ordered port --> starboard
-                ctrlpt_posns = args[1::2]  # Ordered port --> starboard
+            def f_opt(args: np.ndarray) -> float:
+                """
+                Given an array describing planform control point coordinates,
+                estimate the deviation of the planform's lift distribution from
+                that of the elliptical lift distribution.
 
-                # Since we have centreline -> starboard (symmetry), duplicate
-                # and mirror arguments to produce the whole planform
-                chord_lengths = np.concatenate(
-                    [chord_lengths[:0:-1], chord_lengths])
-                ctrlpt_posns = np.concatenate(
-                    [-ctrlpt_posns[:0:-1], ctrlpt_posns])
+                Args:
+                    args: An array of the form (chord0, position0, chord1,
+                        position1, ...) etc.
+
+                Returns:
+                    float: delta, from which the span efficiency factor, e, is
+                        computed as follows: e = 1 / (1 + delta).
+
+                """
+                # Unpack arguments received
+                my_chord_lengths, my_ctrlpt_posns = parse_interspersed_x(args)
 
                 # Now, build the planform with linear interpolation
-                f_chord = lambda x: np.interp(x, ctrlpt_posns, chord_lengths)
+                my_f_chord = \
+                    factory_f_chord(xp=my_ctrlpt_posns, fp=my_chord_lengths)
 
                 # Try out the objective function - minimising delta
                 fourier_coeffs = self._compute_gld(
-                    f_nd_chord=f_chord, AR=AR, alpha_inf=alpha_inf, N=N)
+                    f_nd_chord=my_f_chord, AR=AR, alpha_inf=alpha_inf, N=N)
                 matX = fourier_coeffs[0]
                 delta = (((np.arange(N) + 1) * (matX / matX[0]) ** 2)[1:]).sum()
 
                 return delta
 
-            # Solve, then check for convergence
+            # Solve and unpack solution as the latest guess for planform shape
             solution = sopt.minimize(
                 fun=f_opt, x0=x0,  # Optimisation function and initial guess
                 method="trust-constr",  # Optimisation strategy
                 bounds=bounds  # Earlier bounds
             )
-            # In break and continue cases, update solution *after* comparison
-            if np.allclose(x0, solution.x):
-                x0 = solution.x
+            chords, controlpoints = parse_interspersed_x(solution.x)
+            f_chord = factory_f_chord(xp=controlpoints, fp=chords)
+
+            # Check for convergence, and break if converged:
+            # Compare current x0 to latest update to x0 (from solution)
+            if np.allclose(x0, (x0 := solution.x)):
                 break
-            else:
-                x0 = solution.x
-                continue
         print(f"planform optimisation complete.")
 
-        chord_lengths = x0[::2]  # Ordered port --> starboard
-        ctrlpt_posns = x0[1::2]  # Ordered port --> starboard
+        # Chords bound by [0, 1], control points bound by [-1, 1]
+        chords, controlpoints = parse_interspersed_x(x0)
 
-        # Since we have centreline -> starboard (symmetry), duplicate
-        # and mirror arguments to produce the whole planform
-        chord_lengths = np.concatenate(
-            [chord_lengths[:0:-1], chord_lengths])
-        ctrlpt_posns = np.concatenate(
-            [-ctrlpt_posns[:0:-1], ctrlpt_posns])
+        # Since S = b * Standard.Mean.Chord; S / (b/2) == 2 * (S / b) == 2 * SMC
+        # And now b = AR * SMC, the span we need for a fixed aspect ratio
+        twoS_b = abs(simpson(chords, controlpoints))  # == S divided by (b/2)
+        SMC = twoS_b / 2
+        b = AR * SMC
 
-        # Perhaps because I already have aspect ratio, I should just return
-        # a 2D array of coordinates per metre span, so a user can then scale as
-        # necessary to get the right wing area...
+        # Chords bound by [0, 1], control points bound by [-b/2, b/2]
+        controlpoints = controlpoints * (b / 2)
 
-        return ctrlpt_posns, chord_lengths
+        from matplotlib import pyplot as plt
+        fig, ax = plt.subplots(1, dpi=140)
+
+        ax.plot(controlpoints, chords)
+        ax.set_aspect(1)
+        ax.set_ylim(-1, 2)
+        ax.grid()
+        plt.show()
+
+        return controlpoints, chords
 
 
 class NewNDWing(object):
@@ -513,5 +568,5 @@ if __name__ == "__main__":
 
     wing = NDWing()
     wing.new_station(y=0.9, nd_profile=aerofoil1)
-    wing.new_station(y=0.2, nd_profile=aerofoil2, alpha_geo=np.radians(0))
-    wing.optimise(C_L=1.1, AR=28, n_sections=2)
+    wing.new_station(y=0.2, nd_profile=aerofoil2)
+    wing.optimise_planform(C_L=1.1, AR=28, n_sections=2, constant_inner=True)
