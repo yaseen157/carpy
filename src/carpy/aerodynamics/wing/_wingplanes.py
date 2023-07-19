@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 from scipy.integrate import simpson
+import scipy.optimize as sopt
 
 from carpy.utility import cast2numpy, Hint
 
@@ -214,14 +215,33 @@ class NDWing(object):
         return int_stations
 
     def _compute_gld(
-            self, f_nd_chord: Hint.func, AR: int, alpha_inf: Hint.nums = None,
-            N: int = None):
+            self, f_nd_chord: Hint.func, AR: float, alpha_inf: Hint.nums = None,
+            N: int = None) -> np.ndarray:
+        """
+        Compute the decomposed Fourier series solution to the general planform
+        circulation distribution problem in Prandtl's Lifting Line Theory.
+
+        Args:
+            f_nd_chord: A function with domain [-1, 1] (indicating the fraction
+                of semi-span from port wingtip to starboard wingtip), and range
+                [0, 1] (indicating a fraction of some reference chord length,
+                which is usually the wing root chord).
+            AR: Design aspect ratio of the wing.
+            alpha_inf: The freestream angle of attack.
+            N: The number of sine-spaced samples to compute over the span of the
+                [-1, 1] wing domain. Optional, defaults to 100.
+
+        Returns:
+            np.ndarray: An array with the same outer dimensions as alpha_inf,
+                and deepest inner dimension is the Fourier series solution.
+
+        """
 
         # Recast as necessary
-        N = 200 if N is None else N
         alpha_inf = np.zeros(1) if alpha_inf is None else cast2numpy(alpha_inf)
+        N = 100 if N is None else N  # ~3 d.p. precision
 
-        theta0 = np.linspace(0, np.pi, N + 2)[1:-1]
+        theta0 = np.linspace(0, np.pi, N + 2)[1:-1]  # Arguments of distribution
 
         # Setup some arrays for computation
         interp_stations = self.interp_station(y=np.abs(np.cos(theta0)))
@@ -231,7 +251,7 @@ class NDWing(object):
         f_clalpha_2d = [lambda x: 2 * np.pi for _ in theta0]
         warnmsg = (
             f"Assuming zero-lift angle of attack of zero degrees for all "
-            f"aerofoils (all aerofoils are considered symmetric and uncambered)"
+            f"aerofoils (all aerofoils are considered thin, flat plates)"
         )
         warnings.warn(message=warnmsg, category=RuntimeWarning)
         warnmsg = (
@@ -278,15 +298,17 @@ class NDWing(object):
             matX = np.linalg.solve(matA, matB).T[0]
             fourier_coeff[i] = matX
 
-        # Compute ELD deviation, delta
-        matX = fourier_coeff[0]
-        delta = (((np.arange(N) + 1) * (matX / matX[0]) ** 2)[1:]).sum()
-        e = 1 / (1 + delta)
-        print(f"{delta=}, {e=}")
+        # # Compute ELD deviation, delta
+        # matX = fourier_coeff[0]
+        # delta = (((np.arange(N) + 1) * (matX / matX[0]) ** 2)[1:]).sum()
+        # e = 1 / (1 + delta)
+        # print(f"{delta=}, {e=}")
 
         return fourier_coeff
 
-    def optimise(self, C_L: float, AR: float, n_sections: int = None) -> None:
+    def optimise(
+            self, C_L: float, AR: float, n_sections: int = None,
+            N: int = None) -> tuple[np.ndarray, np.ndarray]:
         """
         A gradient descent algorithm that optimises the lift distribution of the
         wing by the manipulation of chord length along the span of the wing.
@@ -302,32 +324,141 @@ class NDWing(object):
             n_sections: The number of trapezoidal sections to distribute along
                 each wing of the wingplane. Optional, defaults to 1 (straight
                 tapered wing).
+            N: The number of sine-spaced samples to compute over the span of the
+                [-1, 1] wing domain. Optional, defaults to 100.
 
         Returns:
-            None
+            tuple: Non-dimensional
 
         """
         # Recast as necessary
         n_sections = 1 if n_sections is None else n_sections
+        N = 100 if N is None else N  # ~3 d.p. precision
 
-        xp = np.linspace(-1, 1, (2 * n_sections) + 1)
+        # Initialise a solution based on elliptical planforms
+        n_ctrlpts = (2 * n_sections) + 1
+        xp = np.linspace(-1, 1, n_ctrlpts)
         fp = np.sin(np.arccos(xp))
         f_chord = lambda x: np.interp(x, xp, fp)
 
-        fourier_coeff = self._compute_gld(
-            f_nd_chord=f_chord, AR=10, alpha_inf=np.radians(1))
-
+        # Constrain AoA optimisation solutions
+        # Check that the set of elements representing AoA are of length > 1
+        alpha_geo = cast2numpy([x.alpha_geo for x in self._stations.values()])
+        alpha_zl = cast2numpy([0 for _ in alpha_geo], dtype=np.float64)
+        if len(set(alpha_geo - alpha_zl)) == 1:
+            alpha_lo = -(alpha_geo - alpha_zl)[0] + 1e-3
+            alpha_hi = float(np.radians(20))
+        else:
+            alpha_lo = float(-np.radians(8))
+            alpha_hi = float(np.radians(20))
         warnmsg = (
-            f"To do:"
-            f"\n0) Start with elliptical chord distribution"
-            f"\n1) Optimise AoA to get near to target C_L"
-            f"\n2) Grad. desc. on chord lengths and section spanwise positions "
-            f"(objective function of spanwise efficiency, minimise delta)"
-            f"\n3) Repeat until there are no longer changes to planform chord"
+            f"Assuming zero-lift angle of attack of zero degrees for all "
+            f"aerofoils (all aerofoils are considered thin, flat plates)"
         )
         warnings.warn(message=warnmsg, category=RuntimeWarning)
 
-        return None
+        # Constrain wing optimisation solutions
+        # package boundaries as (chord0, position0, chord1, position1, ...)
+        bound_chord_lo = np.zeros(n_ctrlpts)
+        bound_chord_hi = np.ones(n_ctrlpts)
+        bound_chord_lo[n_sections] = 1  # Make root chord unchangeable length
+        bound_posn_lo = -np.ones(n_ctrlpts)
+        bound_posn_hi = np.ones(n_ctrlpts)
+        bound_posn_hi[:n_sections] = 0  # Anything port is bounded by centreline
+        bound_posn_lo[n_sections:] = 0  # Anything stbd is bounded by centreline
+        bound_posn_hi[n_sections:] = 1  # Anything stbd is bounded by wingtip
+        bound_posn_lo[n_sections] = 0  # Fix the root control point position
+        bound_posn_hi[n_sections] = 0
+        bound_posn_lo[-1] = 1  # Fix the starboard tip control point position
+        bound_posn_hi[-1] = 1
+        bound_posn_lo[0] = -1  # Fix the port tip control point position
+        bound_posn_hi[0] = -1
+        # Bounds currently represent full span. Because of mirror symmetry, we
+        # can reduce the size of the problem to just centreline --> starboard
+        bound_chord_lo = bound_chord_lo[n_sections:]
+        bound_chord_hi = bound_chord_hi[n_sections:]
+        bound_posn_lo = bound_posn_lo[n_sections:]
+        bound_posn_hi = bound_posn_hi[n_sections:]
+        bounds = sopt.Bounds(
+            [x for pair in zip(bound_chord_lo, bound_posn_lo) for x in pair],
+            [x for pair in zip(bound_chord_hi, bound_posn_hi) for x in pair]
+        )
+        # This represents x0 for port --> starboard
+        x0 = np.array([x for pair in zip(fp, xp) for x in pair])
+        # The wing is symmetric, so reduce to centreline --> starboard
+        x0 = x0[2 * n_sections:]
+
+        steps_max = 5
+        for step in range(steps_max):
+
+            print(f"\rOptimisation step {step + 1} of {steps_max=}...", end="")
+
+            # Step 1: optimise the freestream angle of attack that gives C_L
+            def f_opt(aoa_rad):
+                fourier_coeffs = self._compute_gld(
+                    f_nd_chord=f_chord, AR=AR, alpha_inf=aoa_rad, N=N)
+                matX = fourier_coeffs[0]
+                cl_computed = np.pi * AR * matX[0]
+                error = C_L - cl_computed
+                return error
+
+            alpha_inf = sopt.brentq(f_opt, a=alpha_lo, b=alpha_hi, xtol=1e-3)
+
+            # Step 2: Minimise delta
+            def f_opt(args):
+                # Unpack arguments received
+                # Even indices for chord length, odd indices for ctrlpt posn.
+                chord_lengths = args[::2]  # Ordered port --> starboard
+                ctrlpt_posns = args[1::2]  # Ordered port --> starboard
+
+                # Since we have centreline -> starboard (symmetry), duplicate
+                # and mirror arguments to produce the whole planform
+                chord_lengths = np.concatenate(
+                    [chord_lengths[:0:-1], chord_lengths])
+                ctrlpt_posns = np.concatenate(
+                    [-ctrlpt_posns[:0:-1], ctrlpt_posns])
+
+                # Now, build the planform with linear interpolation
+                f_chord = lambda x: np.interp(x, ctrlpt_posns, chord_lengths)
+
+                # Try out the objective function - minimising delta
+                fourier_coeffs = self._compute_gld(
+                    f_nd_chord=f_chord, AR=AR, alpha_inf=alpha_inf, N=N)
+                matX = fourier_coeffs[0]
+                delta = (((np.arange(N) + 1) * (matX / matX[0]) ** 2)[1:]).sum()
+
+                return delta
+
+            # Solve, then check for convergence
+            solution = sopt.minimize(
+                fun=f_opt, x0=x0,  # Optimisation function and initial guess
+                method="trust-constr",  # Optimisation strategy
+                bounds=bounds  # Earlier bounds
+            )
+            # In break and continue cases, update solution *after* comparison
+            if np.allclose(x0, solution.x):
+                x0 = solution.x
+                break
+            else:
+                x0 = solution.x
+                continue
+        print(f"planform optimisation complete.")
+
+        chord_lengths = x0[::2]  # Ordered port --> starboard
+        ctrlpt_posns = x0[1::2]  # Ordered port --> starboard
+
+        # Since we have centreline -> starboard (symmetry), duplicate
+        # and mirror arguments to produce the whole planform
+        chord_lengths = np.concatenate(
+            [chord_lengths[:0:-1], chord_lengths])
+        ctrlpt_posns = np.concatenate(
+            [-ctrlpt_posns[:0:-1], ctrlpt_posns])
+
+        # Perhaps because I already have aspect ratio, I should just return
+        # a 2D array of coordinates per metre span, so a user can then scale as
+        # necessary to get the right wing area...
+
+        return ctrlpt_posns, chord_lengths
 
 
 class NewNDWing(object):
@@ -383,5 +514,4 @@ if __name__ == "__main__":
     wing = NDWing()
     wing.new_station(y=0.9, nd_profile=aerofoil1)
     wing.new_station(y=0.2, nd_profile=aerofoil2, alpha_geo=np.radians(0))
-
     wing.optimise(C_L=1.1, AR=28, n_sections=2)
