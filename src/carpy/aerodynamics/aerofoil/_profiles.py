@@ -948,7 +948,8 @@ class NDAerofoil(object):
         zoom = 25
         dte_u = self._rawpoints_u[-1] - np.array([1, 0])
         dte_l = self._rawpoints_l[-1] - np.array([1, 0])
-        inset_ax_radius = ((dte_u ** 2 + dte_l ** 2) ** 0.5).sum() * 2
+        inset_ax_radius \
+            = max(((dte_u ** 2 + dte_l ** 2) ** 0.5).sum() * 2, .005)
         te_xm, te_ym = (dte_u + dte_l) / 2 + np.array([1, 0])
 
         # Imports
