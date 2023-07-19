@@ -259,15 +259,15 @@ class NDWing(object):
         chord = f_nd_chord(np.cos(theta0))
         alpha_geo = cast2numpy([[x.alpha_geo] for x in interp_stations])
         alpha_zl = cast2numpy([[0] for _ in theta0], dtype=np.float64)
-        f_clalpha_2d = [lambda x: 2 * np.pi for _ in theta0]
+        f_clalpha_2d = [lambda x: 6.0 for _ in theta0]
         warnmsg = (
             f"Assuming zero-lift angle of attack of zero degrees for all "
             f"aerofoils (all aerofoils are considered thin, flat plates)"
         )
         warnings.warn(message=warnmsg, category=RuntimeWarning)
         warnmsg = (
-            f"Assuming lift curve slope of CLa = 2 * pi at all AOA, for all "
-            f"aerofoil sections (as per 2D flat plate theory)"
+            f"Assuming lift curve slope of CLa = ~6.0 at all AOA, for all "
+            f"aerofoil sections (just under the 6.28 per 2D flat plate theory)"
         )
         warnings.warn(message=warnmsg, category=RuntimeWarning)
 
@@ -319,8 +319,7 @@ class NDWing(object):
 
     def optimise_planform(
             self, C_L: float, AR: float, n_sections: int = None,
-            N: int = None, constant_inner: bool = None) -> tuple[
-        np.ndarray, np.ndarray]:
+            N: int = None, constant_inner: bool = None) -> tuple:
         """
         An algorithm that optimises the lift distribution of the wing through
         the manipulation of chord length along the span of the wing.
@@ -339,8 +338,10 @@ class NDWing(object):
             N: The number of sine-spaced samples to compute over the span of the
                 [-1, 1] wing domain. Optional, defaults to 100.
             constant_inner: A boolean flag, specifies whether or not the
-                innermost section of the wing has a constant chord or not.
-                Optional, defaults to False.
+                innermost section of the wing has a constant chord or not. This
+                statement has no effect if 'n_sections' == 1 (as you would end
+                up with an uninteresting rectangular wing). Optional, defaults
+                to False.
 
         Returns:
             tuple: Non-dimensional
@@ -401,6 +402,8 @@ class NDWing(object):
             [x for pair in zip(bound_chord_hi, bound_posns_hi) for x in pair]
         )
 
+        # Initial solution for alpha_inf? Just to stop IDE COMPLAINING
+        alpha_inf = 0.1  # ~5.7 degrees
         # This represents initial solution for x0, from port --> starboard
         x0 = np.array([x for pair in zip(my_fp, my_xp) for x in pair])
         # The wing is symmetric, so reduce solution to centreline --> starboard
@@ -493,27 +496,30 @@ class NDWing(object):
         print(f"planform optimisation complete.")
 
         # Chords bound by [0, 1], control points bound by [-1, 1]
-        chords, controlpoints = parse_interspersed_x(x0)
+        nd_chord, nd_ctrlpt = parse_interspersed_x(x0)
 
         # Since S = b * Standard.Mean.Chord; S / (b/2) == 2 * (S / b) == 2 * SMC
         # And now b = AR * SMC, the span we need for a fixed aspect ratio
-        twoS_b = abs(simpson(chords, controlpoints))  # == S divided by (b/2)
+        twoS_b = abs(simpson(nd_chord, nd_ctrlpt))  # == S divided by (b/2)
         SMC = twoS_b / 2
         b = AR * SMC
-
         # Chords bound by [0, 1], control points bound by [-b/2, b/2]
-        controlpoints = controlpoints * (b / 2)
+        nd_ctrlpt = nd_ctrlpt * (b / 2)
 
         from matplotlib import pyplot as plt
         fig, ax = plt.subplots(1, dpi=140)
 
-        ax.plot(controlpoints, chords)
+        nd_area = simpson(nd_chord, nd_ctrlpt)
+        nd_chord = nd_chord * (20.48 / nd_area) ** 0.5
+        nd_ctrlpt = nd_ctrlpt * (20.48 / nd_area) ** 0.5
+        ax.plot(nd_ctrlpt, nd_chord)
         ax.set_aspect(1)
         ax.set_ylim(-1, 2)
         ax.grid()
+        ax.plot((nd_ctrlpt.min(), nd_ctrlpt.max()), (0, 0))
         plt.show()
 
-        return controlpoints, chords
+        return nd_ctrlpt, nd_chord
 
 
 class NewNDWing(object):
@@ -563,10 +569,12 @@ class NewNDWing(object):
 if __name__ == "__main__":
     from carpy.aerodynamics.aerofoil import NewNDAerofoil
 
-    aerofoil1 = NewNDAerofoil.from_procedure.NACA(code="0012")
-    aerofoil2 = NewNDAerofoil.from_procedure.NACA(code="0012")
+    aerofoil1 = NewNDAerofoil.from_url(
+        "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
+    aerofoil2 = NewNDAerofoil.from_url(
+        "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
 
     wing = NDWing()
-    wing.new_station(y=0.9, nd_profile=aerofoil1)
-    wing.new_station(y=0.2, nd_profile=aerofoil2)
-    wing.optimise_planform(C_L=1.1, AR=28, n_sections=2, constant_inner=True)
+    wing.new_station(y=10 / 12, nd_profile=aerofoil1)
+    wing.new_station(y=1, nd_profile=aerofoil2)
+    wing.optimise_planform(C_L=1, AR=28.1, n_sections=2, constant_inner=True)

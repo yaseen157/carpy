@@ -65,9 +65,10 @@ def cast2numpy(scalar_or_vector: Hint.any, /, dtype=None) -> np.ndarray:
     raise ValueError(errormsg)
 
 
-def isNone(*args) -> map:
+def isNone(*args) -> tuple:
     """True or False for every arg that is None."""
-    return map(lambda x: x is None, args)
+    results = tuple(map(lambda x: x is None, args))
+    return results if len(args) > 1 else results[0]
 
 
 __all__ += [Hint.__name__, cast2numpy.__name__, isNone.__name__]

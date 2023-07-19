@@ -5,7 +5,7 @@ import numpy as np
 import requests
 from scipy.integrate import simpson as sint_simpson
 
-from carpy.utility import Hint, cast2numpy
+from carpy.utility import Hint, cast2numpy, isNone
 
 __all__ = ["NewNDAerofoil"]
 __author__ = "Yaseen Reza"
@@ -759,8 +759,11 @@ def parse_datfile(coordinates) -> tuple[np.ndarray, np.ndarray]:
     if isinstance(coordinates, str):
         parsed_groups = [[]]
         for line in coordinates.splitlines():
+            # If line contains any A-z characters, invalidate that line
+            if not isNone(re.match(r"[A-z]", line)):
+                parsed_groups.append([])
             # If line contains 2 numbers, np.array contents and add to group
-            if len(matches := re.findall(r"[-+.e\d]+", line)) == 2:
+            elif len(matches := re.findall(r"[-+.e\d]+", line)) == 2:
                 parsed_groups[-1].append(np.array(matches, dtype=float))
             # If line is empty, prepare next grouping
             elif line == "":
@@ -807,7 +810,7 @@ def parse_datfile(coordinates) -> tuple[np.ndarray, np.ndarray]:
 
     # The upper surface's ordinates average greater than lower surface's...
     surface_u, surface_l = coordinates
-    if (surface_u - surface_l)[:, 1].sum() < 0:
+    if np.mean(surface_u[:, 1]) < np.mean(surface_l[:, 1]):
         surface_u, surface_l = surface_l, surface_u  # ..., swap if they weren't
 
     return surface_u, surface_l
@@ -840,9 +843,31 @@ class NDAerofoil(object):
         if not isinstance(other, type(self)):
             raise TypeError(f"Cannot add {type(self)=} to {type(other)=}")
 
+        # The number of points in self and other surfaces aren't necessarily
+        # the same, so some interpolation is required
+        n_upper = round((len(self._rawpoints_u) + len(other._rawpoints_u)) / 2)
+        n_lower = round((len(self._rawpoints_l) + len(other._rawpoints_l)) / 2)
+        xnew_u = (np.cos(np.linspace(np.pi, 0, n_upper)) + 1) / 2
+        xnew_l = (np.cos(np.linspace(np.pi, 0, n_lower)) + 1) / 2
+
+        # Create interpolation functions for upper and lower surfaces
+        def f_upper(xs):
+            """Linear average of the upper surface at each query point in xs."""
+            self_interp = np.interp(xs, *self._rawpoints_u.T)
+            # noinspection PyProtectedMember
+            other_interp = np.interp(xs, *other._rawpoints_u.T)
+            return self_interp + other_interp
+
+        def f_lower(xs):
+            """Linear average of the lower surface at each query point in xs."""
+            self_interp = np.interp(xs, *self._rawpoints_l.T)
+            # noinspection PyProtectedMember
+            other_interp = np.interp(xs, *other._rawpoints_l.T)
+            return self_interp + other_interp
+
         new_object = type(self)(
-            upper_points=self._rawpoints_u + other._rawpoints_u,
-            lower_points=self._rawpoints_l + other._rawpoints_l
+            upper_points=f_upper(xs=xnew_u),
+            lower_points=f_lower(xs=xnew_l)
         )
         return new_object
 
