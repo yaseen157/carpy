@@ -506,18 +506,18 @@ class NDWing(object):
         # Chords bound by [0, 1], control points bound by [-b/2, b/2]
         nd_ctrlpt = nd_ctrlpt * (b / 2)
 
-        from matplotlib import pyplot as plt
-        fig, ax = plt.subplots(1, dpi=140)
-
-        nd_area = simpson(nd_chord, nd_ctrlpt)
-        nd_chord = nd_chord * (20.48 / nd_area) ** 0.5
-        nd_ctrlpt = nd_ctrlpt * (20.48 / nd_area) ** 0.5
-        ax.plot(nd_ctrlpt, nd_chord)
-        ax.set_aspect(1)
-        ax.set_ylim(-1, 2)
-        ax.grid()
-        ax.plot((nd_ctrlpt.min(), nd_ctrlpt.max()), (0, 0))
-        plt.show()
+        # from matplotlib import pyplot as plt
+        # fig, ax = plt.subplots(1, dpi=140)
+        #
+        # nd_area = simpson(nd_chord, nd_ctrlpt)
+        # nd_chord = nd_chord * (20.48 / nd_area) ** 0.5
+        # nd_ctrlpt = nd_ctrlpt * (20.48 / nd_area) ** 0.5
+        # ax.plot(nd_ctrlpt, nd_chord)
+        # ax.set_aspect(1)
+        # ax.set_ylim(-1, 2)
+        # ax.grid()
+        # ax.plot((nd_ctrlpt.min(), nd_ctrlpt.max()), (0, 0))
+        # plt.show()
 
         return nd_ctrlpt, nd_chord
 
@@ -565,16 +565,15 @@ class NewNDWing(object):
         """
         raise NotImplementedError
 
-
-if __name__ == "__main__":
-    from carpy.aerodynamics.aerofoil import NewNDAerofoil
-
-    aerofoil1 = NewNDAerofoil.from_url(
-        "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
-    aerofoil2 = NewNDAerofoil.from_url(
-        "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
-
-    wing = NDWing()
-    wing.new_station(y=10 / 12, nd_profile=aerofoil1)
-    wing.new_station(y=1, nd_profile=aerofoil2)
-    wing.optimise_planform(C_L=1, AR=28.1, n_sections=2, constant_inner=True)
+# if __name__ == "__main__":
+#     from carpy.aerodynamics.aerofoil import NewNDAerofoil
+#
+#     aerofoil1 = NewNDAerofoil.from_url(
+#         "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
+#     aerofoil2 = NewNDAerofoil.from_url(
+#         "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
+#
+#     wing = NDWing()
+#     wing.new_station(y=10 / 12, nd_profile=aerofoil1)
+#     wing.new_station(y=1, nd_profile=aerofoil2)
+#     wing.optimise_planform(C_L=1, AR=28.1, n_sections=2, constant_inner=True)
