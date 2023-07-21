@@ -18,7 +18,7 @@ __author__ = "Yaseen Reza"
 class Hint(object):
     """A static class of common argument typehints."""
     iter = typing.Union[tuple, list, np.ndarray]
-    num = typing.Union[int, float, complex, np.integer, np.inexact]
+    num = typing.Union[int, float, np.integer, np.inexact]
     nums = typing.Union[iter, num]
     func = typing.Union[typing.Callable, callable]
     any = typing.Union[typing.Any]

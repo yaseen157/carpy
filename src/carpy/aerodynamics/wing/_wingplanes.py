@@ -1,8 +1,6 @@
 """Methods for generating wing planes."""
-import warnings
-
 import numpy as np
-from scipy.integrate import simpson
+from scipy.integrate import trapezoid
 import scipy.optimize as sopt
 
 from carpy.utility import cast2numpy, Hint
@@ -73,8 +71,11 @@ class WingStation(object):
         return self._nd_profile
 
     @property
-    def alpha_zl(self) -> float:
-        # Theoretically, documentation is inherited from the nested property???
+    def CLalpha(self):
+        return self.nd_profile.CLalpha
+
+    @property
+    def alpha_zl(self):
         return self.nd_profile.alpha_zl
 
     @property
@@ -240,17 +241,16 @@ class NDWing(object):
             AR: Design aspect ratio of the wing.
             alpha_inf: The freestream angle of attack.
             N: The number of sine-spaced samples to compute over the span of the
-                [-1, 1] wing domain. Optional, defaults to 100.
+                [-1, 1] wing domain. Optional, defaults to 50.
 
         Returns:
             np.ndarray: An array with the same outer dimensions as alpha_inf,
                 and deepest inner dimension is the Fourier series solution.
 
         """
-
         # Recast as necessary
         alpha_inf = np.zeros(1) if alpha_inf is None else cast2numpy(alpha_inf)
-        N = 100 if N is None else N  # ~3 d.p. precision
+        N = 100 if N is None else N  # ~3 s.f. precision
 
         theta0 = np.linspace(0, np.pi, N + 2)[1:-1]  # Arguments of distribution
 
@@ -258,22 +258,12 @@ class NDWing(object):
         interp_stations = self.interp_station(y=np.abs(np.cos(theta0)))
         chord = f_nd_chord(np.cos(theta0))
         alpha_geo = cast2numpy([[x.alpha_geo] for x in interp_stations])
-        alpha_zl = cast2numpy([[0] for _ in theta0], dtype=np.float64)
-        f_clalpha_2d = [lambda x: 6.0 for _ in theta0]
-        warnmsg = (
-            f"Assuming zero-lift angle of attack of zero degrees for all "
-            f"aerofoils (all aerofoils are considered thin, flat plates)"
-        )
-        warnings.warn(message=warnmsg, category=RuntimeWarning)
-        warnmsg = (
-            f"Assuming lift curve slope of CLa = ~6.0 at all AOA, for all "
-            f"aerofoil sections (just under the 6.28 per 2D flat plate theory)"
-        )
-        warnings.warn(message=warnmsg, category=RuntimeWarning)
+        alpha_zl = cast2numpy([[x.alpha_zl] for x in interp_stations])
+        f_clalpha_2d = [x.CLalpha for x in interp_stations]
 
         # Since S = b * Standard.Mean.Chord; S / (b/2) == 2 * (S / b) == 2 * SMC
         # And now b = AR * SMC, the span we need for a fixed aspect ratio
-        twoS_b = abs(simpson(chord, np.cos(theta0)))  # == S divided by (b/2)
+        twoS_b = abs(trapezoid(chord, np.cos(theta0)))  # == S divided by (b/2)
         SMC = twoS_b / 2
         b = AR * SMC
 
@@ -283,7 +273,7 @@ class NDWing(object):
 
             # Assume alpha = alpha_inf + alpha_geo, ignoring induced AoA for now
             alpha = a_inf + alpha_geo
-            clalpha_2d = [f_clalpha_2d[j](alpha) for j in range(N)]
+            clalpha_2d = [f_clalpha_2d[j](alpha[j]) for j in range(N)]
 
             # LHS populate
             matA = np.zeros((len(theta0), len(theta0)))
@@ -309,15 +299,9 @@ class NDWing(object):
             matX = np.linalg.solve(matA, matB).T[0]
             fourier_coeff[i] = matX
 
-        # # Compute ELD deviation, delta
-        # matX = fourier_coeff[0]
-        # delta = (((np.arange(N) + 1) * (matX / matX[0]) ** 2)[1:]).sum()
-        # e = 1 / (1 + delta)
-        # print(f"{delta=}, {e=}")
-
         return fourier_coeff
 
-    def optimise_planform(
+    def optimise_taper(
             self, C_L: float, AR: float, n_sections: int = None,
             N: int = None, constant_inner: bool = None) -> tuple:
         """
@@ -336,7 +320,7 @@ class NDWing(object):
                 each wing of the wingplane. Optional, defaults to 1 (straight
                 tapered wing).
             N: The number of sine-spaced samples to compute over the span of the
-                [-1, 1] wing domain. Optional, defaults to 100.
+                [-1, 1] wing domain. Optional, defaults to 5-.
             constant_inner: A boolean flag, specifies whether or not the
                 innermost section of the wing has a constant chord or not. This
                 statement has no effect if 'n_sections' == 1 (as you would end
@@ -349,7 +333,7 @@ class NDWing(object):
         """
         # Recast as necessary
         n_sections = 1 if n_sections is None else n_sections
-        N = 100 if N is None else N  # ~3 d.p. precision
+        N = 100 if N is None else N  # ~3 s.f. precision
         constant_inner = False if constant_inner is None else constant_inner
 
         # Initialise a solution based on elliptical planforms
@@ -372,18 +356,13 @@ class NDWing(object):
         # Constrain AoA optimisation solutions
         # Check that the set of elements representing AoA are of length > 1
         alpha_geo = cast2numpy([x.alpha_geo for x in self._stations.values()])
-        alpha_zl = cast2numpy([0 for _ in alpha_geo], dtype=np.float64)
+        alpha_zl = cast2numpy([x.alpha_zl for x in self._stations.values()])
         if len(set(alpha_geo - alpha_zl)) == 1:
             alpha_lo = -(alpha_geo - alpha_zl)[0] + 1e-3
             alpha_hi = float(np.radians(20))
         else:
             alpha_lo = float(-np.radians(8))
             alpha_hi = float(np.radians(20))
-        warnmsg = (
-            f"Assuming zero-lift angle of attack of zero degrees for all "
-            f"aerofoils (all aerofoils are considered thin, flat plates)"
-        )
-        warnings.warn(message=warnmsg, category=RuntimeWarning)
 
         # Constrain wing optimisation solutions (add bounds)
         bound_chord_lo, bound_posns_lo = np.zeros((2, n_sections + 1))
@@ -434,8 +413,9 @@ class NDWing(object):
             return my_chord_lengths, my_ctrlpt_posns
 
         steps_max = 5
+        print(f"Optimising lift distribution via taper ratio(s)...", end=" ")
+        print(f"({steps_max=})")
         for step in range(steps_max):
-            print(f"\rOptimisation step {step + 1} of {steps_max=}...", end="")
 
             # Step 1: optimise the freestream angle of attack that gives C_L
             def f_opt(aoa_rad) -> float:
@@ -445,9 +425,10 @@ class NDWing(object):
                 matX = fourier_coeffs[0]
                 cl_computed = np.pi * AR * matX[0]
                 error = C_L - cl_computed
+
                 return error
 
-            alpha_inf = sopt.brentq(f_opt, a=alpha_lo, b=alpha_hi, xtol=1e-3)
+            alpha_inf = sopt.brentq(f_opt, a=alpha_lo, b=alpha_hi, xtol=1e-4)
 
             # Step 2: Minimise delta
             def f_opt(args: np.ndarray) -> float:
@@ -478,29 +459,42 @@ class NDWing(object):
                 matX = fourier_coeffs[0]
                 delta = (((np.arange(N) + 1) * (matX / matX[0]) ** 2)[1:]).sum()
 
+                # Print for funsies
+                e = 1 / (1 + delta)
+                print(f"\rAOA={alpha_inf:.4f} [rad]; {delta=}, {e=}", end="")
+
                 return delta
 
             # Solve and unpack solution as the latest guess for planform shape
             solution = sopt.minimize(
                 fun=f_opt, x0=x0,  # Optimisation function and initial guess
                 method="trust-constr",  # Optimisation strategy
-                bounds=bounds  # Earlier bounds
+                bounds=bounds,  # Earlier bounds
+                tol=1e-5  # Objective value tolerance
             )
             chords, controlpoints = parse_interspersed_x(solution.x)
             f_chord = factory_f_chord(xp=controlpoints, fp=chords)
 
             # Check for convergence, and break if converged:
             # Compare current x0 to latest update to x0 (from solution)
-            if np.allclose(x0, (x0 := solution.x)):
-                break
-        print(f"planform optimisation complete.")
+            if np.allclose(x0, (x0 := solution.x), atol=1e-3):
+                break  # 1e-3 precision * 40 m semispan = 0.04 m (4 cm) error
+            # Otherwise, update problem bounds to search +/-20% of n.d. space
+            else:
+                new_lb = np.where(
+                    bounds.lb != bounds.ub, solution.x - 0.2, bounds.lb)
+                new_ub = np.where(
+                    bounds.lb != bounds.ub, solution.x + 0.2, bounds.ub)
+                bounds = sopt.Bounds(*np.clip([new_lb, new_ub], 0, 1))
+            print("")  # Go to next line
+        print(f"\n[DONE]\n")
 
         # Chords bound by [0, 1], control points bound by [-1, 1]
         nd_chord, nd_ctrlpt = parse_interspersed_x(x0)
 
         # Since S = b * Standard.Mean.Chord; S / (b/2) == 2 * (S / b) == 2 * SMC
         # And now b = AR * SMC, the span we need for a fixed aspect ratio
-        twoS_b = abs(simpson(nd_chord, nd_ctrlpt))  # == S divided by (b/2)
+        twoS_b = abs(trapezoid(nd_chord, nd_ctrlpt))  # == S divided by (b/2)
         SMC = twoS_b / 2
         b = AR * SMC
         # Chords bound by [0, 1], control points bound by [-b/2, b/2]
@@ -509,7 +503,7 @@ class NDWing(object):
         # from matplotlib import pyplot as plt
         # fig, ax = plt.subplots(1, dpi=140)
         #
-        # nd_area = simpson(nd_chord, nd_ctrlpt)
+        # nd_area = trapezoid(nd_chord, nd_ctrlpt)
         # nd_chord = nd_chord * (20.48 / nd_area) ** 0.5
         # nd_ctrlpt = nd_ctrlpt * (20.48 / nd_area) ** 0.5
         # ax.plot(nd_ctrlpt, nd_chord)
@@ -576,4 +570,8 @@ class NewNDWing(object):
 #     wing = NDWing()
 #     wing.new_station(y=10 / 12, nd_profile=aerofoil1)
 #     wing.new_station(y=1, nd_profile=aerofoil2)
-#     wing.optimise_planform(C_L=1, AR=28.1, n_sections=2, constant_inner=True)
+#
+#     import cProfile
+#
+#     cProfile.run(
+#         "print(wing.optimise_taper(C_L=1, AR=28.1, n_sections=2, constant_inner=True))")

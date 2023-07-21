@@ -1,10 +1,12 @@
 """Methods relating to aerofoil profile generation."""
+from functools import cached_property
 import re
 
 import numpy as np
 import requests
 from scipy.integrate import simpson as sint_simpson
 
+from carpy.aerodynamics.aerofoil._thinaero import coords2camber, coords2alphazl
 from carpy.utility import Hint, cast2numpy, isNone
 
 __all__ = ["NewNDAerofoil"]
@@ -689,7 +691,7 @@ class ProceduralProfiles(object):
     """A collection of procedural aerofoil profile generators."""
 
     @staticmethod
-    def NACA(code: str, N=50):
+    def NACA(code: str, N=100):
         """
         Create a NACA 4-digit, 4-digit modified, 5-digit, 5-digit modified,
         or 16 series aerofoil.
@@ -697,7 +699,7 @@ class ProceduralProfiles(object):
         Args:
             code: The aerofoil code.
             N: The number of control points on each of upper and lower surfaces.
-                Optional, defaults to 50 points on each surface (N=50).
+                Optional, defaults to 100 points on each surface (N=100).
 
         Returns:
             An Aerofoil object.
@@ -866,8 +868,8 @@ class NDAerofoil(object):
             return self_interp + other_interp
 
         new_object = type(self)(
-            upper_points=f_upper(xs=xnew_u),
-            lower_points=f_lower(xs=xnew_l)
+            upper_points=np.vstack([xnew_u, f_upper(xs=xnew_u)]).T,
+            lower_points=np.vstack([xnew_l, f_lower(xs=xnew_l)]).T
         )
         return new_object
 
@@ -915,6 +917,12 @@ class NDAerofoil(object):
         # Concatenate CCW, and remove duplicated LE point
         xy = np.concatenate([surface_u[::-1], surface_l[1:]], axis=0)
         return xy
+
+    @property
+    def xy_c(self) -> np.ndarray:
+        """"""
+        zs = coords2camber(self._rawpoints_u, self._rawpoints_l)
+        return zs
 
     @property
     def perimeter(self) -> float:
@@ -965,9 +973,10 @@ class NDAerofoil(object):
         for axes in (ax, axins):
             axes.plot(*self._rawpoints_u.T, "blue")
             axes.plot(*self._rawpoints_l.T, "gold")
+            axes.plot(*self.xy_c.T, "teal", ls="--")
             axes.fill_between(
                 *self.xyCCW(closeTE=True).T, 0, alpha=.1, fc="k")
-            axes.axhline(y=0, ls="-.", c="k", alpha=0.3)
+            axes.axhline(y=0, ls="-.", c="k", alpha=0.3, lw=1)
 
         # Make the primary plot pretty
         fig.canvas.manager.set_window_title(f"{self}.show()")
@@ -991,21 +1000,23 @@ class NDAerofoil(object):
         plt.show()
         return None
 
-    @property
+    @cached_property
     def alpha_zl(self) -> float:
         """
         A property of the non-dimensional aerofoil profile attached to this
         station, the angle of zero-lift with respect to the aerofoil's
         chordline.
 
+        Unless data is found, it is estimated from thin aerofoil theory.
+
         Returns:
             Angle of zero-lift, in radians.
 
+        Notes:
+            Property is cached to avoid repeated, unnecessary integrations
+
         """
-        # Does angle of zero lift change with compressibility? I don't forsee
-        # needing to change the property name, but I probably will change the
-        # documentation if so...
-        raise NotImplementedError
+        return coords2alphazl(camber_points=self.xy_c)
 
     def CLalpha(self, alpha: Hint.nums) -> NotImplemented:
         """
@@ -1019,7 +1030,9 @@ class NDAerofoil(object):
         """
         # Recast as necessary
         alpha = cast2numpy(alpha)
-        raise NotImplementedError
+
+        # Assume it's 6.0 per radian
+        return 6.0 * np.ones_like(alpha)
 
 
 class NewNDAerofoil(object):
