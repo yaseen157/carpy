@@ -1,4 +1,6 @@
 """Methods for generating wing planes."""
+import warnings
+
 import numpy as np
 from scipy.integrate import trapezoid
 import scipy.optimize as sopt
@@ -72,10 +74,12 @@ class WingStation(object):
 
     @property
     def CLalpha(self):
+        """Lift slope function from the non-dimensional profile."""
         return self.nd_profile.CLalpha
 
     @property
     def alpha_zl(self):
+        """Angle of zero-lift from the non-dimensional profile."""
         return self.nd_profile.alpha_zl
 
     @property
@@ -116,6 +120,8 @@ class NDWing(object):
         """
         self._mirror = True if mirror is None else mirror
         self._stations = dict()
+        self._ctrlpts = (np.array([-1, 0, 1]), np.array([1, 1, 1]))
+
         return
 
     @property
@@ -133,6 +139,31 @@ class NDWing(object):
         # Restore defaults
         self._mirror = True
         return
+
+    @property
+    def nd_controlpoints(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Description of the distribution of chord in the wing. This is *not* the
+        same as the wing's planform.
+
+        The distribution is described by two arrays - the first of which depicts
+        spanwise position, and the latter informs the relative chord length at
+        the spanwise position. Both arrays are  non-dimensionalised with respect
+        to a reference chord length of one (usually the chord at the vehicle
+        centreline/longitudinal axis). When mirrored, the first array looks like
+        [-(b/2)/c_ref, ..., 0, ..., (b/2)/c_ref] where c_ref=1, and the second
+        array has the form [lambda, ..., 1, ..., lambda] where lambda=taper.
+
+        Returns:
+            tuple: A two-element tuple consisting of arrays that describe the
+                distribution of chord in the wing.
+
+        """
+        if self.mirror is True:
+            return self._ctrlpts
+        else:
+            n = int(len(self._ctrlpts[0]) / 2)
+            return self._ctrlpts[0][n:], self._ctrlpts[1][n:]
 
     def new_station(self, y: float, nd_profile, alpha_geo=None) -> None:
         """
@@ -303,7 +334,7 @@ class NDWing(object):
 
     def optimise_taper(
             self, C_L: float, AR: float, n_sections: int = None,
-            N: int = None, constant_inner: bool = None) -> tuple:
+            N: int = None, constant_inner: bool = None) -> None:
         """
         An algorithm that optimises the lift distribution of the wing through
         the manipulation of chord length along the span of the wing.
@@ -335,6 +366,12 @@ class NDWing(object):
         n_sections = 1 if n_sections is None else n_sections
         N = 100 if N is None else N  # ~3 s.f. precision
         constant_inner = False if constant_inner is None else constant_inner
+
+        if n_sections < 1:
+            raise ValueError(f"{n_sections=} is invalid, must be >= 1")
+        elif n_sections > 3:
+            warnmsg = f"n_sections > 3 (got {n_sections=}) is not advisable"
+            warnings.warn(message=warnmsg, category=RuntimeWarning)
 
         # Initialise a solution based on elliptical planforms
         n_ctrlpts = (2 * n_sections) + 1
@@ -500,20 +537,9 @@ class NDWing(object):
         # Chords bound by [0, 1], control points bound by [-b/2, b/2]
         nd_ctrlpt = nd_ctrlpt * (b / 2)
 
-        # from matplotlib import pyplot as plt
-        # fig, ax = plt.subplots(1, dpi=140)
-        #
-        # nd_area = trapezoid(nd_chord, nd_ctrlpt)
-        # nd_chord = nd_chord * (20.48 / nd_area) ** 0.5
-        # nd_ctrlpt = nd_ctrlpt * (20.48 / nd_area) ** 0.5
-        # ax.plot(nd_ctrlpt, nd_chord)
-        # ax.set_aspect(1)
-        # ax.set_ylim(-1, 2)
-        # ax.grid()
-        # ax.plot((nd_ctrlpt.min(), nd_ctrlpt.max()), (0, 0))
-        # plt.show()
+        self._ctrlpts = nd_ctrlpt, nd_chord
 
-        return nd_ctrlpt, nd_chord
+        return None
 
 
 class NewNDWing(object):
@@ -559,19 +585,34 @@ class NewNDWing(object):
         """
         raise NotImplementedError
 
-# if __name__ == "__main__":
-#     from carpy.aerodynamics.aerofoil import NewNDAerofoil
-#
-#     aerofoil1 = NewNDAerofoil.from_url(
-#         "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
-#     aerofoil2 = NewNDAerofoil.from_url(
-#         "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
-#
-#     wing = NDWing()
-#     wing.new_station(y=10 / 12, nd_profile=aerofoil1)
-#     wing.new_station(y=1, nd_profile=aerofoil2)
-#
-#     import cProfile
-#
-#     cProfile.run(
-#         "print(wing.optimise_taper(C_L=1, AR=28.1, n_sections=2, constant_inner=True))")
+
+if __name__ == "__main__":
+    from carpy.aerodynamics.aerofoil import NewNDAerofoil
+
+    aerofoil1 = NewNDAerofoil.from_url(
+        "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
+    aerofoil2 = NewNDAerofoil.from_url(
+        "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
+
+    wing = NDWing()
+    wing.new_station(y=10 / 12, nd_profile=aerofoil1)
+    wing.new_station(y=1, nd_profile=aerofoil2)
+    wing.optimise_taper(C_L=1, AR=28.1, n_sections=2)
+
+    nd_ctrlpt, nd_chord = wing.nd_controlpoints
+
+    from matplotlib import pyplot as plt
+
+    fig, ax = plt.subplots(1, dpi=140)
+
+    nd_area = trapezoid(nd_chord, nd_ctrlpt)
+    nd_chord = nd_chord * (20.48 / nd_area) ** 0.5
+    nd_ctrlpt = nd_ctrlpt * (20.48 / nd_area) ** 0.5
+    ax.plot(nd_ctrlpt, nd_chord)
+    ax.set_aspect(1)
+    ax.set_ylim(-1, 2)
+    ax.set_xlabel("y (span position)")
+    ax.set_ylabel("c (chord length)")
+    ax.grid()
+    ax.plot((nd_ctrlpt.min(), nd_ctrlpt.max()), (0, 0))
+    plt.show()
