@@ -594,10 +594,13 @@ if __name__ == "__main__":
     aerofoil2 = NewNDAerofoil.from_url(
         "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
 
+    aerofoil1.alpha_zl = 0
+    aerofoil2.alpha_zl = 0
+
     wing = NDWing()
     wing.new_station(y=10 / 12, nd_profile=aerofoil1)
     wing.new_station(y=1, nd_profile=aerofoil2)
-    wing.optimise_taper(C_L=1, AR=28.1, n_sections=2)
+    wing.optimise_taper(C_L=1, AR=28.1, n_sections=3, constant_inner=True)
 
     nd_ctrlpt, nd_chord = wing.nd_controlpoints
 

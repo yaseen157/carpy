@@ -28,10 +28,9 @@ dependencies = [
     "python-metar",
     "pyyaml",
     "requests",
+    "sectionproperties",
     "scipy",
     "setuptools>=67.0.0",
-    "streamlit",
-    "sympy",
 ]
 dynamic = ["version"]
 

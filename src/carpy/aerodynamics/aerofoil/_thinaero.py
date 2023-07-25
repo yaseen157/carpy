@@ -48,8 +48,8 @@ def coords2camber(upper_points: np.ndarray,
 
     # Approx. American camber by weighted average of British and chordline (z=0)
     camber_british = np.mean([f_upper(xs=xnew), f_lower(xs=xnew)], axis=0)
-    # camber_american = camber_british * (np.sin(theta) ** 0.5 + 0.1) / 1.1
-    camber_american = camber_british * (np.sin(theta) ** 0.5)
+    # camber_american = camber_british * factor that weights leading edge to y=0
+    camber_american = camber_british * (np.cos(theta / 2) ** 0.25)
 
     return np.vstack([xnew, camber_american]).T
 

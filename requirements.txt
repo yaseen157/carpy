@@ -12,8 +12,7 @@ python-metar
 pyyaml
 requests
 scipy
-streamlit
-sympy
+sectionproperties
 
 # Optional
 jupyter
