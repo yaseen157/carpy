@@ -37,7 +37,21 @@ class WingStation(object):
         self._alpha_geo = 0 if alpha_geo is None else alpha_geo
         return
 
+    def __add__(self, other):
+        # Typechecking
+        if not isinstance(other, type(self)):
+            raise TypeError(f"Cannot add {type(self)=} to {type(other)=}")
+
+        new_object = type(self)(
+            nd_profile=self.nd_profile + other.nd_profile,
+            alpha_geo=self.alpha_geo + other.alpha_geo
+        )
+        return new_object
+
     def __mul__(self, other):
+        # Typechecking
+        if not isinstance(other, Hint.num.__args__):
+            raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
         # New non-dimensional profile and angle of twist
         new_nd_profile = other * self._nd_profile
         new_alpha_geo = other * self._alpha_geo
@@ -50,16 +64,6 @@ class WingStation(object):
 
     def __rmul__(self, other):
         return self.__mul__(other)
-
-    def __add__(self, other):
-        if not isinstance(other, type(self)):
-            raise TypeError(f"Cannot add {type(self)=} to {type(other)=}")
-
-        new_object = type(self)(
-            nd_profile=self.nd_profile + other.nd_profile,
-            alpha_geo=self.alpha_geo + other.alpha_geo
-        )
-        return new_object
 
     @property
     def nd_profile(self):
@@ -75,7 +79,7 @@ class WingStation(object):
     @property
     def CLalpha(self):
         """Lift slope function from the non-dimensional profile."""
-        return self.nd_profile.CLalpha
+        return self.nd_profile.Clalpha
 
     @property
     def alpha_zl(self):
@@ -290,7 +294,7 @@ class NDWing(object):
         chord = f_nd_chord(np.cos(theta0))
         alpha_geo = cast2numpy([[x.alpha_geo] for x in interp_stations])
         alpha_zl = cast2numpy([[x.alpha_zl] for x in interp_stations])
-        f_clalpha_2d = [x.CLalpha for x in interp_stations]
+        f_clalpha_2d = [x.Clalpha for x in interp_stations]
 
         # Since S = b * Standard.Mean.Chord; S / (b/2) == 2 * (S / b) == 2 * SMC
         # And now b = AR * SMC, the span we need for a fixed aspect ratio
@@ -600,7 +604,12 @@ if __name__ == "__main__":
     wing = NDWing()
     wing.new_station(y=10 / 12, nd_profile=aerofoil1)
     wing.new_station(y=1, nd_profile=aerofoil2)
-    wing.optimise_taper(C_L=1, AR=28.1, n_sections=3, constant_inner=True)
+    wing.optimise_taper(C_L=1, AR=28.1, n_sections=2, constant_inner=True)
+
+    import cProfile
+
+    cProfile.run(
+        "wing.optimise_taper(C_L=1, AR=28.1, n_sections=3, constant_inner=True)")
 
     nd_ctrlpt, nd_chord = wing.nd_controlpoints
 

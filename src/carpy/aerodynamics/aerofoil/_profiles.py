@@ -1,5 +1,4 @@
 """Methods relating to aerofoil profile generation."""
-from functools import cached_property
 import re
 
 import numpy as np
@@ -7,7 +6,8 @@ import requests
 from sectionproperties.analysis.section import Section
 from sectionproperties.pre.geometry import Geometry
 
-from carpy.aerodynamics.aerofoil._thinaero import coords2camber, coords2alphazl
+from carpy.aerodynamics.aerofoil._thinaero import \
+    coords2camber, ThinCamberedAerofoil
 from carpy.utility import Hint, cast2numpy, isNone
 
 __all__ = ["NewNDAerofoil"]
@@ -833,18 +833,9 @@ class NDAerofoil(object):
         self._rawpoints_l = cast2numpy(lower_points)
         self._section = None
         self._alpha_zl = None
-        self._CLalpha = None
+        self._theory = ThinCamberedAerofoil(camber_points=self.xz_points)
+
         return
-
-    def __mul__(self, other):
-        new_object = type(self)(
-            upper_points=self._rawpoints_u * other,
-            lower_points=self._rawpoints_l * other
-        )
-        return new_object
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
 
     def __add__(self, other):
         if not isinstance(other, type(self)):
@@ -878,9 +869,31 @@ class NDAerofoil(object):
         )
         return new_object
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __mul__(self, other):
+        # Typechecking
+        if not isinstance(other, Hint.num.__args__):
+            raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
+        new_object = type(self)(
+            upper_points=self._rawpoints_u * other,
+            lower_points=self._rawpoints_l * other
+        )
+        return new_object
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    @property
+    def xz_points(self) -> np.ndarray:
+        """Return an array of points approximating the aerofoil's camberline."""
+        xz = coords2camber(self._rawpoints_u, self._rawpoints_l)
+        return xz
+
     @property
     def section(self) -> Section:
-        """Section properties, for structural analysis."""
+        """Section properties, for geometric analysis of the aerofoil."""
         # Section exists...
         if self._section is not None:
             return self._section
@@ -908,20 +921,9 @@ class NDAerofoil(object):
         return self._section
 
     @property
-    def xy_c(self) -> np.ndarray:
-        """Return an array of points approximating the aerofoil's camberline."""
-        zs = coords2camber(self._rawpoints_u, self._rawpoints_l)
-        return zs
-
-    @property
-    def area(self) -> float:
-        """Non-dimensional area of the aerofoil section."""
-        return self._section.section_props.area
-
-    @property
-    def perimeter(self) -> float:
-        """Non-dimensional perimeter length of the aerofoil section."""
-        return self._section.section_props.perimeter
+    def theory(self):
+        """Results of thin aerofoil theory for cambered aerofoils."""
+        return self._theory
 
     def show(self) -> None:
         """Simple 2D render of the aerofoil geometry."""
@@ -950,7 +952,7 @@ class NDAerofoil(object):
         for axes in (ax, axins):
             axes.plot(*self._rawpoints_u.T, "blue")
             axes.plot(*self._rawpoints_l.T, "gold")
-            axes.plot(*self.xy_c.T, "teal", ls="--")
+            axes.plot(*self.xz_points.T, "teal", ls="--")
             axes.fill_between(
                 *np.array(self.section.geometry.points).T, 0, alpha=.1, fc="k")
             axes.axhline(y=0, ls="-.", c="k", alpha=0.3, lw=1)
@@ -981,8 +983,8 @@ class NDAerofoil(object):
     def alpha_zl(self) -> float:
         """
         A property of the non-dimensional aerofoil profile attached to this
-        station, the angle of zero-lift with respect to the aerofoil's
-        chordline.
+        station, the angle of attack for zero-lift with respect to the section's
+        chord line.
 
         Unless data is found, it is estimated from thin aerofoil theory.
 
@@ -990,15 +992,15 @@ class NDAerofoil(object):
             Angle of zero-lift, in radians.
 
         Notes:
-            Property is cached to avoid repeated, unnecessary integrations
+            Property is cached to avoid repeated, unnecessary integrations.
 
         """
         # Alpha of zero lift is known...
         if self._alpha_zl is not None:
             return self._alpha_zl
 
-        # Else it needs to be computed
-        self._alpha_zl = coords2alphazl(camber_points=self.xy_c)
+        # Else it needs to be computed, update locally stored result
+        self._alpha_zl = self._theory.alpha_zl
         return self._alpha_zl
 
     @alpha_zl.setter
@@ -1008,46 +1010,6 @@ class NDAerofoil(object):
     @alpha_zl.deleter
     def alpha_zl(self):
         self._alpha_zl = None
-
-    @property
-    def CLalpha(self) -> Hint.func:
-        """
-        The incompressible lift curve slope of the aerofoil profile.
-
-        Args:
-            alpha: Angle of attack, in radians.
-
-        Returns:
-
-        """
-
-        # If undefined, define it
-        if self._CLalpha is None:
-            def f_CLa(alpha):
-                """Theoretical lift curve slope of 2D, thin aerofoils."""
-                # It's not actually a function of alpha, just alpha's shape
-                return np.ones_like(alpha) * (2 * np.pi)
-
-            self._CLalpha = f_CLa
-
-        # If it's a function
-        if isinstance(self._CLalpha, Hint.func.__args__):
-            return self._CLalpha
-
-        # If it's a number (or None), assume the thin aerofoil result
-        elif isinstance(self._CLalpha, Hint.num):
-            return cast2numpy(2 * np.pi)
-
-    # def _rib_analyse(self):
-    #     # Use the geometry object to instantiate a Section object
-    #     section = self._section
-    #
-    #     # Carry out an analysis on the aerofoil
-    #     section.calculate_geometric_properties()
-    #     section.calculate_plastic_properties()
-    #     section.calculate_warping_properties()
-    #
-    #     return section
 
 
 class NewNDAerofoil(object):
