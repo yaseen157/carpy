@@ -10,7 +10,7 @@ from carpy.aerodynamics.aerofoil._thinaero import \
     coords2camber, ThinCamberedAerofoil
 from carpy.utility import Hint, cast2numpy, isNone
 
-__all__ = ["NewNDAerofoil"]
+__all__ = ["NewNDAerofoil", "NDAerofoil"]
 __author__ = "Yaseen Reza"
 
 
@@ -828,12 +828,16 @@ class NDAerofoil(object):
     """Non-dimensional Aerofoil object."""
 
     def __init__(self, upper_points, lower_points):
+        # Geometry of the aerofoil
         # Coordinates moving from leading edge to trailing edge
         self._rawpoints_u = cast2numpy(upper_points)
         self._rawpoints_l = cast2numpy(lower_points)
         self._section = None
+        # Performance of the aerofoil
+        self._theory_thin = ThinCamberedAerofoil(camber_points=self.xz_points)
         self._alpha_zl = None
-        self._theory = ThinCamberedAerofoil(camber_points=self.xz_points)
+        self._Clalpha = None
+        self._Cl = None
 
         return
 
@@ -874,11 +878,11 @@ class NDAerofoil(object):
 
     def __mul__(self, other):
         # Typechecking
-        if not isinstance(other, Hint.num.__args__):
+        if not isinstance(other, Hint.nums.__args__):
             raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
         new_object = type(self)(
-            upper_points=self._rawpoints_u * other,
-            lower_points=self._rawpoints_l * other
+            upper_points=self._rawpoints_u * cast2numpy(other),
+            lower_points=self._rawpoints_l * cast2numpy(other)
         )
         return new_object
 
@@ -919,11 +923,6 @@ class NDAerofoil(object):
         self._section = Section(section_geometry)
         self._section.calculate_geometric_properties()  # Update geometric props
         return self._section
-
-    @property
-    def theory(self):
-        """Results of thin aerofoil theory for cambered aerofoils."""
-        return self._theory
 
     def show(self) -> None:
         """Simple 2D render of the aerofoil geometry."""
@@ -981,26 +980,13 @@ class NDAerofoil(object):
 
     @property
     def alpha_zl(self) -> float:
-        """
-        A property of the non-dimensional aerofoil profile attached to this
-        station, the angle of attack for zero-lift with respect to the section's
-        chord line.
-
-        Unless data is found, it is estimated from thin aerofoil theory.
-
-        Returns:
-            Angle of zero-lift, in radians.
-
-        Notes:
-            Property is cached to avoid repeated, unnecessary integrations.
-
-        """
+        """Angle of attack for zero lift."""
         # Alpha of zero lift is known...
         if self._alpha_zl is not None:
             return self._alpha_zl
 
         # Else it needs to be computed, update locally stored result
-        self._alpha_zl = self._theory.alpha_zl
+        self._alpha_zl = self._theory_thin.alpha_zl
         return self._alpha_zl
 
     @alpha_zl.setter
@@ -1010,6 +996,58 @@ class NDAerofoil(object):
     @alpha_zl.deleter
     def alpha_zl(self):
         self._alpha_zl = None
+
+    @property
+    def Clalpha(self) -> Hint.func:
+        """Function for determining the sectional lift-curve slope."""
+        # Lift-curve slope is not known...
+        if self._Clalpha is None:
+            return self._theory_thin.Clalpha
+
+        return self._Clalpha
+
+    @Clalpha.setter
+    def Clalpha(self, value):
+        if not isinstance(value, Hint.func.__args__):
+            errormsg = (
+                f"Clalpha.setter is expecting to be given 'function(alpha)', "
+                f"actually got Cla = {value} (invalid {type(value)=})"
+            )
+            raise TypeError(errormsg)
+
+        self._Clalpha = value
+        return
+
+    @Clalpha.deleter
+    def Clalpha(self):
+        self._Clalpha = None
+        return
+
+    @property
+    def Cl(self):
+        """Function for determining the sectional lift coefficient."""
+        # Sectional lift coefficient is not known...
+        if self._Cl is None:
+            return self._theory_thin.Cl
+
+        return self._Cl
+
+    @Cl.setter
+    def Cl(self, value):
+        if not isinstance(value, Hint.func.__args__):
+            errormsg = (
+                f"Cl.setter is expecting to be given 'function(alpha)', "
+                f"actually got Cl = {value} (invalid {type(value)=})"
+            )
+            raise TypeError(errormsg)
+
+        self._Clalpha = value
+        return
+
+    @Cl.deleter
+    def Cl(self):
+        self._Cl = None
+        return
 
 
 class NewNDAerofoil(object):
