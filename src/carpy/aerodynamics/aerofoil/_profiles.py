@@ -732,7 +732,7 @@ class ProceduralProfiles(object):
         else:
             errormsg = (
                 f"{code=} is not a recognised member of any of the following "
-                f"series: {naca_classes}"
+                f"series: {[x.__name__ for x in naca_classes]}"
             )
             raise ValueError(errormsg)
 

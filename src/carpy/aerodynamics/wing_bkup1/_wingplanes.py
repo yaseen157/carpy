@@ -606,10 +606,10 @@ if __name__ == "__main__":
     wing.new_station(y=1, nd_profile=aerofoil2)
     wing.optimise_taper(C_L=1, AR=28.1, n_sections=2, constant_inner=True)
 
-    import cProfile
-
-    cProfile.run(
-        "wing.optimise_taper(C_L=1, AR=28.1, n_sections=3, constant_inner=True)")
+    # import cProfile
+    #
+    # cProfile.run(
+    #     "wing.optimise_taper(C_L=1, AR=28.1, n_sections=3, constant_inner=True)")
 
     nd_ctrlpt, nd_chord = wing.nd_controlpoints
 

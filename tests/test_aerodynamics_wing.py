@@ -3,8 +3,34 @@ import unittest
 
 import numpy as np
 
+from carpy.aerodynamics.wing import PLLT
 from carpy.aerodynamics.wing_bkup0 import Planforms
 from carpy.utility import Quantity
+
+
+class AerodynamicMethods(unittest.TestCase):
+    """Verify that wing performance evaluation methods are working."""
+
+    def test_pllt(self):
+        """Prandtl's lifting line theory."""
+
+        # Test on a spitfire planform (ignore aerofoil camber, etc. for now)
+        spitfire_span = 11.2
+        spitfire_croot = Quantity(100, "in")
+
+        def spitfire_chord(y):
+            """Perfect elliptical chord length, given spanwise position."""
+            chord = spitfire_croot * np.sin(np.arccos(y / (spitfire_span / 2)))
+            return chord
+
+        result = PLLT(
+            span=spitfire_span,
+            alpha_inf=np.radians(1),
+            f_chord=spitfire_chord
+        )
+        # Elliptical lift distribution should give a span efficiency of 1
+        self.assertEqual(result.e, 1)
+        return
 
 
 class PlanformTesting(unittest.TestCase):

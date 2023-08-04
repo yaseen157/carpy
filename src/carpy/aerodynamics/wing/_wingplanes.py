@@ -219,3 +219,7 @@ if __name__ == "__main__":
         section.calculate_geometric_properties()
 
         return section
+
+
+    section = sections(height=0.1, width=12e-3)
+    section.plot_mesh()
