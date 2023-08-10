@@ -369,7 +369,9 @@ class Quantity(np.ndarray):
 
     def __str__(self):
         si_units_utf8 = Unicodify.mathscript_safe(self.units.si_equivalent)
-        return f"{super().__str__()} {si_units_utf8}"
+        if len(self.flat) != 1:
+            return f"{super().__str__()} {si_units_utf8}"
+        return f"{super().__str__()[1:-1]} {si_units_utf8}"
 
     # --------------------- #
     # Relational Operations #
@@ -614,6 +616,11 @@ class Quantity(np.ndarray):
             return float(self)
         except:
             return np.array(self)
+
+    @property
+    def u(self) -> Dimensions:
+        """Easy access property for this quantity object's units."""
+        return self.units
 
     def to(self, units: str, /) -> np.ndarray:
         """

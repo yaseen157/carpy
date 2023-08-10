@@ -1,15 +1,16 @@
 """Methods relating to aerofoil profile generation."""
-from functools import cached_property
 import re
 
 import numpy as np
 import requests
-from scipy.integrate import simpson as sint_simpson
+from sectionproperties.analysis.section import Section
+from sectionproperties.pre.geometry import Geometry
 
-from carpy.aerodynamics.aerofoil._thinaero import coords2camber, coords2alphazl
+from carpy.aerodynamics.aerofoil._thinaero import \
+    coords2camber, ThinCamberedAerofoil
 from carpy.utility import Hint, cast2numpy, isNone
 
-__all__ = ["NewNDAerofoil"]
+__all__ = ["NewNDAerofoil", "NDAerofoil"]
 __author__ = "Yaseen Reza"
 
 
@@ -731,7 +732,7 @@ class ProceduralProfiles(object):
         else:
             errormsg = (
                 f"{code=} is not a recognised member of any of the following "
-                f"series: {naca_classes}"
+                f"series: {[x.__name__ for x in naca_classes]}"
             )
             raise ValueError(errormsg)
 
@@ -827,19 +828,18 @@ class NDAerofoil(object):
     """Non-dimensional Aerofoil object."""
 
     def __init__(self, upper_points, lower_points):
+        # Geometry of the aerofoil
+        # Coordinates moving from leading edge to trailing edge
         self._rawpoints_u = cast2numpy(upper_points)
         self._rawpoints_l = cast2numpy(lower_points)
+        self._section = None
+        # Performance of the aerofoil
+        self._theory_thin = ThinCamberedAerofoil(camber_points=self.xz_points)
+        self._alpha_zl = None
+        self._Clalpha = None
+        self._Cl = None
+
         return
-
-    def __mul__(self, other):
-        new_object = type(self)(
-            upper_points=self._rawpoints_u * other,
-            lower_points=self._rawpoints_l * other
-        )
-        return new_object
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
 
     def __add__(self, other):
         if not isinstance(other, type(self)):
@@ -871,80 +871,62 @@ class NDAerofoil(object):
             upper_points=np.vstack([xnew_u, f_upper(xs=xnew_u)]).T,
             lower_points=np.vstack([xnew_l, f_lower(xs=xnew_l)]).T
         )
+        # Maintain custom zero-lift angles
+        new_object.alpha_zl = self.alpha_zl + other.alpha_zl
         return new_object
 
-    @property
-    def closedTE(self):
-        """True if the trailing edge is closed, False otherwise."""
-        if np.array(self._rawpoints_u[-1] == self._rawpoints_l[-1]).all():
-            return True
-        return False
+    def __radd__(self, other):
+        return self.__add__(other)
 
-    def xyCCW(self, closeTE=None) -> np.ndarray:
-        """
-        Non-dimensional, CCW coordinates of the aerofoil.
+    def __mul__(self, other):
+        # Typechecking
+        if not isinstance(other, Hint.nums.__args__):
+            raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
+        new_object = type(self)(
+            upper_points=self._rawpoints_u * cast2numpy([1, other]),
+            lower_points=self._rawpoints_l * cast2numpy([1, other])
+        )
+        # Maintain custom zero-lift angles
+        new_object.alpha_zl = other * self.alpha_zl
+        return new_object
 
-        Args:
-            closeTE: Flag, set to control if the output coordinates produce a
-                closed geometry. Optional, defaults to False.
-
-        Returns:
-            np.ndarray: A 2D array of points.
-
-        """
-        closeTE = False if closeTE is None else closeTE
-        surface_u = self._rawpoints_u
-        surface_l = self._rawpoints_l
-
-        # If current TE closure status doesn't match demanded status, match it
-        if self.closedTE is False:
-
-            # If need to close the TE
-            if closeTE is True:
-                te_coord = np.array([[1, 0]])
-
-                # When necessary, add TE point to both of upper/lower surfaces
-                if not (te_coord == surface_u[-1]).all():
-                    surface_u = np.concatenate([surface_u, te_coord], axis=0)
-                if not (te_coord == surface_l[-1]).all():
-                    surface_l = np.concatenate([surface_l, te_coord], axis=0)
-        else:
-            # If need to open the TE
-            if closeTE is False:
-                surface_u = self._rawpoints_u[:-1]
-                surface_l = self._rawpoints_l[:-1]
-
-        # Concatenate CCW, and remove duplicated LE point
-        xy = np.concatenate([surface_u[::-1], surface_l[1:]], axis=0)
-        return xy
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     @property
-    def xy_c(self) -> np.ndarray:
-        """"""
-        zs = coords2camber(self._rawpoints_u, self._rawpoints_l)
-        return zs
+    def xz_points(self) -> np.ndarray:
+        """Return an array of points approximating the aerofoil's camberline."""
+        xz = coords2camber(self._rawpoints_u, self._rawpoints_l)
+        return xz
 
     @property
-    def perimeter(self) -> float:
-        """Non-dimensional wetted perimeter (scales linearly with chord)."""
-        xy = self.xyCCW(closeTE=True).T
-        P = (np.sum(np.diff(xy) ** 2, axis=0) ** 0.5).sum()
-        return P
+    def section(self) -> Section:
+        """Section properties, for geometric analysis of the aerofoil."""
+        # Section exists...
+        if self._section is not None:
+            return self._section
 
-    @property
-    def area(self) -> float:
-        """Non-dimensional cross-section area (scales with chord ** 2)."""
-        # Find when x stops decreasing in CCW coords and starts increasing
-        xy = self.xyCCW(closeTE=False).T
-        dx, _ = np.diff(xy)
-        switchpoint = np.argmax(np.isfinite(np.where(dx < 0, np.nan, dx)))
+        # Create a section...
+        # Create a list of counter clockwise points, ignore duplicated LE point
+        points = list(self._rawpoints_u)[::-1] + list(self._rawpoints_l)[1:]
+        # Describe the connectivity of the points in a nested list
+        facets = (np.arange((n := len(points)))[:, None] + np.array(
+            [0, 1])) % n
+        facets = [list(x) for x in facets]
+        # Identify the inside region of the aerofoil as 10% behind leading edge
+        control_points = [[0.1, 0]]
 
-        # Find the area under each curve using Simpson's rule
-        xyupper, xylower = xy[:, :switchpoint + 1], xy[:, switchpoint:]
-        area_under_upper = sint_simpson(*np.flip(xyupper[::-1], axis=1))
-        area_under_lower = sint_simpson(*xylower[::-1])
-        S = area_under_upper - area_under_lower
-        return S
+        # Create a geometry object
+        section_geometry = Geometry.from_points(
+            points=points,
+            facets=facets,
+            control_points=control_points
+        )
+        section_geometry.create_mesh(mesh_sizes=[1])
+        # Use the geometry object to instantiate a Section object
+        self._section = Section(section_geometry)
+        self._section.calculate_geometric_properties()  # Update geometric props
+        return self._section
 
     def show(self) -> None:
         """Simple 2D render of the aerofoil geometry."""
@@ -973,9 +955,9 @@ class NDAerofoil(object):
         for axes in (ax, axins):
             axes.plot(*self._rawpoints_u.T, "blue")
             axes.plot(*self._rawpoints_l.T, "gold")
-            axes.plot(*self.xy_c.T, "teal", ls="--")
+            axes.plot(*self.xz_points.T, "teal", ls="--")
             axes.fill_between(
-                *self.xyCCW(closeTE=True).T, 0, alpha=.1, fc="k")
+                *np.array(self.section.geometry.points).T, 0, alpha=.1, fc="k")
             axes.axhline(y=0, ls="-.", c="k", alpha=0.3, lw=1)
 
         # Make the primary plot pretty
@@ -1000,39 +982,76 @@ class NDAerofoil(object):
         plt.show()
         return None
 
-    @cached_property
+    @property
     def alpha_zl(self) -> float:
-        """
-        A property of the non-dimensional aerofoil profile attached to this
-        station, the angle of zero-lift with respect to the aerofoil's
-        chordline.
+        """Angle of attack for zero lift."""
+        # Alpha of zero lift is known...
+        if self._alpha_zl is not None:
+            return self._alpha_zl
 
-        Unless data is found, it is estimated from thin aerofoil theory.
+        # Else it needs to be computed, update locally stored result
+        self._alpha_zl = self._theory_thin.alpha_zl
+        return self._alpha_zl
 
-        Returns:
-            Angle of zero-lift, in radians.
+    @alpha_zl.setter
+    def alpha_zl(self, value):
+        self._alpha_zl = float(value)
 
-        Notes:
-            Property is cached to avoid repeated, unnecessary integrations
+    @alpha_zl.deleter
+    def alpha_zl(self):
+        self._alpha_zl = None
 
-        """
-        return coords2alphazl(camber_points=self.xy_c)
+    @property
+    def Clalpha(self) -> Hint.func:
+        """Function for determining the sectional lift-curve slope."""
+        # Lift-curve slope is not known...
+        if self._Clalpha is None:
+            return self._theory_thin.Clalpha
 
-    def CLalpha(self, alpha: Hint.nums) -> NotImplemented:
-        """
-        The incompressible lift curve slope of the aerofoil profile.
+        return self._Clalpha
 
-        Args:
-            alpha: Angle of attack, in radians.
+    @Clalpha.setter
+    def Clalpha(self, value):
+        if not isinstance(value, Hint.func.__args__):
+            errormsg = (
+                f"Clalpha.setter is expecting to be given 'function(alpha)', "
+                f"actually got Cla = {value} (invalid {type(value)=})"
+            )
+            raise TypeError(errormsg)
 
-        Returns:
+        self._Clalpha = value
+        return
 
-        """
-        # Recast as necessary
-        alpha = cast2numpy(alpha)
+    @Clalpha.deleter
+    def Clalpha(self):
+        self._Clalpha = None
+        return
 
-        # Assume it's 6.0 per radian
-        return 6.0 * np.ones_like(alpha)
+    @property
+    def Cl(self):
+        """Function for determining the sectional lift coefficient."""
+        # Sectional lift coefficient is not known...
+        if self._Cl is None:
+            return self._theory_thin.Cl
+
+        return self._Cl
+
+    @Cl.setter
+    def Cl(self, value):
+        if not isinstance(value, Hint.func.__args__):
+            errormsg = (
+                f"Cl.setter is expecting to be given 'function(alpha)', "
+                f"actually got Cl = {value} (invalid {type(value)=})"
+            )
+            raise TypeError(errormsg)
+
+        self._Clalpha = value
+        return
+
+    @Cl.deleter
+    def Cl(self):
+        self._Cl = None
+        return
 
 
 class NewNDAerofoil(object):

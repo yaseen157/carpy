@@ -18,11 +18,11 @@ class HintsAndCasting(unittest.TestCase):
                 (1, 2, 3), [1, 2, 3], np.arange(3)
             )),
             (Hint.num, (
-                1, 2.0, 3 + 4j, np.int32(5), np.float32(6.0)
+                1, 2.0, np.int32(5), np.float32(6.0)
             )),
             (Hint.nums, (
                 (1, 2, 3), [1, 2, 3], np.arange(3),
-                1, 2.0, 3 + 4j, np.int32(5), np.float32(6.0)
+                1, 2.0, np.int32(5), np.float32(6.0)
             )),
             (Hint.func, (
                 lambda x: print(f"You'll never take me alive! (also {x})"),

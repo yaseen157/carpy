@@ -31,7 +31,7 @@ analysis - CARPy is designed to complement and not substitute a comprehensive
 and detailed study of a vehicle concept.
 
 - [Source Code](https://github.com/yaseen157/carpy)
-- [Jupyter Notebooks](https://github.com/yaseen157/carpy/tree/main/docs)
+- [Jupyter Notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source)
 - [Contributors Guide](CONTRIBUTORS_GUIDE.md)
 
 Users will find:

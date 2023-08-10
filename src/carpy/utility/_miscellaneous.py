@@ -20,7 +20,7 @@ class Hint(object):
     iter = typing.Union[tuple, list, np.ndarray]
     num = typing.Union[int, float, np.integer, np.inexact]
     nums = typing.Union[iter, num]
-    func = typing.Union[typing.Callable, callable]
+    func = typing.Union[typing.Callable]
     any = typing.Union[typing.Any]
     set = typing.Union[set, frozenset]
 
