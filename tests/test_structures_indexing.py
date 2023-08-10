@@ -1,6 +1,6 @@
 import unittest
 
-from carpy.structures._stations import ContinuousIndex, DiscreteIndex
+from carpy.structures import ContinuousIndex, DiscreteIndex
 
 
 class IndexTemplates(unittest.TestCase):
@@ -16,8 +16,7 @@ class IndexTemplates(unittest.TestCase):
         """Station data is defined with discrete elements"""
         stations = DiscreteIndex({1: 100, -2: -200})
         stations[0] = 0
-        self.assertEqual(stations[0:], (-200, 0, 100))
-        self.assertEqual(stations[0::2], (-200, 100))
+        self.assertEqual(stations[0:], (-0, 100))
         # Verify that station data can be linearly interpolated between ref.pts.
         self.assertEqual(stations[0.5], 50)
         return

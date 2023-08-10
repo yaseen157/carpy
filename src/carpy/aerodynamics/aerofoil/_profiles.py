@@ -871,6 +871,8 @@ class NDAerofoil(object):
             upper_points=np.vstack([xnew_u, f_upper(xs=xnew_u)]).T,
             lower_points=np.vstack([xnew_l, f_lower(xs=xnew_l)]).T
         )
+        # Maintain custom zero-lift angles
+        new_object.alpha_zl = self.alpha_zl + other.alpha_zl
         return new_object
 
     def __radd__(self, other):
@@ -881,9 +883,11 @@ class NDAerofoil(object):
         if not isinstance(other, Hint.nums.__args__):
             raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
         new_object = type(self)(
-            upper_points=self._rawpoints_u * cast2numpy(other),
-            lower_points=self._rawpoints_l * cast2numpy(other)
+            upper_points=self._rawpoints_u * cast2numpy([1, other]),
+            lower_points=self._rawpoints_l * cast2numpy([1, other])
         )
+        # Maintain custom zero-lift angles
+        new_object.alpha_zl = other * self.alpha_zl
         return new_object
 
     def __rmul__(self, other):
@@ -991,7 +995,7 @@ class NDAerofoil(object):
 
     @alpha_zl.setter
     def alpha_zl(self, value):
-        self._alpha_zl = value
+        self._alpha_zl = float(value)
 
     @alpha_zl.deleter
     def alpha_zl(self):

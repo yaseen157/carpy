@@ -2,7 +2,8 @@
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import NDAerofoil
-from carpy.aerodynamics.wing._pllt import PLLT
+from carpy.aerodynamics.wing import PLLT
+from carpy.structures import DiscreteIndex
 from carpy.utility import Hint, cast2numpy
 
 __all__ = ["NDWingStation"]
@@ -11,20 +12,19 @@ __author__ = "Yaseen Reza"
 
 class NDWingStation(object):
     """
-    Class for modelling the aerofoil sections to attach to a wing.
+    Class for modelling non-dimensional wing cross-sections (wing stations).
 
-    A wing station captures the properties of a cross-sectional profile taken of
-    the wing perpendicular to the leading edge. This makes station geometry
-    independent of sweep, as opposed to wing buttlines (which are cross-sections
-    of the wing taken parallel to the aircraft buttock-line).
-
-    Station 0 is often taken as the point where the leading edge of the wing
-    meets the fuselage (and thus the station intersects the fuselage).
+    A wing station is a 2D cross-sectional slice of the 3D wing structure, in a
+    plane perpendicular to that of the leading edge. As a result, the geometry
+    of the section is independent of any applied sweep or dihedral - despite
+    the station itself having sweep/dihedral.
     """
 
-    def __init__(self, nd_aerofoil: NDAerofoil, theta: Hint.num = None):
-        self._nd_aerofoil = nd_aerofoil
-        self._theta = theta
+    def __init__(self, aerofoil: NDAerofoil = None, twist: Hint.num = None):
+        self._aerofoil = aerofoil
+        self._twist = twist
+        self._sweep = None
+        self._dihedral = None
         return
 
     def __add__(self, other):
@@ -33,8 +33,8 @@ class NDWingStation(object):
             raise TypeError(f"Cannot add {type(self)=} to {type(other)=}")
 
         new_object = type(self)(
-            nd_aerofoil=self._nd_aerofoil + other._nd_aerofoil,
-            theta=self.theta + other.theta
+            aerofoil=self.aerofoil + other.aerofoil,
+            twist=self.twist + other.twist
         )
         return new_object
 
@@ -43,44 +43,63 @@ class NDWingStation(object):
         if not isinstance(other, Hint.num.__args__):
             raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
         # New non-dimensional profile and angle of twist
-        new_nd_aerofoil = other * self._nd_aerofoil
-        new_theta = other * self.theta
+        new_aerofoil = other * self.aerofoil
+        new_theta = other * self.twist
 
         new_object = type(self)(
-            nd_aerofoil=new_nd_aerofoil,
-            theta=new_theta
+            aerofoil=new_aerofoil,
+            twist=new_theta
         )
         return new_object
 
     @property
-    def theta(self) -> float:
+    def aerofoil(self):
+        return self._aerofoil
+
+    @property
+    def twist(self) -> float:
         """
-        The station's geometric angle of twist, relative to wing root. A
-        positive value indicates wash-in (station has an angle of incidence
-        greater than the wing root), and a negative value indicates wash-out.
+        The station's geometric angle of twist, relative to wing root. For a
+        horizontal wing, a positive value indicates wash-in (station has an
+        angle of incidence greater than the wing root), and a negative value
+        indicates wash-out.
 
         Returns:
             Geometric angle of twist of the wing station.
 
         """
-        if self._theta is None:
-            self._theta = 0
-        return self._theta
+        return self._twist
 
-    @theta.setter
-    def theta(self, value):
-        self._theta = value
-        return
+    @property
+    def sweep(self) -> float:
+        """
+        The angle between the plane of the wing station and the vehicle's
+        longitudinal axis. A positive value indicates sweep in the traditional
+        sense (outboard leading edge is behind inboard leading edge), and a
+        negative value indicates forward- or reverse-sweep.
 
-    @theta.deleter
-    def theta(self):
-        self._theta = None
-        return
+        Returns:
+            Geometric angle of sweep of the wing station.
+
+        """
+        return self._sweep
+
+    @property
+    def dihedral(self) -> float:
+        """
+        The angle between the station plane's normal vector and the vehicle
+        plane formed of longitudinal (X) and lateral (Y) axes.
+
+        Returns:
+            Geometric angle of dihedral of the wing station.
+
+        """
+        return self._dihedral
 
     @property
     def alpha_zl(self) -> float:
         """Station's angle of attack for zero-lift, relative to wing root."""
-        alpha_zl = self._nd_aerofoil.alpha_zl - self.theta
+        alpha_zl = self.aerofoil.alpha_zl - self.twist
         return alpha_zl
 
     def Clalpha(self, alpha: Hint.nums) -> np.ndarray:
@@ -97,8 +116,8 @@ class NDWingStation(object):
         # Recast as necessary
         alpha = cast2numpy(alpha)
 
-        local_alpha = alpha + self.theta
-        Clalpha = self._nd_aerofoil.Clalpha(alpha=local_alpha)
+        local_alpha = alpha + self.twist
+        Clalpha = self.aerofoil.Clalpha(alpha=local_alpha)
         return Clalpha
 
     def Cl(self, alpha: Hint.nums) -> np.ndarray:
@@ -115,111 +134,148 @@ class NDWingStation(object):
         # Recast as necessary
         alpha = cast2numpy(alpha)
 
-        local_alpha = alpha + self.theta
-        Cl = self._nd_aerofoil.Cl(alpha=local_alpha)
+        local_alpha = alpha + self.twist
+        Cl = self.aerofoil.Cl(alpha=local_alpha)
         return Cl
 
 
-class WingPlane(object):
-    """
-    Class for modelling wing planes.
-    """
+class WingStations(DiscreteIndex):
 
-    def __init__(self, span: Hint.num, mirror: bool = None):
+    def __init__(self, span: Hint.num):
         """
         Args:
-            span: The full span of the wing, as determined from planform view.
-            mirror: Whether or not to mirror the wing's stations about the
-                centreline.
+            span: The full span of the wing, i.e. the maximum extent of the wing
+                from tip-to-tip.
         """
+        # Super class call
+        super().__init__()
         self._b = span
-        self._mirror = True if mirror is None else mirror
-        self._spar = None
 
         return
 
     @property
-    def parametric_spar(self) -> Hint.func:
-        """
-        A parameterised definition of the wingspar's (composite) geometry and
-        material selection(s). Accepts arguments for the maximal 'height' and
-        'width' of a spar section.
-
-        Returns:
-            Spar section object, with geometric properties pre-computed.
-
-        """
-        if self._spar is None:
-            raise NotImplementedError("Spar definitions has not yet been given")
-        return self._spar
-
-    @parametric_spar.setter
-    def parametric_spar(self, value):
-        if not callable(value):
-            errormsg = (
-                f"section_spar.setter is expecting to be given 'function(y)', "
-                f"actually got section_spar = {value} (invalid {type(value)=})"
-            )
-            raise TypeError(errormsg)
-        self._spar = value
+    def sweep(self):
         return
 
-    @parametric_spar.deleter
-    def parametric_spar(self):
-        self._spar = None
+    @property
+    def dihedral(self):
         return
+
+
+#  my_wingstations[0:51].sweep = 0
 
 
 if __name__ == "__main__":
-    from sectionproperties.pre.library import steel_sections, primitive_sections
-    from sectionproperties.pre.pre import Material
-    from sectionproperties.analysis.section import Section
+    from carpy.aerodynamics.aerofoil import NewNDAerofoil
 
-    steel = Material(
-        name='Steel', elastic_modulus=200e9, poissons_ratio=0.3,
-        density=7.85e3, yield_strength=500e6, color='grey'
-    )
-    timber = Material(
-        name='Timber', elastic_modulus=8e9, poissons_ratio=0.35,
-        density=6.5e2, yield_strength=20e6, color='burlywood'
-    )
+    n0012 = NewNDAerofoil.from_procedure.NACA("0012")
+    n8412 = NewNDAerofoil.from_procedure.NACA("8412")
 
+    mystations = WingStations(span=30)
+    mystations[0] = n8412
+    mystations[100] = n0012
+    print(mystations[0].alpha_zl)
+    print(mystations[:50].alpha_zl)
 
-    def sections(height: float, width: float):
-        """
+# class WingPlane(object):
+#     """
+#     Class for modelling wing planes.
+#     """
+#
+#     def __init__(self, span: Hint.num, mirror: bool = None):
+#         """
+#         Args:
+#             span: The full span of the wing, as determined from planform view.
+#             mirror: Whether or not to mirror the wing's stations about the
+#                 centreline.
+#         """
+#         self._b = span
+#         self._mirror = True if mirror is None else mirror
+#         self._spar = None
+#
+#         return
+#
+#     @property
+#     def parametric_spar(self) -> Hint.func:
+#         """
+#         A parameterised definition of the wingspar's (composite) geometry and
+#         material selection(s). Accepts arguments for the maximal 'height' and
+#         'width' of a spar section.
+#
+#         Returns:
+#             Spar section object, with geometric properties pre-computed.
+#
+#         """
+#         if self._spar is None:
+#             raise NotImplementedError("Spar definitions has not yet been given")
+#         return self._spar
+#
+#     @parametric_spar.setter
+#     def parametric_spar(self, value):
+#         if not callable(value):
+#             errormsg = (
+#                 f"section_spar.setter is expecting to be given 'function(y)', "
+#                 f"actually got section_spar = {value} (invalid {type(value)=})"
+#             )
+#             raise TypeError(errormsg)
+#         self._spar = value
+#         return
+#
+#     @parametric_spar.deleter
+#     def parametric_spar(self):
+#         self._spar = None
+#         return
 
-        Args:
-            height: Maximum allowable height of the spar.
-            width: Maximum allowable width of the spar.
-
-        Returns:
-
-        """
-        # Compute parameterised dimensions
-        core_y = height - (2 * width)
-        tube_od = width
-        tube_wt = 1e-3
-
-        # STEP 1: Create component section geometries (and attach materials)
-        rod_kwargs = {"d": tube_od, "t": tube_wt, "n": 100, "material": steel}
-        core_kwargs = {"b": rod_kwargs["d"], "d": core_y, "material": timber}
-        rod = steel_sections.circular_hollow_section(**rod_kwargs)
-        core = primitive_sections.rectangular_section(**core_kwargs)
-
-        # STEP 2: Create a compound geometry, and convert into a section object
-        section_geometry = (
-                rod.shift_section(0, (core_y + rod_kwargs["d"]) / 2)
-                + core.shift_section(-rod_kwargs["d"] / 2, -core_y / 2)
-                + rod.shift_section(0, -(core_y + rod_kwargs["d"]) / 2)
-        )
-        section_geometry.create_mesh(mesh_sizes=[1e-3])
-        section = Section(section_geometry)
-
-        # STEP 3: Calculate the geometric properties of the section
-        section.calculate_geometric_properties()
-
-        return section
-
-
-    section = sections(height=0.1, width=12e-3)
-    section.plot_mesh()
+# if __name__ == "__main__":
+#     from sectionproperties.pre.library import steel_sections, primitive_sections
+#     from sectionproperties.pre.pre import Material
+#     from sectionproperties.analysis.section import Section
+#
+#     steel = Material(
+#         name='Steel', elastic_modulus=200e9, poissons_ratio=0.3,
+#         density=7.85e3, yield_strength=500e6, color='grey'
+#     )
+#     timber = Material(
+#         name='Timber', elastic_modulus=8e9, poissons_ratio=0.35,
+#         density=6.5e2, yield_strength=20e6, color='burlywood'
+#     )
+#
+#
+#     def sections(height: float, width: float):
+#         """
+#
+#         Args:
+#             height: Maximum allowable height of the spar.
+#             width: Maximum allowable width of the spar.
+#
+#         Returns:
+#
+#         """
+#         # Compute parameterised dimensions
+#         core_y = height - (2 * width)
+#         tube_od = width
+#         tube_wt = 1e-3
+#
+#         # STEP 1: Create component section geometries (and attach materials)
+#         rod_kwargs = {"d": tube_od, "t": tube_wt, "n": 100, "material": steel}
+#         core_kwargs = {"b": rod_kwargs["d"], "d": core_y, "material": timber}
+#         rod = steel_sections.circular_hollow_section(**rod_kwargs)
+#         core = primitive_sections.rectangular_section(**core_kwargs)
+#
+#         # STEP 2: Create a compound geometry, and convert into a section object
+#         section_geometry = (
+#                 rod.shift_section(0, (core_y + rod_kwargs["d"]) / 2)
+#                 + core.shift_section(-rod_kwargs["d"] / 2, -core_y / 2)
+#                 + rod.shift_section(0, -(core_y + rod_kwargs["d"]) / 2)
+#         )
+#         section_geometry.create_mesh(mesh_sizes=[1e-3])
+#         section = Section(section_geometry)
+#
+#         # STEP 3: Calculate the geometric properties of the section
+#         section.calculate_geometric_properties()
+#
+#         return section
+#
+#
+#     section = sections(height=0.1, width=12e-3)
+#     section.plot_mesh()

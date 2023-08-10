@@ -1,11 +1,15 @@
-"""Methods for prescribing geometry through 'stations'."""
+"""Methods for prescribing geometry the indexing of 'stations'."""
 import numpy as np
 
 from carpy.utility import Hint, cast2numpy
 
-__all__ = []
+__all__ = ["DiscreteIndex", "ContinuousIndex"]
 __author__ = "Yaseen Reza"
 
+
+# ============================================================================ #
+# Support functions
+# ---------------------------------------------------------------------------- #
 
 def validate_keys(*keys: Hint.any) -> tuple[bool, ...]:
     """
@@ -43,6 +47,10 @@ def sort_kvs(nestedlist: list) -> list:
     sorted_list = sorted(nestedlist, key=lambda x: x[0])
     return sorted_list
 
+
+# ============================================================================ #
+# Classes for consistent indexing behaviour
+# ---------------------------------------------------------------------------- #
 
 class DiscreteIndex(dict):
     """
@@ -87,7 +95,7 @@ class DiscreteIndex(dict):
 
             # Sort entries, and place them back into self
             items = sort_kvs(items)
-            [super(type(self), self).__setitem__(*kv) for kv in items]
+            [super(DiscreteIndex, self).__setitem__(*kv) for kv in items]
             return
 
         bad_key(key)  # <-- Raise error on bad key
@@ -98,9 +106,14 @@ class DiscreteIndex(dict):
         keys, vals = zip(*self.items())
         keys, vals = map(cast2numpy, [keys, vals])  # Make indexable
 
-        # If given a slice object, don't mess with the slicing
+        # If given a slice object, find the stations being referenced
         if isinstance(key, slice):
-            vals2rtn = vals[key]
+            start = keys[0] if key.start is None else key.start
+            stop = keys[-1] if key.stop is None else key.stop
+            step = 1 if key.step is None else key.step
+            if step != 1:
+                raise KeyError("Do not use slicing steps that aren't one!")
+            vals2rtn = vals[(start <= keys) & (keys <= stop)]
             return vals2rtn[0] if len(vals2rtn) == 1 else tuple(vals2rtn)
 
         # Recast as necessary
@@ -167,6 +180,10 @@ class ContinuousIndex(object):
 
         return vals2rtn[0] if len(vals2rtn) == 1 else tuple(vals2rtn)
 
+# ============================================================================ #
+# Classes for Stations
+# ---------------------------------------------------------------------------- #
+
 # Each station numbering type will have a different set of unique properties
 # for example, fuselage geometry are always oriented with the x axis,
 # buttock with y, etc.
@@ -180,12 +197,3 @@ class ContinuousIndex(object):
 # HorizontalStabiliser: StationsLinear  # HSS
 # VerticalStabiliser: StationsLinear  # VSS
 # Powerplant: StationsLinear  # PPS
-
-
-# if __name__ == "__main__":
-#     stations = DiscreteIndex({1: 100, -2: -200})
-#     stations[0] = 0
-#     print((stations[0::2]))
-#
-#     stations = ContinuousIndex(lambda x: x * 2)
-#     print(stations[3])
