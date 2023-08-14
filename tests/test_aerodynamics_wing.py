@@ -3,7 +3,8 @@ import unittest
 
 import numpy as np
 
-from carpy.aerodynamics.wing import PLLT
+from carpy.aerodynamics.aerofoil import NewNDAerofoil
+from carpy.aerodynamics.wing import NDWingStation, WingStations, PLLT
 from carpy.aerodynamics.wing_bkup0 import Planforms
 from carpy.utility import Quantity
 
@@ -31,6 +32,35 @@ class AerodynamicMethods(unittest.TestCase):
         # Elliptical lift distribution should give a span efficiency of 1
         self.assertEqual(result.e, 1)
         return
+
+
+class WingStationing(unittest.TestCase):
+
+    def test_stationassignment(self):
+        # Create new aerofoils
+        n0012 = NewNDAerofoil.from_procedure.NACA("0012")
+        n8412 = NewNDAerofoil.from_procedure.NACA("8412")
+
+        # Define an arbitrary wing with a kink point
+        mystations = WingStations(span=30)
+        mystations[0] = NDWingStation(n8412)
+        mystations[100] = NDWingStation(n0012)
+        mystations[60] = mystations[60]
+
+        # No sweep before kink, sweep at and after kink
+        mystations[:60].sweep = np.radians(0)
+        mystations[60:].sweep = np.radians(2)
+        self.assertTrue(np.isclose(
+            mystations[0:].sweep,
+            [0.0, 0.03490658503988659, 0.03490658503988659]
+        ).all())
+
+        # Full wing dihedral
+        mystations[0:].dihedral = np.radians(3)
+        self.assertTrue(np.isclose(
+            mystations[0:].dihedral,
+            [0.05235987755982989, 0.05235987755982989, 0.05235987755982989]
+        ).all())
 
 
 class PlanformTesting(unittest.TestCase):

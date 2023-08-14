@@ -13,8 +13,8 @@ def vfil(xyzA: Hint.nums, xyzB: Hint.nums, xyzC: Hint.nums):
     small denominators (to exclude self-influence).
 
     Args:
-        xyzA: Vector describing position of control point A in 3D space.
-        xyzB: Vector describing position of control point B in 3D space.
+        xyzA: Vector describing position of reference point A in 3D space.
+        xyzB: Vector describing position of reference point B in 3D space.
         xyzC: Vector describing position of control point C in 3D space.
 
     Returns:
@@ -46,9 +46,9 @@ def rectwing(alpha, AR, N):
     """
 
     Args:
-        alpha ():
-        AR ():
-        N ():
+        alpha: Freestream angle of attack.
+        AR: Rectangular wing aspect ratio.
+        N: Number of horseshoe vortices.
 
     Returns:
         tuple: (lift coefficient, (induced) drag coefficient)
@@ -56,11 +56,11 @@ def rectwing(alpha, AR, N):
     """
     large = 1e6
     Q = [np.cos(alpha), 0.0, np.sin(alpha)]  # Freestream orientation
-    bw = AR  # Wing, span
-    cw = 1.0  # Wing, chord
-    factor = np.sqrt(N / (N + 1))
-    bp = bw * factor  # Wing, control span
-    cp = np.array([0.5 * cw / factor, 0, 0])  # Wing, control chord
+    bw = AR  # Wingspan (== AR when chord length of the wing is 1)
+    cw = 1.0  # Wingchord (== 1, constant reference length)
+    factor = np.sqrt(N / (N + 1))  # For 1/sqrt(2) when N == 1
+    bp = bw * factor  # Wingspan, prime
+    cp = np.array([0.5 * cw / factor, 0, 0])  # Wingchord, prime
 
     # Locate vortex segments, control, and normal vectors
     dy = np.array([0, bp / N, 0])  # Horseshoe discretise
@@ -106,10 +106,8 @@ def rectwing(alpha, AR, N):
         Fx[i], Fy[i], Fz[i] = np.cross(u, s) * gamma[i]
 
     # Resolve these forces into perpendicular and parallel to freestream
-    Cl = (np.sum(Fz) * np.cos(alpha) - np.sum(Fx) * np.sin(alpha)
-          ) / (0.5 * bw * cw)
-    Cdi = (np.sum(Fx) * np.cos(alpha) + np.sum(Fz) * np.sin(alpha)
-           ) / (0.5 * bw * cw)
+    Cl = np.sum(Fz * np.cos(alpha) - Fx * np.sin(alpha)) / (0.5 * bw * cw)
+    Cdi = np.sum(Fx * np.cos(alpha) + Fz * np.sin(alpha)) / (0.5 * bw * cw)
 
     return Cl, Cdi
 

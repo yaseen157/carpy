@@ -71,7 +71,13 @@ def isNone(*args) -> tuple:
     return results if len(args) > 1 else results[0]
 
 
-__all__ += [Hint.__name__, cast2numpy.__name__, isNone.__name__]
+def collapse1d(array):
+    """If the argument array has only one element, collapse the array."""
+    return idx0(array) if len(array) == 1 else array
+
+
+__all__ += [Hint.__name__, cast2numpy.__name__, isNone.__name__,
+            collapse1d.__name__]
 
 
 # ============================================================================ #

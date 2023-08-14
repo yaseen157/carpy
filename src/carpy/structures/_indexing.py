@@ -1,7 +1,7 @@
 """Methods for prescribing geometry the indexing of 'stations'."""
 import numpy as np
 
-from carpy.utility import Hint, cast2numpy
+from carpy.utility import Hint, cast2numpy, collapse1d, idx0
 
 __all__ = ["DiscreteIndex", "ContinuousIndex"]
 __author__ = "Yaseen Reza"
@@ -21,6 +21,10 @@ def validate_keys(*keys: Hint.any) -> tuple[bool, ...]:
     Returns:
         A tuple the same length as the *keys argument, true if the key is valid
          (numeric in nature), and false otherwise.
+
+    Notes:
+        Be careful - any() or all() functions should be used to determine the
+            appropriate course of action after evaluation with this function.
 
     """
     valid_keys = tuple([
@@ -48,9 +52,37 @@ def sort_kvs(nestedlist: list) -> list:
     return sorted_list
 
 
+def parse_slice(keys, slice_object: slice) -> tuple:
+    """Extract keys bounded by a slice object."""
+    start = keys[0] if slice_object.start is None else slice_object.start
+    stop = keys[-1] if slice_object.stop is None else slice_object.stop
+    step = 1 if slice_object.step is None else slice_object.step
+    if step != 1:
+        raise KeyError("Do not use slicing steps that aren't one!")
+    return start, stop, step
+
+
 # ============================================================================ #
 # Classes for consistent indexing behaviour
 # ---------------------------------------------------------------------------- #
+class TransparentArray(list):
+    """
+    Class for broadcasting get and set attributes to items *within* an array
+    (instead of trying to access attributes of the array itself).
+    """
+
+    def __getattr__(self, item):
+        return [getattr(x, item) for x in self]
+
+    def __setattr__(self, name, value):
+        if (n := len(self)) == 0:
+            raise ValueError(f"Couldn't broadcast {value} to empty slice")
+
+        # Broadcast assignment
+        values = np.broadcast_to(value, n)
+        [setattr(x, name, y) for (x, y) in np.broadcast(self, values)]
+        return
+
 
 class DiscreteIndex(dict):
     """
@@ -73,7 +105,7 @@ class DiscreteIndex(dict):
         remapped = dict()
         for (key, value) in mapping.items():
 
-            if validate_keys(key):
+            if idx0(validate_keys(key)):
                 # Ensure key maps as float for consistency of operation
                 remapped[float(key)] = value
                 continue
@@ -85,7 +117,8 @@ class DiscreteIndex(dict):
         return
 
     def __setitem__(self, key, value):
-        if validate_keys(key):
+
+        if idx0(validate_keys(key)):
             # Record current entries of the dictionary, and clear self
             items = list(self.items())
             self.clear()
@@ -98,6 +131,14 @@ class DiscreteIndex(dict):
             [super(DiscreteIndex, self).__setitem__(*kv) for kv in items]
             return
 
+        # elif isinstance(key, slice):
+        #     # Record current entries of the dictionary, and clear self
+        #     items = list(self.items())
+        #     self.clear()
+        #
+        #     # Ensure key maps as float for consistency of operation
+        #     items.append((float(key), value))
+
         bad_key(key)  # <-- Raise error on bad key
 
     def __getitem__(self, key):
@@ -108,13 +149,9 @@ class DiscreteIndex(dict):
 
         # If given a slice object, find the stations being referenced
         if isinstance(key, slice):
-            start = keys[0] if key.start is None else key.start
-            stop = keys[-1] if key.stop is None else key.stop
-            step = 1 if key.step is None else key.step
-            if step != 1:
-                raise KeyError("Do not use slicing steps that aren't one!")
+            start, stop, _ = parse_slice(keys, slice_object=key)
             vals2rtn = vals[(start <= keys) & (keys <= stop)]
-            return vals2rtn[0] if len(vals2rtn) == 1 else tuple(vals2rtn)
+            return collapse1d(TransparentArray(vals2rtn))
 
         # Recast as necessary
         keys2get = cast2numpy(key)  # Note: keys are cast as str, not numbers...
@@ -139,9 +176,15 @@ class DiscreteIndex(dict):
                 weight = (key - key_lo) / (key_hi - key_lo)
                 val_hi = super().__getitem__(key_hi)
                 val_lo = super().__getitem__(key_lo)
-                vals2rtn.append(val_hi * weight + val_lo * (1 - weight))
+                val_new = val_hi * weight + val_lo * (1 - weight)
+                try:
+                    # If the object allows new attributes, record parents
+                    val_new._parents = (key_lo, key_hi)
+                except AttributeError as _:
+                    pass  # Couldn't assign attribute '_parents' to this object
+                vals2rtn.append(val_new)
 
-        return vals2rtn[0] if len(vals2rtn) == 1 else tuple(vals2rtn)
+        return collapse1d(TransparentArray(vals2rtn))
 
 
 class ContinuousIndex(object):

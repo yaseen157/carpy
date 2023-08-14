@@ -16,7 +16,7 @@ class IndexTemplates(unittest.TestCase):
         """Station data is defined with discrete elements"""
         stations = DiscreteIndex({1: 100, -2: -200})
         stations[0] = 0
-        self.assertEqual(stations[0:], (-0, 100))
+        self.assertEqual(stations[0:], [-0, 100])
         # Verify that station data can be linearly interpolated between ref.pts.
         self.assertEqual(stations[0.5], 50)
         return

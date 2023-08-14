@@ -2,11 +2,10 @@
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import NDAerofoil
-from carpy.aerodynamics.wing import PLLT
 from carpy.structures import DiscreteIndex
-from carpy.utility import Hint, cast2numpy
+from carpy.utility import Hint, cast2numpy, collapse1d, isNone
 
-__all__ = ["NDWingStation"]
+__all__ = ["NDWingStation", "WingStations"]
 __author__ = "Yaseen Reza"
 
 
@@ -22,7 +21,7 @@ class NDWingStation(object):
 
     def __init__(self, aerofoil: NDAerofoil = None, twist: Hint.num = None):
         self._aerofoil = aerofoil
-        self._twist = twist
+        self._twist = 0.0 if twist is None else float(twist)
         self._sweep = None
         self._dihedral = None
         return
@@ -70,6 +69,11 @@ class NDWingStation(object):
         """
         return self._twist
 
+    @twist.setter
+    def twist(self, value):
+        self._twist = float(value)
+        return
+
     @property
     def sweep(self) -> float:
         """
@@ -84,6 +88,11 @@ class NDWingStation(object):
         """
         return self._sweep
 
+    @sweep.setter
+    def sweep(self, value):
+        self._sweep = float(value)
+        return
+
     @property
     def dihedral(self) -> float:
         """
@@ -96,11 +105,25 @@ class NDWingStation(object):
         """
         return self._dihedral
 
+    @dihedral.setter
+    def dihedral(self, value):
+        self._dihedral = float(value)
+        return
+
     @property
     def alpha_zl(self) -> float:
         """Station's angle of attack for zero-lift, relative to wing root."""
         alpha_zl = self.aerofoil.alpha_zl - self.twist
         return alpha_zl
+
+    @alpha_zl.setter
+    def alpha_zl(self, value):
+        errormsg = (
+            f"'alpha_zl' of a station is not configurable as it is a derived "
+            f"property of the station's aerofoil zero lift angle and twist. "
+            f"Try modifying the station's aerofoil or twist parameters instead"
+        )
+        raise AttributeError(errormsg)
 
     def Clalpha(self, alpha: Hint.nums) -> np.ndarray:
         """
@@ -153,16 +176,34 @@ class WingStations(DiscreteIndex):
 
         return
 
-    @property
-    def sweep(self):
-        return
+    def __getitem__(self, key):
+        nd_stations = super().__getitem__(key)
 
-    @property
-    def dihedral(self):
-        return
+        if isinstance(key, slice):
+            for slice_bound in [key.start, key.stop]:
+                if slice_bound not in self and not isNone(slice_bound):
+                    errormsg = (
+                        f"Slice is bounded by key that has no associated value."
+                        f" Try creating a new element of {self} with the index "
+                        f"{slice_bound}"
+                    )
+                    raise RuntimeError(errormsg)
 
+        # Cast to list temporarily, if necessary
+        if not isinstance(nd_stations, Hint.iter.__args__):
+            nd_stations = [nd_stations]
 
-#  my_wingstations[0:51].sweep = 0
+        # Missing sweep and dihedral angles should be inherited from inboard
+        for i, aerofoil in enumerate(nd_stations):
+            # If aerofoil is derived, it has parents (one of which is inboard)
+            if hasattr(aerofoil, "_parents"):
+                parent = self[min(getattr(aerofoil, "_parents"))]
+                # Assign private vars, skips float typecasting for 'None' values
+                aerofoil._sweep = parent.sweep
+                aerofoil._dihedral = parent.dihedral
+                delattr(aerofoil, "_parents")
+
+        return collapse1d(nd_stations)
 
 
 if __name__ == "__main__":
@@ -172,10 +213,16 @@ if __name__ == "__main__":
     n8412 = NewNDAerofoil.from_procedure.NACA("8412")
 
     mystations = WingStations(span=30)
-    mystations[0] = n8412
-    mystations[100] = n0012
-    print(mystations[0].alpha_zl)
-    print(mystations[:50].alpha_zl)
+    mystations[0] = NDWingStation(n8412)
+    mystations[100] = NDWingStation(n0012)
+    mystations[60] = mystations[60]
+
+    mystations[:60].sweep = np.radians(0)
+    mystations[60:].sweep = np.radians(2)
+    print(mystations[0:].sweep)
+
+    mystations[0:].dihedral = np.radians(3)
+    print(mystations[:].dihedral)
 
 # class WingPlane(object):
 #     """
