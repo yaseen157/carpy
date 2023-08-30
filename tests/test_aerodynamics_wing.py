@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import NewNDAerofoil
-from carpy.aerodynamics.wing import NDWingStation, WingStations, PLLT
+from carpy.aerodynamics.wing import NDWingSection, WingSections, PLLT
 from carpy.aerodynamics.wing_bkup0 import Planforms
 from carpy.utility import Quantity
 
@@ -42,9 +42,9 @@ class WingStationing(unittest.TestCase):
         n8412 = NewNDAerofoil.from_procedure.NACA("8412")
 
         # Define an arbitrary wing with a kink point
-        mystations = WingStations(span=30)
-        mystations[0] = NDWingStation(n8412)
-        mystations[100] = NDWingStation(n0012)
+        mystations = WingSections(span=30)
+        mystations[0] = NDWingSection(n8412)
+        mystations[100] = NDWingSection(n0012)
         mystations[60] = mystations[60]
 
         # No sweep before kink, sweep at and after kink

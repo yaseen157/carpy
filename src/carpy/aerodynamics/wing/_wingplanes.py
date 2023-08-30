@@ -5,18 +5,18 @@ from carpy.aerodynamics.aerofoil import NDAerofoil
 from carpy.structures import DiscreteIndex
 from carpy.utility import Hint, cast2numpy, collapse1d, isNone
 
-__all__ = ["NDWingStation", "WingStations"]
+__all__ = ["NDWingSection", "WingSections"]
 __author__ = "Yaseen Reza"
 
 
-class NDWingStation(object):
+class NDWingSection(object):
     """
-    Class for modelling non-dimensional wing cross-sections (wing stations).
+    Class for modelling non-dimensional wing cross-sections.
 
-    A wing station is a 2D cross-sectional slice of the 3D wing structure, in a
-    plane perpendicular to that of the leading edge. As a result, the geometry
-    of the section is independent of any applied sweep or dihedral - despite
-    the station itself having sweep/dihedral.
+    A wing section is a 2D cross-sectional slice of the 3D wing structure, and
+    inclined at the local angle of dihedral. Sections are defined through a
+    non-dimensional aerofoil geometry, and the applied twist, sweep, and
+    dihedral angles.
     """
 
     def __init__(self, aerofoil: NDAerofoil = None, twist: Hint.num = None):
@@ -162,7 +162,7 @@ class NDWingStation(object):
         return Cl
 
 
-class WingStations(DiscreteIndex):
+class WingSections(DiscreteIndex):
 
     def __init__(self, span: Hint.num):
         """
@@ -173,11 +173,12 @@ class WingStations(DiscreteIndex):
         # Super class call
         super().__init__()
         self._b = span
+        self._mirrored = True
 
         return
 
     def __getitem__(self, key):
-        nd_stations = super().__getitem__(key)
+        nd_sections = super().__getitem__(key)
 
         if isinstance(key, slice):
             for slice_bound in [key.start, key.stop]:
@@ -190,11 +191,11 @@ class WingStations(DiscreteIndex):
                     raise RuntimeError(errormsg)
 
         # Cast to list temporarily, if necessary
-        if not isinstance(nd_stations, Hint.iter.__args__):
-            nd_stations = [nd_stations]
+        if not isinstance(nd_sections, Hint.iter.__args__):
+            nd_sections = [nd_sections]
 
         # Missing sweep and dihedral angles should be inherited from inboard
-        for i, aerofoil in enumerate(nd_stations):
+        for i, aerofoil in enumerate(nd_sections):
             # If aerofoil is derived, it has parents (one of which is inboard)
             if hasattr(aerofoil, "_parents"):
                 parent = self[min(getattr(aerofoil, "_parents"))]
@@ -203,7 +204,7 @@ class WingStations(DiscreteIndex):
                 aerofoil._dihedral = parent.dihedral
                 delattr(aerofoil, "_parents")
 
-        return collapse1d(nd_stations)
+        return collapse1d(nd_sections)
 
 
 if __name__ == "__main__":
@@ -212,17 +213,17 @@ if __name__ == "__main__":
     n0012 = NewNDAerofoil.from_procedure.NACA("0012")
     n8412 = NewNDAerofoil.from_procedure.NACA("8412")
 
-    mystations = WingStations(span=30)
-    mystations[0] = NDWingStation(n8412)
-    mystations[100] = NDWingStation(n0012)
-    mystations[60] = mystations[60]
+    mysections = WingSections(span=30)
+    mysections[0] = NDWingSection(n8412)
+    mysections[60] = mysections[60]
+    mysections[100] = NDWingSection(n0012)
 
-    mystations[:60].sweep = np.radians(0)
-    mystations[60:].sweep = np.radians(2)
-    print(mystations[0:].sweep)
+    mysections[:60].sweep = np.radians(0)
+    mysections[60:].sweep = np.radians(2)
+    print(mysections[0:].sweep)
 
-    mystations[0:].dihedral = np.radians(3)
-    print(mystations[:].dihedral)
+    mysections[0:].dihedral = np.radians(3)
+    print(mysections[:].dihedral)
 
 # class WingPlane(object):
 #     """

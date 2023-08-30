@@ -1,4 +1,10 @@
-"""Methods of thin aerofoil theory."""
+"""
+Methods of thin aerofoil theory.
+
+References:
+    Low-Speed Aerodynamics, by Allen Plotkin and Joseph Katz.
+
+"""
 import numpy as np
 from scipy.integrate import simpson, trapezoid
 
@@ -132,7 +138,7 @@ class ThinCamberedAerofoil(object):
         def An(n: np.ndarray) -> np.ndarray:
             An = np.zeros(n.shape)
             for i, ni in enumerate(n.flat):
-                An.flat[i] = simpson(dzdx * np.cos(n * thetams), xms)
+                An.flat[i] = simpson(dzdx * np.cos(ni * thetams), xms)
             else:
                 An *= 2 / np.pi
             return An
@@ -176,6 +182,21 @@ class ThinCamberedAerofoil(object):
         n = cast2numpy(n)
         return self._An(n)
 
+    def Cd(self, alpha: Hint.nums) -> np.ndarray:
+        """
+        The sectional drag coefficient.
+
+        Args:
+            alpha: Local angle of attack.
+
+        Returns:
+            Sectional drag coefficient. (D'Alembert's paradox implies Cd = 0).
+
+        """
+        # Recast as necessary
+        alpha = cast2numpy(alpha)
+        return 0 * alpha
+
     def Clalpha(self, alpha: Hint.nums) -> np.ndarray:
         """
         The sectional lift-curve slope.
@@ -201,8 +222,14 @@ class ThinCamberedAerofoil(object):
             Sectional lift coefficient.
 
         """
-        cl = np.pi * (2 * self.A0(alpha=alpha) + self.An(1))
+        cl = 2 * np.pi * (self.A0(alpha=alpha) + self.An(1) / 2)
         return cl
+
+    @property
+    def Cm_c4(self) -> np.ndarray:
+        """Moment coefficient at the aerodynamic centre (x/c=25% typically)."""
+        cm_qc = np.pi / 4 * (self.An(2) - self.An(1))
+        return cm_qc
 
     def Cm_LE(self, alpha: Hint.nums) -> np.ndarray:
         """
@@ -218,13 +245,38 @@ class ThinCamberedAerofoil(object):
         cm_le = -np.pi / 2 * (self.A0(alpha) + self.An(1) - self.An(2) / 2)
         return cm_le
 
-    @property
-    def Cm_AC(self) -> np.ndarray:
-        """Moment coefficient at the aerodynamic centre (x/c=25% typically)."""
-        cm_qc = np.pi / 4 * (self.An(2) - self.An(1))
-        return cm_qc
+    def Cm_0(self, alpha: Hint.nums) -> np.ndarray:
+        """
+        The moment coefficient at the centre of pressure.
+
+        Args:
+            alpha: Local angle of attack.
+
+        Returns:
+            Moment coefficient at the centre of pressure.
+
+        """
+        # Recast as necessary
+        alpha = cast2numpy(alpha)
+        cm_0 = - np.pi / 2 * (self.A0(alpha) + self.An(1) - self.An(2) / 2)
+        return cm_0
 
     @property
     def alpha_zl(self) -> float:
         """The angle of attack that produces zero lift."""
         return self._alpha_zl
+
+    @property
+    def xc_ac(self) -> float:
+        """The chordwise position of the aerodynamic centre."""
+        return 0.25
+
+    def xc_cp(self, alpha: Hint.nums) -> np.ndarray:
+        # Recast as necessary
+        alpha = cast2numpy(alpha)
+
+        A0 = self.A0(alpha=alpha)
+        A1, A2 = self.An([1, 2])
+        xc_cp = 0.25 * (A0 + A1 - A2 / 2) / (A0 + A1 / 2)
+
+        return xc_cp
