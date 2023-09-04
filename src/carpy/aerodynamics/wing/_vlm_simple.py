@@ -277,7 +277,7 @@ class VLMSolutionRigid(object):
         bc = 0.5 * (va + vb)
         for i in range(N):
             # Local velocity vector on each load element i
-            u = Q
+            u = np.copy(Q)
             for j in range(N):
                 u += vfil(va[j], vb[j], bc[i]) * gamma[j]
                 u += vfil(va[j] + np.array([-large, 0, 0]), va[j], bc[i]) * \
@@ -324,5 +324,5 @@ if __name__ == "__main__":
     mysections[0:].chord = 1.0
     # mysections[100].chord = 0.4
 
-    VLMSolutionRigid(sections=mysections, span=30, alpha=np.radians(8))
-    rectwing(alpha=np.radians(8), AR=30, N=40)
+    VLMSolutionRigid(sections=mysections, span=30, alpha=np.radians(8), N=5)
+    rectwing(alpha=np.radians(8), AR=30, N=5)
