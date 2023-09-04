@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import NewNDAerofoil
-from carpy.aerodynamics.wing import NDWingSection, WingSections, PLLT
+from carpy.aerodynamics.wing import WingSection, WingSections, PLLT
 from carpy.aerodynamics.wing_bkup0 import Planforms
 from carpy.utility import Quantity
 
@@ -42,25 +42,35 @@ class WingStationing(unittest.TestCase):
         n8412 = NewNDAerofoil.from_procedure.NACA("8412")
 
         # Define an arbitrary wing with a kink point
-        mystations = WingSections(span=30)
-        mystations[0] = NDWingSection(n8412)
-        mystations[100] = NDWingSection(n0012)
-        mystations[60] = mystations[60]
+        mysections = WingSections()
+        mysections[0] = WingSection(n8412)
+        mysections[60] = mysections[0].deepcopy()
+        mysections[100] = WingSection(n0012)
 
         # No sweep before kink, sweep at and after kink
-        mystations[:60].sweep = np.radians(0)
-        mystations[60:].sweep = np.radians(2)
+        mysections[:60].sweep = np.radians(0)
+        mysections[60:].sweep = np.radians(2)
         self.assertTrue(np.isclose(
-            mystations[0:].sweep,
+            mysections[0:].sweep,
             [0.0, 0.03490658503988659, 0.03490658503988659]
         ).all())
 
         # Full wing dihedral
-        mystations[0:].dihedral = np.radians(3)
+        mysections[0:].dihedral = np.radians(3)
         self.assertTrue(np.isclose(
-            mystations[0:].dihedral,
+            mysections[0:].dihedral,
             [0.05235987755982989, 0.05235987755982989, 0.05235987755982989]
         ).all())
+
+        # Introduce wing taper
+        mysections[:60].chord = 1.2
+        mysections[100].chord = 0.4
+        self.assertEqual(
+            mysections[0:].chord,
+            [1.2, 1.0, 0.4]
+        )
+
+        return
 
 
 class PlanformTesting(unittest.TestCase):

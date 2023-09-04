@@ -14,11 +14,31 @@ class IndexTemplates(unittest.TestCase):
 
     def test_discrete_indexing(self):
         """Station data is defined with discrete elements"""
-        stations = DiscreteIndex({1: 100, -2: -200})
+        # Initial assignment
+        stations = DiscreteIndex({1: 100, -2: -50})
+
+        # Brand-new assignment
         stations[0] = 0
-        self.assertEqual(stations[0:], [-0, 100])
-        # Verify that station data can be linearly interpolated between ref.pts.
+
+        # Update assignment
+        stations[-2] = -200
+
+        # Singular keys
+        self.assertEqual(stations[-2], -200)
+        self.assertEqual(stations[0], 0)
+        self.assertEqual(stations[1], 100)
+
+        # Real slices
+        self.assertEqual(stations[0:], [0, 100])  # Start only
+        self.assertEqual(stations[:0], [-200])  # Stop only
+        self.assertEqual(stations[:0.5], [-200, 0])  # Stop only, new index
+        self.assertEqual(stations[:], [-200, 0, 100])  # All defined indices
+
+        # Interpolated keys
         self.assertEqual(stations[0.5], 50)
+
+        # Interpolated slices
+        self.assertEqual(stations[::4], [-200, -100, 0, 100])
         return
 
 

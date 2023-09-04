@@ -5,23 +5,25 @@ from carpy.aerodynamics.aerofoil import NDAerofoil
 from carpy.structures import DiscreteIndex
 from carpy.utility import Hint, cast2numpy, collapse1d, isNone
 
-__all__ = ["NDWingSection", "WingSections"]
+__all__ = ["WingSection", "WingSections"]
 __author__ = "Yaseen Reza"
 
 
-class NDWingSection(object):
+class WingSection(object):
     """
-    Class for modelling non-dimensional wing cross-sections.
+    Class for modelling wing cross-sections.
 
     A wing section is a 2D cross-sectional slice of the 3D wing structure, and
     inclined at the local angle of dihedral. Sections are defined through a
-    non-dimensional aerofoil geometry, and the applied twist, sweep, and
-    dihedral angles.
+    non-dimensional aerofoil geometry, the chord length, and the applied twist,
+    sweep, and dihedral angles.
     """
 
-    def __init__(self, aerofoil: NDAerofoil = None, twist: Hint.num = None):
+    def __init__(self, aerofoil: NDAerofoil = None, chord: Hint.num = None,
+                 twist: Hint.num = None):
         self._aerofoil = aerofoil
         self._twist = 0.0 if twist is None else float(twist)
+        self._chord = 1.0 if chord is None else float(chord)
         self._sweep = None
         self._dihedral = None
         return
@@ -33,6 +35,7 @@ class NDWingSection(object):
 
         new_object = type(self)(
             aerofoil=self.aerofoil + other.aerofoil,
+            chord=self.chord + other.chord,
             twist=self.twist + other.twist
         )
         return new_object
@@ -41,19 +44,41 @@ class NDWingSection(object):
         # Typechecking
         if not isinstance(other, Hint.num.__args__):
             raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
-        # New non-dimensional profile and angle of twist
+        # New non-dimensional profile, chord length, and angle of twist
         new_aerofoil = other * self.aerofoil
+        new_chord = other * self.chord
         new_theta = other * self.twist
 
         new_object = type(self)(
             aerofoil=new_aerofoil,
+            chord=new_chord,
             twist=new_theta
         )
         return new_object
 
+    def deepcopy(self):
+        """Returns a deep copy of self (no values are shared in memory)."""
+        return type(self)(aerofoil=self._aerofoil, twist=self._twist)
+
     @property
     def aerofoil(self):
         return self._aerofoil
+
+    @property
+    def chord(self) -> float:
+        """
+        The chord length of the station's aerofoil.
+
+        Returns:
+            Reference chord length of the aerofoil at this wing station.
+
+        """
+        return self._chord
+
+    @chord.setter
+    def chord(self, value):
+        self._chord = float(value)
+        return
 
     @property
     def twist(self) -> float:
@@ -161,19 +186,30 @@ class NDWingSection(object):
         Cl = self.aerofoil.Cl(alpha=local_alpha)
         return Cl
 
+    def xc_cp(self, alpha: Hint.nums) -> np.ndarray:
+        """
+        The station's chordwise position for the centre of pressure.
+
+        Args:
+            alpha: Angle of attack at the wing root.
+
+        Returns:
+            Station's chordwise position for the centre of pressure.
+
+        """
+        # Recast as necessary
+        alpha = cast2numpy(alpha)
+
+        local_alpha = alpha + self.twist
+        xc_cp = self.aerofoil.xc_cp(alpha=local_alpha)
+        return xc_cp
+
 
 class WingSections(DiscreteIndex):
 
-    def __init__(self, span: Hint.num):
-        """
-        Args:
-            span: The full span of the wing, i.e. the maximum extent of the wing
-                from tip-to-tip.
-        """
+    def __init__(self):
         # Super class call
         super().__init__()
-        self._b = span
-        self._mirrored = True
 
         return
 
@@ -204,6 +240,9 @@ class WingSections(DiscreteIndex):
                 aerofoil._dihedral = parent.dihedral
                 delattr(aerofoil, "_parents")
 
+        # If sliced, return an array
+        if isinstance(key, slice):
+            return nd_sections
         return collapse1d(nd_sections)
 
 
@@ -213,17 +252,20 @@ if __name__ == "__main__":
     n0012 = NewNDAerofoil.from_procedure.NACA("0012")
     n8412 = NewNDAerofoil.from_procedure.NACA("8412")
 
-    mysections = WingSections(span=30)
-    mysections[0] = NDWingSection(n8412)
-    mysections[60] = mysections[60]
-    mysections[100] = NDWingSection(n0012)
+    # Define buttock-line geometry
+    mysections = WingSections()
+    mysections[0] = WingSection(n8412)
+    mysections[60] = mysections[0].deepcopy()
+    mysections[100] = WingSection(n0012)
 
+    # Add leading edge sweep and dihedral
     mysections[:60].sweep = np.radians(0)
     mysections[60:].sweep = np.radians(2)
-    print(mysections[0:].sweep)
-
     mysections[0:].dihedral = np.radians(3)
-    print(mysections[:].dihedral)
+
+    # Introduce wing taper
+    mysections[0:].chord = 1.0
+    mysections[100].chord = 0.4
 
 # class WingPlane(object):
 #     """
@@ -274,56 +316,56 @@ if __name__ == "__main__":
 #         self._spar = None
 #         return
 
-# if __name__ == "__main__":
-#     from sectionproperties.pre.library import steel_sections, primitive_sections
-#     from sectionproperties.pre.pre import Material
-#     from sectionproperties.analysis.section import Section
-#
-#     steel = Material(
-#         name='Steel', elastic_modulus=200e9, poissons_ratio=0.3,
-#         density=7.85e3, yield_strength=500e6, color='grey'
-#     )
-#     timber = Material(
-#         name='Timber', elastic_modulus=8e9, poissons_ratio=0.35,
-#         density=6.5e2, yield_strength=20e6, color='burlywood'
-#     )
-#
-#
-#     def sections(height: float, width: float):
-#         """
-#
-#         Args:
-#             height: Maximum allowable height of the spar.
-#             width: Maximum allowable width of the spar.
-#
-#         Returns:
-#
-#         """
-#         # Compute parameterised dimensions
-#         core_y = height - (2 * width)
-#         tube_od = width
-#         tube_wt = 1e-3
-#
-#         # STEP 1: Create component section geometries (and attach materials)
-#         rod_kwargs = {"d": tube_od, "t": tube_wt, "n": 100, "material": steel}
-#         core_kwargs = {"b": rod_kwargs["d"], "d": core_y, "material": timber}
-#         rod = steel_sections.circular_hollow_section(**rod_kwargs)
-#         core = primitive_sections.rectangular_section(**core_kwargs)
-#
-#         # STEP 2: Create a compound geometry, and convert into a section object
-#         section_geometry = (
-#                 rod.shift_section(0, (core_y + rod_kwargs["d"]) / 2)
-#                 + core.shift_section(-rod_kwargs["d"] / 2, -core_y / 2)
-#                 + rod.shift_section(0, -(core_y + rod_kwargs["d"]) / 2)
-#         )
-#         section_geometry.create_mesh(mesh_sizes=[1e-3])
-#         section = Section(section_geometry)
-#
-#         # STEP 3: Calculate the geometric properties of the section
-#         section.calculate_geometric_properties()
-#
-#         return section
-#
-#
-#     section = sections(height=0.1, width=12e-3)
-#     section.plot_mesh()
+if __name__ == "__main__":
+    from sectionproperties.pre.library import steel_sections, primitive_sections
+    from sectionproperties.pre.pre import Material
+    from sectionproperties.analysis.section import Section
+
+    steel = Material(
+        name='Steel', elastic_modulus=200e9, poissons_ratio=0.3,
+        density=7.85e3, yield_strength=500e6, color='grey'
+    )
+    timber = Material(
+        name='Timber', elastic_modulus=8e9, poissons_ratio=0.35,
+        density=6.5e2, yield_strength=20e6, color='burlywood'
+    )
+
+
+    def sections(height: float, width: float):
+        """
+
+        Args:
+            height: Maximum allowable height of the spar.
+            width: Maximum allowable width of the spar.
+
+        Returns:
+
+        """
+        # Compute parameterised dimensions
+        core_y = height - (2 * width)
+        tube_od = width
+        tube_wt = 1e-3
+
+        # STEP 1: Create component section geometries (and attach materials)
+        rod_kwargs = {"d": tube_od, "t": tube_wt, "n": 100, "material": steel}
+        core_kwargs = {"b": rod_kwargs["d"], "d": core_y, "material": timber}
+        rod = steel_sections.circular_hollow_section(**rod_kwargs)
+        core = primitive_sections.rectangular_section(**core_kwargs)
+
+        # STEP 2: Create a compound geometry, and convert into a section object
+        section_geometry = (
+                rod.shift_section(0, (core_y + rod_kwargs["d"]) / 2)
+                + core.shift_section(-rod_kwargs["d"] / 2, -core_y / 2)
+                + rod.shift_section(0, -(core_y + rod_kwargs["d"]) / 2)
+        )
+        section_geometry.create_mesh(mesh_sizes=[1e-3])
+        section = Section(section_geometry)
+
+        # STEP 3: Calculate the geometric properties of the section
+        section.calculate_geometric_properties()
+
+        return section
+
+
+    section = sections(height=0.1, width=12e-3)
+    section.plot_mesh()

@@ -52,14 +52,26 @@ def sort_kvs(nestedlist: list) -> list:
     return sorted_list
 
 
-def parse_slice(keys, slice_object: slice) -> tuple:
-    """Extract keys bounded by a slice object."""
-    start = keys[0] if slice_object.start is None else slice_object.start
-    stop = keys[-1] if slice_object.stop is None else slice_object.stop
-    step = 1 if slice_object.step is None else slice_object.step
-    if step != 1:
-        raise KeyError("Do not use slicing steps that aren't one!")
-    return start, stop, step
+def parse_slice(keys: np.ndarray, slice_object: slice) -> tuple:
+    """Extract customised keys bounded by a slice object."""
+    # Define the starting key, if it is missing
+    if (start := slice_object.start) is None:
+        start = keys[0]
+
+    # If stop key is missing, use <= (get everything). Else, < (up to stop key)
+    if (stop := slice_object.stop) is None:
+        stop = keys[-1]
+        realkeys = keys[(start <= keys) & (keys <= stop)]
+    else:
+        realkeys = keys[(start <= keys) & (keys < stop)]
+
+    # If no step is given, just return the relevant keys
+    if (step := slice_object.step) is None:
+        return realkeys
+
+    # Else a "step" is given, create a linear spacing of keys with 'step' elems.
+    # noinspection PyArgumentList
+    return np.linspace(keys.min(), keys.max(), step)
 
 
 # ============================================================================ #
@@ -131,7 +143,8 @@ class DiscreteIndex(dict):
             [super(DiscreteIndex, self).__setitem__(*kv) for kv in items]
             return
 
-        # elif isinstance(key, slice):
+        elif isinstance(key, slice):
+            raise NotImplementedError("Cannot set using slice object!")
         #     # Record current entries of the dictionary, and clear self
         #     items = list(self.items())
         #     self.clear()
@@ -147,16 +160,15 @@ class DiscreteIndex(dict):
         keys, vals = zip(*self.items())
         keys, vals = map(cast2numpy, [keys, vals])  # Make indexable
 
-        # If given a slice object, find the stations being referenced
+        # If slice object, find the keys being referenced - else, only one key
         if isinstance(key, slice):
-            start, stop, _ = parse_slice(keys, slice_object=key)
-            vals2rtn = vals[(start <= keys) & (keys <= stop)]
-            return collapse1d(TransparentArray(vals2rtn))
+            keys2get = parse_slice(keys, slice_object=key)
+            sliced = True
+        else:
+            keys2get = cast2numpy(key)  # Make iterable
+            sliced = False
 
-        # Recast as necessary
-        keys2get = cast2numpy(key)  # Note: keys are cast as str, not numbers...
         vals2rtn = list()
-
         for key in keys2get:
             # If the key exists or is out of bounds, take closest matching key
             if key in keys:
@@ -184,6 +196,9 @@ class DiscreteIndex(dict):
                     pass  # Couldn't assign attribute '_parents' to this object
                 vals2rtn.append(val_new)
 
+        # If sliced, return an array
+        if sliced is True:
+            return TransparentArray(vals2rtn)
         return collapse1d(TransparentArray(vals2rtn))
 
 
