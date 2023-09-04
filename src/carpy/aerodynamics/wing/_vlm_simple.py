@@ -289,7 +289,7 @@ class VLMSolutionRigid(object):
             Fx[i], Fy[i], Fz[i] = np.cross(u, s) * gamma[i]
 
         # Resolve these forces into perpendicular and parallel to freestream
-        wingarea = trapezoid(sections[::100].chord, dx=span / 100)
+        wingarea = trapezoid(sections[::(elems := 1000)].chord, dx=span / elems)
         Cl = np.sum(Fx * np.sin(alpha) - Fz * np.cos(alpha)) / (wingarea / 2)
         Cdi = np.sum(-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / (wingarea / 2)
 
@@ -325,4 +325,4 @@ if __name__ == "__main__":
     # mysections[100].chord = 0.4
 
     VLMSolutionRigid(sections=mysections, span=30, alpha=np.radians(8), N=5)
-    rectwing(alpha=np.radians(8), AR=30, N=5)
+    # rectwing(alpha=np.radians(8), AR=30, N=5)
