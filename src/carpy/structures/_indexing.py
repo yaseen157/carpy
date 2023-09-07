@@ -1,7 +1,7 @@
 """Methods for prescribing geometry the indexing of 'stations'."""
 import numpy as np
 
-from carpy.utility import Hint, cast2numpy, collapse1d, idx0
+from carpy.utility import Hint, cast2numpy, collapse_array
 
 __all__ = ["DiscreteIndex", "ContinuousIndex"]
 __author__ = "Yaseen Reza"
@@ -117,7 +117,7 @@ class DiscreteIndex(dict):
         remapped = dict()
         for (key, value) in mapping.items():
 
-            if idx0(validate_keys(key)):
+            if validate_keys(key)[0]:
                 # Ensure key maps as float for consistency of operation
                 remapped[float(key)] = value
                 continue
@@ -130,7 +130,7 @@ class DiscreteIndex(dict):
 
     def __setitem__(self, key, value):
 
-        if idx0(validate_keys(key)):
+        if validate_keys(key):
             # Record current entries of the dictionary, and clear self
             items = list(self.items())
             self.clear()
@@ -199,7 +199,7 @@ class DiscreteIndex(dict):
         # If sliced, return an array
         if sliced is True:
             return TransparentArray(vals2rtn)
-        return collapse1d(TransparentArray(vals2rtn))
+        return collapse_array(TransparentArray(vals2rtn))
 
 
 class ContinuousIndex(object):

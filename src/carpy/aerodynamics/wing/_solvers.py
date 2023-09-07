@@ -1,11 +1,48 @@
-"""Simple Vortex Lattice Method for thin aerofoils."""
+"""A module of various methods used to estimate wing aerodynamic performance."""
 import numpy as np
-from scipy.integrate import trapezoid
+from scipy.integrate import simpson, trapezoid
 
-from carpy.utility import Hint, cast2numpy
+from carpy.utility import Hint, Quantity, cast2numpy
 
-__all__ = []
+__all__ = ["PLLT", "HVM"]
 __author__ = "Yaseen Reza"
+
+
+# ============================================================================ #
+# Support Functions and Classes
+# ---------------------------------------------------------------------------- #
+
+
+def designate_sections(sections, mirror: bool = None, N: int = None) -> list:
+    """
+    Given a WingSections object, distribute sections over N-elements.
+
+    Args:
+        sections (WingSections): WingSections object, describing wing geometry.
+        mirror: If set to True, the given sections should be mirrored to
+            produce a symmetrical wing. Optional, defaults to True.
+        N: The number of sections to return. Optional, defaults to 40.
+
+    Returns:
+        list: A list containing discretised WingSection elements.
+
+    """
+    # Recast as necessary
+    mirror = True if mirror is None else False
+    N = 40 if N is None else int(N)
+
+    # Linearly spaced sections in defined span
+    if mirror is True:
+        if N % 2 == 0:  # Even number of horseshoes, don't define @y=0
+            sections2rtn = sections[::N][1::2]
+            sections2rtn = sections2rtn[::-1] + sections2rtn
+        else:  # Odd number of horseshoes, definition @y=0 is required
+            sections2rtn = sections[::int(np.ceil(N / 2))]  # ceil includes y=0
+            sections2rtn = sections2rtn[:0:-1] + sections2rtn
+    else:
+        sections2rtn = sections[::N]
+
+    return sections2rtn
 
 
 def vfil(xyzA: Hint.nums, xyzB: Hint.nums, xyzC: Hint.nums):
@@ -43,95 +80,157 @@ def vfil(xyzA: Hint.nums, xyzB: Hint.nums, xyzC: Hint.nums):
     return I
 
 
-def rectwing(alpha, AR, N):
+class WingSolution(object):
+    """
+    Template object, of which solvers should aim to produce all attributes of.
+    """
+    _AR: float
+    _CL: float
+    _CLalpha: float
+    _Sref: Quantity
+    _b: Quantity
+    _e: float
+    _delta: float
+    _tau: float
+
+    def __str__(self):
+        params2print = ["AR", "CL", "CLalpha", "Sref", "b", "e", "delta", "tau"]
+
+        return_string = f"{type(self).__name__}\n"
+        for param in params2print:
+            return_string += f">\t{param:<8} = {getattr(self, param)}\n"
+
+        return return_string
+
+    @property
+    def AR(self) -> float:
+        """Wing aspect ratio, AR."""
+        return self._AR
+
+    @property
+    def CL(self) -> float:
+        """Wing lift coefficient, CL."""
+        return self._CL
+
+    @property
+    def CLalpha(self) -> float:
+        """Finite wing lift-curve slope, CLalpha."""
+        return self._CLalpha
+
+    @property
+    def Sref(self) -> Quantity:
+        """Wing reference planform area, Sref."""
+        return self._Sref
+
+    @property
+    def b(self) -> Quantity:
+        """Tip-to-tip span of the wing, b."""
+        return self._b
+
+    @property
+    def e(self) -> float:
+        """Planform span efficiency factor, e."""
+        return self._e
+
+    @property
+    def delta(self) -> float:
+        """Elliptical lift distribution deviation factor, delta."""
+        return self._delta
+
+    @property
+    def tau(self) -> float:
+        """Finite wing lift-curve slope deviation factor, tau."""
+        return self._tau
+
+
+# ============================================================================ #
+# Public classes
+# ---------------------------------------------------------------------------- #
+
+class PLLT(WingSolution):
+    """
+    Prandtl's lifting line (a.k.a Lanchester-Prandtl wing) theory.
+
+    For use in incompressible, inviscid, steady flow regimes with moderate to
+    high aspect ratio, unswept wings.
     """
 
-    Args:
-        alpha: Freestream angle of attack.
-        AR: Rectangular wing aspect ratio.
-        N: Number of horseshoe vortices.
+    def __init__(
+            self, sections, span: Hint.num, alpha: Hint.num, N: int = None):
+        # Recast as necessary
+        N = 50 if N is None else int(N)
 
-    Returns:
-        tuple: (lift coefficient, (induced) drag coefficient)
+        # Create a cosine-spaced distribution of the given extent of sections
+        section_max, section_min = max(sections), min(sections)
+
+        def Nsections(y):
+            y = abs(y)
+            selection = np.interp(y, [0, span / 2], [section_min, section_max])
+            return sections[selection]
+
+        # Skip first element to prevent the generation of singular matrices
+        theta0 = np.linspace(0, np.pi, N + 2)[1:-1]
+
+        # Station parameters
+        y = np.cos(theta0) * (span / 2)  # ... Span position
+        chord = [Nsections(x).chord for x in y]
+        alpha_zl = [Nsections(x).alpha_zl for x in y]
+        Clalpha = [Nsections(x).Clalpha(alpha) for x in y]
+
+        chord, alpha_zl, Clalpha = map(cast2numpy, (chord, alpha_zl, Clalpha))
+
+        # Solve matrices for Fourier series coefficients
+        matA = np.zeros((N, N))
+        for j in (n := np.arange(N)):
+            term1 = 4 * span / Clalpha[j] / chord[j]
+            term2 = (n + 1) / np.sin(theta0[j])
+            matA[j] += np.sin((n + 1) * theta0[j]) * (term1 + term2)
+        matB = (alpha - alpha_zl)[:, None]
+        matX = np.linalg.solve(matA, matB)[:, 0]  # <-- This is the slow step!!!
+
+        # Just some requisite quick maths :)
+        wingarea = -simpson(y=chord, x=y)
+        a0 = 2 * np.pi  # Ideal lift-curve slope
+        n = (np.arange(1, len(matX) + 1))
+        delta = (n * (matX / matX[0]) ** 2)[1:].sum()
+        # n increases row-wise, theta0 is periodic column-wise
+        integral = simpson(y=chord * np.sin(n[:, None] * theta0), x=y)
+        tau = span / (2 * wingarea) * (n * matX * integral)[1:].sum()
+
+        self._AR = span ** 2 / wingarea
+        self._CL = np.pi * self.AR * matX[0]
+        self._CLalpha = a0 / (1 + a0 / (np.pi * self.AR) * (1 + tau))
+        self._Sref = Quantity(wingarea, "m^{2}")
+        self._b = Quantity(span, "m")
+        self._e = 1 / (1 + delta)
+        self._delta = delta
+        self._tau = tau
+
+        return
+
+
+class HVM(WingSolution):
+    """
+    Horseshoe Vortex Method over N-elements.
+
+    For use in incompressible, inviscid, steady flow regimes.
+
+    Notes:
+        Currently assumes all lifting sections have a lift-slope of 2 pi.
 
     """
-    large = 1e6
-    Q = [np.cos(alpha), 0.0, np.sin(alpha)]  # Freestream orientation
-    bw = AR  # Wingspan (== AR when chord length of the wing is 1)
-    cw = 1.0  # Wingchord (== 1, constant reference length)
-    factor = np.sqrt(N / (N + 1))  # For 1/sqrt(2) when N == 1
-    bp = bw * factor  # Wingspan, prime
-    cp = np.array([0.5 * cw / factor, 0, 0])  # Wingchord, prime
-
-    # Locate vortex segments, control, and normal vectors
-    dy = np.array([0, bp / N, 0])  # Horseshoe discretise
-    xa, xb, xc = np.zeros((3, N, 3))  # Store vortex vertices (a,b) and ctrl (c)
-    n = np.zeros((N, 3))  # Create empty normal vector
-    xa[0] = np.array([0, -0.5 * bp, 0])
-    xb[0] = np.array([0, -0.5 * bp, 0]) + dy
-    for i in range(1, N):
-        xa[i] = xb[i - 1]
-        xb[i] = xa[i] + dy
-    for i in range(N):
-        xc[i] = 0.5 * (xa[i] + xb[i]) + cp
-        n[i] = np.array([0, 0, 1])  # z-direction is the chord line normal
-
-    # Set matrix and right hand side elements, solve for circulations (Gamma)
-    A = np.zeros((N, N))
-    rhs = np.zeros((N, 1))
-
-    for i in range(N):
-        for j in range(N):
-            # Influence contributions from 'LARGE -> xa -> xb -> LARGE' on xc
-            I = vfil(xa[j], xb[j], xc[i])
-            I += vfil(xa[j] + np.array([large, 0, 0]), xa[j], xc[i])
-            I += vfil(xb[j], xb[j] + np.array([large, 0, 0]), xc[i])
-            A[i, j] = (I * n).sum()
-        rhs[i] = -(Q * n).sum()
-
-    # Sum of circulation in z-direction should match freestream, given a gamma
-    gamma = np.linalg.solve(A, rhs)
-
-    # Forces at centres of bound vortices (parallel with leading edge)
-    Fx, Fy, Fz = np.zeros((3, N))
-    bc = 0.5 * (xa + xb)
-    for i in range(N):
-        # Local velocity vector on each load element i
-        u = Q
-        for j in range(N):
-            u += vfil(xa[j], xb[j], bc[i]) * gamma[j]
-            u += vfil(xa[j] + np.array([large, 0, 0]), xa[j], bc[i]) * gamma[j]
-            u += vfil(xb[j], xb[j] + np.array([large, 0, 0]), bc[i]) * gamma[j]
-        # u cross s gives direction of action of the force from circulation
-        s = xb[i] - xa[i]
-        Fx[i], Fy[i], Fz[i] = np.cross(u, s) * gamma[i]
-
-    # Resolve these forces into perpendicular and parallel to freestream
-    wingarea = bw * cw
-    Cl = np.sum(Fz * np.cos(alpha) - Fx * np.sin(alpha)) / (wingarea / 2)
-    Cdi = np.sum(Fx * np.cos(alpha) + Fz * np.sin(alpha)) / (wingarea / 2)
-
-    print(f"Fx={np.sum(Fx)}")
-    print(f"Fz={np.sum(Fz)}")
-    print(f"{wingarea=:.2f}, {Cl=:.2f}, {Cdi=:.2f}")
-
-    return Cl, Cdi
-
-
-class VLMSolutionRigid(object):
 
     def __init__(self, sections, span: Hint.num, alpha: Hint.num = None,
-                 mirror: bool = None, N: int = None):
+                 N: int = None, mirror: bool = None):
         """
         Args:
             sections: Wing sections object, defining 3D geometry.
             span: Tip-to-tip span of wing (if mirrored), else root-to-tip span.
-            alpha: Angle of attack at the wing root (station zero). Optional,
-                defaults to zero angle of attack.
+            alpha: Angle of attack at the wing root (station zero).
+            N: The number of horseshoe vortices. Optional, defaults to 40.
             mirror: Whether or not to treat the wing sections object as
                 symmetrical around the smallest station index. Optional,
                 defaults to True (mirrored wing).
-            N: The number of horseshoe vortices. Optional, defaults to 40.
 
         Notes:
             The reference coordinate system used in this code adheres to the
@@ -139,7 +238,7 @@ class VLMSolutionRigid(object):
 
         """
         # Recast as necessary
-        alpha = 0 if alpha is None else float(alpha)
+        alpha = 0.0 if alpha is None else float(alpha)
         mirror = True if mirror is None else mirror
         N = 40 if N is None else int(N)
 
@@ -148,15 +247,7 @@ class VLMSolutionRigid(object):
         Q = np.array([-np.cos(alpha), 0.0, -np.sin(alpha)])  # Freestream orient
         scalefactor = np.sqrt(N / (N + 1))  # Scaling fix for N = 1 case
         # Linearly spaced sections in defined span
-        if mirror is True:
-            if N % 2 == 0:  # Even number of horseshoes, don't define @y=0
-                Nsections = sections[::N][1::2]
-                Nsections = Nsections[::-1] + Nsections
-            else:  # Odd number of horseshoes, definition @y=0 is required
-                Nsections = sections[::int(np.ceil(N / 2))]  # ceil includes y=0
-                Nsections = Nsections[:0:-1] + Nsections
-        else:
-            Nsections = sections[::N]
+        Nsections = designate_sections(sections=sections, mirror=mirror, N=N)
         # bprime = combined span of all horseshoe elements
         bprime = span * scalefactor
         # cprime = longitudinal dist. between control point and horseshoe front
@@ -181,7 +272,7 @@ class VLMSolutionRigid(object):
 
             # Port-side vortices (any mirrored elements, if they exist)
             if va[i, 1] < 0 and vb[i, 1] <= 0:
-                continue  # skip
+                continue  # skip, we'll populate this later
 
             # Centreline vortex (vortex symmetrical about the centreline)
             elif va[i, 1] < 0:
@@ -256,7 +347,7 @@ class VLMSolutionRigid(object):
                 # Simple mirror for normal vectors
                 n[:mirror_idx] = n[-mirror_idx:][::-1]
 
-        # Set matrix and right hand side elements, solve for circulations (Gamma)
+        # Set matrix and RHS elements, solve for circulations (Gamma)
         A = np.zeros((N, N))
         rhs = np.zeros((N, 1))
 
@@ -269,7 +360,7 @@ class VLMSolutionRigid(object):
                 A[i, j] = (I * n).sum()
             rhs[i] = -(Q * n).sum()
 
-        # Sum of circulation in z-direction should match freestream, given a gamma
+        # Sum of circulation in z-direction should match freestream, given gamma
         gamma = np.linalg.solve(A, rhs)
 
         # Forces at centres of bound vortices (parallel with leading edge)
@@ -293,36 +384,13 @@ class VLMSolutionRigid(object):
         Cl = np.sum(Fx * np.sin(alpha) - Fz * np.cos(alpha)) / (wingarea / 2)
         Cdi = np.sum(-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / (wingarea / 2)
 
-        print(f"Fx={np.sum(Fx)}")
-        print(f"Fz={np.sum(Fz)}")
-        print(f"{wingarea=:.2f}, {Cl=:.2f}, {Cdi=:.2f}")
+        self._AR = span ** 2 / wingarea
+        self._CL = Cl
+        self._CLalpha = NotImplemented
+        self._Sref = Quantity(wingarea, "m^{2}")
+        self._b = Quantity(span)
+        self._e = Cl ** 2 / np.pi / self._AR / Cdi
+        self._delta = 1 / self._e - 1
+        self._tau: float = NotImplemented
 
         return
-
-
-if __name__ == "__main__":
-    from carpy.aerodynamics.aerofoil import NewNDAerofoil
-    from carpy.aerodynamics.wing import WingSections, WingSection
-
-    n0012 = NewNDAerofoil.from_procedure.NACA("0012")
-    n2412 = NewNDAerofoil.from_procedure.NACA("2412")
-
-    # Define buttock-line geometry
-    mysections = WingSections()
-    mysections[0] = WingSection(n0012)
-    mysections[60] = mysections[0].deepcopy()
-    mysections[100] = WingSection(n0012)
-
-    # Add sweep and dihedral
-    # mysections[:60].sweep = np.radians(0)
-    # mysections[60:].sweep = np.radians(2)
-    # mysections[0:].dihedral = np.radians(3)
-    mysections[:].sweep = 0
-    mysections[:].dihedral = 0
-
-    # Introduce wing taper
-    mysections[0:].chord = 1.0
-    # mysections[100].chord = 0.4
-
-    VLMSolutionRigid(sections=mysections, span=30, alpha=np.radians(8), N=5)
-    # rectwing(alpha=np.radians(8), AR=30, N=5)

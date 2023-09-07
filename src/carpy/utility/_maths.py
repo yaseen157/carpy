@@ -3,7 +3,8 @@ import numpy as np
 
 from carpy.utility._miscellaneous import Hint, cast2numpy
 
-__all__ = ["interp_lin", "interp_exp"]
+__all__ = ["interp_lin", "interp_exp", "moving_average", "point_diff",
+           "point_curvature"]
 __author__ = "Yaseen Reza"
 
 
@@ -99,3 +100,88 @@ def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
         out = np.where(x > xp[-1], a[-1] * np.exp(b[-1] * x), out)
 
     return out
+
+
+def moving_average(x: Hint.nums, w: int = None):
+    """
+    Compute the moving average of an array.
+
+    Args:
+        x: 1D array which should have the moving average applied.
+        w: The size of the moving average window. Optional, defaults to 2.
+
+    Returns:
+        An array of size n-(w-1) (when given an input array x of size n) and a
+            moving average window size of w.
+
+    """
+    # Recast as necessary
+    x = cast2numpy(x)
+    w = 2 if w is None else int(2)
+
+    # https://stackoverflow.com/questions/14313510/how-to-calculate-rolling-moving-average-using-python-numpy-scipy
+    return np.convolve(x, np.ones(w), 'valid') / w
+
+
+def point_diff(y: Hint.num, x: Hint.num = None) -> np.ndarray:
+    """
+    Given coordinate arrays describing discrete points, find the gradient at
+    (and not between!) the points.
+
+    Args:
+        y: Y-values of the discrete points.
+        x: X-values of the discrete points. Optional, assumes the form of
+            range(len(y)) if not specified.
+
+    Returns:
+        The averaged differentials of the array, mapped back to the same shape
+        as (,and the original location prescribed by) the inputs.
+
+    """
+    # Recast as necessary
+    y = cast2numpy(y)
+    x = np.arange(len(y)) if x is None else cast2numpy(x)
+
+    assert x.shape == y.shape, "Expected homogeneity of array shapes"
+    assert x.ndim == y.ndim == 1, f"Unsupported array dimensions, check for 1D"
+
+    # Differentiation to give the gradients between points described in arrays
+    dydx_mid = np.diff(y) / np.diff(x)
+
+    # Gradient at the points is described by averaging the prior result
+    dydx_pts = np.zeros(x.shape)
+    dydx_pts[0], dydx_pts[-1] = dydx_mid[0], dydx_mid[-1]  # copy ends
+    dydx_pts[1:-1] = moving_average(dydx_mid, 2)
+
+    return dydx_pts
+
+
+def point_curvature(x: Hint.num, y: Hint.num) -> np.ndarray:
+    """
+    Given arrays describing points in 2D, determine the signed curvature at each
+    point.
+
+    Args:
+        x: 1D array of coordinates, the abscissa; x-coordinate.
+        y: 1D array of coordinates, the ordinates; y-coordinate.
+
+    Returns:
+        An array describing the signed curvature at each point.
+
+    """
+    # Recast as array
+    x = cast2numpy(x)
+    y = cast2numpy(y)
+
+    # Requisite differentations
+    xprime = point_diff(x)
+    xpprime = point_diff(xprime)
+    yprime = point_diff(y)
+    ypprime = point_diff(yprime)
+
+    # Compute
+    numerator = xprime * ypprime - yprime * xpprime
+    denominator = (xprime ** 2 + yprime ** 2) ** (3 / 2)
+    signed_curvature = numerator / denominator
+
+    return signed_curvature

@@ -1,11 +1,12 @@
 """Module for accessing properties of airports and their runways."""
 import os
+from functools import wraps
 import warnings
 
 import numpy as np
 import pandas as pd
 
-from carpy.utility import GetPath, Quantity, isNone, idx0
+from carpy.utility import GetPath, Quantity, isNone
 
 __all__ = ["Airport", "Runway"]
 __author__ = "Yaseen Reza"
@@ -64,6 +65,49 @@ warnings.warn(
     message="Using local image of OurAirports data, dated 22/02/2023.",
     category=RuntimeWarning
 )
+
+
+# ============================================================================ #
+# Support functions
+# ---------------------------------------------------------------------------- #
+
+def idx0(func):
+    """
+    Decorator for returning the first element of a series returned by the
+    wrapped function.
+
+    Args:
+        func: Function returning a Pandas series.
+
+    Returns:
+        The first element of the series returned by the wrapped function.
+
+    Notes:
+        Can also find the first index of an array, but this use case isn't
+            officially supported for users - internal use only at this time.
+
+    """
+    if callable(func):
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            """Function wrapper, giving the 1st element in a pd.series obj."""
+            result = func(*args, **kwargs)
+            if isinstance(result, pd.Series):
+                return result.iloc[0]
+            else:
+                return result[0]
+
+        return wrapper
+
+    # Technically the below are exceptions for unexpected uses...
+    elif isinstance(func, pd.Series):
+        # Oops, not a function returning a series. It's an actual series!
+        return func.iloc[0]
+
+    else:
+        # Who knows. Just index 0 and hope for the best
+        return func[0]
 
 
 # ============================================================================ #

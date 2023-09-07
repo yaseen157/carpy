@@ -71,13 +71,32 @@ def isNone(*args) -> tuple:
     return results if len(args) > 1 else results[0]
 
 
-def collapse1d(array):
-    """If the argument array has only one element, collapse the array."""
-    return idx0(array) if len(array) == 1 else array
+def collapse_array(scalar_or_vector):
+    """
+    Given a vector (or scalar), collapse any redundant nesting.
+
+    Args:
+        scalar_or_vector: An iterable to collapse.
+
+    Returns:
+        Lower dimensional representation of the input.
+
+    """
+    # If the "scalar_or_vector" is not iterable, simply return it
+    if not isinstance(scalar_or_vector, Hint.iter.__args__):
+        return scalar_or_vector
+
+    # Else it is iterable. Do we lose anything for indexing?
+    if len(scalar_or_vector) == 1:
+        return collapse_array(scalar_or_vector[0])  # Recursively collapse
+
+    # Yes, information is lost with further indexing. Return as is.
+    else:
+        return scalar_or_vector
 
 
 __all__ += [Hint.__name__, cast2numpy.__name__, isNone.__name__,
-            collapse1d.__name__]
+            collapse_array.__name__]
 
 
 # ============================================================================ #
@@ -193,43 +212,4 @@ def call_depth(func):
     return wrapper
 
 
-def idx0(func):
-    """
-    Decorator for returning the first element of a series returned by the
-    wrapped function.
-
-    Args:
-        func: Function returning a Pandas series.
-
-    Returns:
-        The first element of the series returned by the wrapped function.
-
-    Notes:
-        Can also find the first index of an array, but this use case isn't
-            officially supported for users - internal use only at this time.
-
-    """
-    if callable(func):
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            """Function wrapper, giving the 1st element in a pd.series obj."""
-            result = func(*args, **kwargs)
-            if isinstance(result, pd.Series):
-                return result.iloc[0]
-            else:
-                return result[0]
-
-        return wrapper
-
-    # Technically the below are exceptions for unexpected uses...
-    elif isinstance(func, pd.Series):
-        # Oops, not a function returning a series. It's an actual series!
-        return func.iloc[0]
-
-    else:
-        # Who knows. Just index 0 and hope for the best
-        return func[0]
-
-
-__all__ += [call_count.__name__, call_depth.__name__, idx0.__name__]
+__all__ += [call_count.__name__, call_depth.__name__]

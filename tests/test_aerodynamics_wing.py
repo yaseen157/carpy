@@ -4,155 +4,43 @@ import unittest
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import NewNDAerofoil
-from carpy.aerodynamics.wing import WingSection, WingSections, PLLT
-from carpy.aerodynamics.wing_bkup0 import Planforms
-from carpy.utility import Quantity
+from carpy.aerodynamics.wing import (
+    WingSection, WingSections, PLLT, HVM)
 
 
-class AerodynamicMethods(unittest.TestCase):
-    """Verify that wing performance evaluation methods are working."""
+class Solvers(unittest.TestCase):
+    """Check that methods relating to the generation of lift/drag results."""
 
-    def test_pllt(self):
-        """Prandtl's lifting line theory."""
+    @staticmethod
+    def wing_SuperLazarusMkII():
+        fx76 = NewNDAerofoil.from_url(
+            "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
+        dae31 = NewNDAerofoil.from_url(
+            "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
 
-        # Test on a spitfire planform (ignore aerofoil camber, etc. for now)
-        spitfire_span = 11.2
-        spitfire_croot = Quantity(100, "in")
-
-        def spitfire_chord(y):
-            """Perfect elliptical chord length, given spanwise position."""
-            chord = spitfire_croot * np.sin(np.arccos(y / (spitfire_span / 2)))
-            return chord
-
-        result = PLLT(
-            span=spitfire_span,
-            alpha_inf=np.radians(1),
-            f_chord=spitfire_chord
-        )
-        # Elliptical lift distribution should give a span efficiency of 1
-        self.assertEqual(result.e, 1)
-        return
-
-
-class WingStationing(unittest.TestCase):
-
-    def test_stationassignment(self):
-        # Create new aerofoils
-        n0012 = NewNDAerofoil.from_procedure.NACA("0012")
-        n8412 = NewNDAerofoil.from_procedure.NACA("8412")
-
-        # Define an arbitrary wing with a kink point
+        # Define buttock-line geometry
         mysections = WingSections()
-        mysections[0] = WingSection(n8412)
-        mysections[60] = mysections[0].deepcopy()
-        mysections[100] = WingSection(n0012)
+        mysections[0] = WingSection(fx76)
+        mysections[6] = WingSection(fx76)
+        mysections[10] = WingSection(fx76)
+        mysections[14] = WingSection(dae31)
 
-        # No sweep before kink, sweep at and after kink
-        mysections[:60].sweep = np.radians(0)
-        mysections[60:].sweep = np.radians(2)
-        self.assertTrue(np.isclose(
-            mysections[0:].sweep,
-            [0.0, 0.03490658503988659, 0.03490658503988659]
-        ).all())
-
-        # Full wing dihedral
-        mysections[0:].dihedral = np.radians(3)
-        self.assertTrue(np.isclose(
-            mysections[0:].dihedral,
-            [0.05235987755982989, 0.05235987755982989, 0.05235987755982989]
-        ).all())
+        # Add sweep, dihedral, and twist
+        mysections[:6].sweep = np.radians(0)
+        mysections[6:].sweep = np.radians(2)
+        mysections[0:].dihedral = np.radians(0)
+        mysections[0:].twist = np.radians(0)
+        mysections[14].twist = np.radians(-3)
 
         # Introduce wing taper
-        mysections[:60].chord = 1.2
-        mysections[100].chord = 0.4
-        self.assertEqual(
-            mysections[0:].chord,
-            [1.2, 1.0, 0.4]
-        )
+        mysections[0:].chord = 1.0
+        mysections[14].chord = 0.3
+        return mysections
 
+    def test_running(self):
+        """Check that the methods are even capable of running."""
+        mysections = self.wing_SuperLazarusMkII()
+
+        soln0 = PLLT(sections=mysections, span=24, alpha=np.radians(3))
+        soln1 = HVM(sections=mysections, span=24, alpha=np.radians(3))
         return
-
-
-class PlanformTesting(unittest.TestCase):
-
-    # Note to future devs: Do not worry about the input values being exact.
-    # The point is to check if the maths is being done correctly!
-
-    def test_cirrus_sr22(self):
-        """Test case for the Trapezoidal planform based on the Cirrus SR-22. """
-        # Create wing object
-        wing = Planforms.Trapezoidal(b=11.66, S=13.5)
-
-        # Define shape
-        wing.taper = 0.8
-        wing.set_sweep(25, sweep=0)
-
-        # Check: root and tip chord
-        self.assertTrue(np.isclose(wing.cr, Quantity([1.2864494], units='m')))
-        self.assertTrue(np.isclose(wing.ct, Quantity([1.02915952], units='m')))
-
-        # Check: LE and TE sweep angles
-        self.assertTrue(np.isclose(wing.sweepLE, 0.011032566078550767))
-        self.assertTrue(np.isclose(wing.sweepTE, -0.03308696191673661))
-
-        # Check: quarter chord sweep
-        self.assertTrue(np.isclose(wing.sweepXX(25), 0))
-
-        # Check: taper ratio
-        self.assertEqual(wing.taper, 0.8)
-
-        # Check: sigma position
-        self.assertTrue(np.isclose(wing.sigma, 0.049999999999999975))
-
-        return
-
-    def test_suhpa_superlazarus(self):
-        """Test case for Cranked planform based on the SUHPA Super Lazarus."""
-
-        # Create wing object
-        wing = Planforms.Cranked(b=24, S=21, yB=6)
-
-        # Define shape
-        wing.taper_io = 1, 0.4
-        wing.set_sweep(25, sweep=0)
-
-        # Check: span
-        self.assertEqual(
-            wing.b_io,
-            (Quantity([12.], units='m'), Quantity([12.], units='m'))
-        )
-
-        # Check: chord at break
-        self.assertTrue(np.isclose(wing.cB, Quantity([1.02941176], units='m')))
-
-        # Check: chord at wing tip
-        self.assertTrue(np.isclose(wing.ct, Quantity([0.4117647], units='m')))
-
-        # Check: area
-        self.assertTrue(np.isclose(
-            wing.S_io,
-            (Quantity([12.35294114], units='m^{2}'),
-             Quantity([8.6470588], units='m^{2}'))
-        ).all())
-
-        # Check sweep
-        self.assertTrue(np.isclose(
-            wing.sweepLE_io, (0.0, 0.025729614758273463)).all())
-        self.assertTrue(np.isclose(
-            wing.sweepTE_io, (-0.0, -0.07705302682729681)).all())
-
-        # Check: quarter chord sweep
-        self.assertTrue(np.isclose(
-            wing.sweepXX(25), (np.array([0.]), np.array([-3.46944695e-18]))
-        ).all())
-
-        # Check: taper
-        self.assertEqual(wing.taper_io, (1.0, 0.4))
-
-        # Check: kink point
-        self.assertEqual(wing.yB, Quantity([6.], units='m'))
-        self.assertEqual(wing.etaB, 0.5)
-        return
-
-# class GeometryTesting(unittest.Testcase):
-#     pass

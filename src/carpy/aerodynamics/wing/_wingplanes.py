@@ -3,7 +3,7 @@ import numpy as np
 
 from carpy.aerodynamics.aerofoil import NDAerofoil
 from carpy.structures import DiscreteIndex
-from carpy.utility import Hint, cast2numpy, collapse1d, isNone
+from carpy.utility import Hint, cast2numpy, collapse_array, isNone
 
 __all__ = ["WingSection", "WingSections"]
 __author__ = "Yaseen Reza"
@@ -243,7 +243,7 @@ class WingSections(DiscreteIndex):
         # If sliced, return an array
         if isinstance(key, slice):
             return nd_sections
-        return collapse1d(nd_sections)
+        return collapse_array(nd_sections)
 
 
 if __name__ == "__main__":
