@@ -1,9 +1,9 @@
 """Methods for generating and optimising wing planforms."""
 import numpy as np
 
-from carpy.aerodynamics.aerofoil import NDAerofoil
+from carpy.aerodynamics.aerofoil import Aerofoil
 from carpy.structures import DiscreteIndex
-from carpy.utility import Hint, cast2numpy, collapse_array, isNone
+from carpy.utility import Hint, collapse_array, isNone
 
 __all__ = ["WingSection", "WingSections"]
 __author__ = "Yaseen Reza"
@@ -19,7 +19,7 @@ class WingSection(object):
     sweep, and dihedral angles.
     """
 
-    def __init__(self, aerofoil: NDAerofoil = None, chord: Hint.num = None,
+    def __init__(self, aerofoil: Aerofoil = None, chord: Hint.num = None,
                  twist: Hint.num = None):
         self._aerofoil = aerofoil
         self._twist = 0.0 if twist is None else float(twist)
@@ -135,75 +135,6 @@ class WingSection(object):
         self._dihedral = float(value)
         return
 
-    @property
-    def alpha_zl(self) -> float:
-        """Station's angle of attack for zero-lift, relative to wing root."""
-        alpha_zl = self.aerofoil.alpha_zl - self.twist
-        return alpha_zl
-
-    @alpha_zl.setter
-    def alpha_zl(self, value):
-        errormsg = (
-            f"'alpha_zl' of a station is not configurable as it is a derived "
-            f"property of the station's aerofoil zero lift angle and twist. "
-            f"Try modifying the station's aerofoil or twist parameters instead"
-        )
-        raise AttributeError(errormsg)
-
-    def Clalpha(self, alpha: Hint.nums) -> np.ndarray:
-        """
-        The station's lift-curve slope.
-
-        Args:
-            alpha: Angle of attack at the wing root.
-
-        Returns:
-            Station's lift-curve slope.
-
-        """
-        # Recast as necessary
-        alpha = cast2numpy(alpha)
-
-        local_alpha = alpha + self.twist
-        Clalpha = self.aerofoil.Clalpha(alpha=local_alpha)
-        return Clalpha
-
-    def Cl(self, alpha: Hint.nums) -> np.ndarray:
-        """
-        The station's lift coefficient.
-
-        Args:
-            alpha: Angle of attack at the wing root.
-
-        Returns:
-            Station's lift coefficent.
-
-        """
-        # Recast as necessary
-        alpha = cast2numpy(alpha)
-
-        local_alpha = alpha + self.twist
-        Cl = self.aerofoil.Cl(alpha=local_alpha)
-        return Cl
-
-    def xc_cp(self, alpha: Hint.nums) -> np.ndarray:
-        """
-        The station's chordwise position for the centre of pressure.
-
-        Args:
-            alpha: Angle of attack at the wing root.
-
-        Returns:
-            Station's chordwise position for the centre of pressure.
-
-        """
-        # Recast as necessary
-        alpha = cast2numpy(alpha)
-
-        local_alpha = alpha + self.twist
-        xc_cp = self.aerofoil.xc_cp(alpha=local_alpha)
-        return xc_cp
-
 
 class WingSections(DiscreteIndex):
 
@@ -247,10 +178,10 @@ class WingSections(DiscreteIndex):
 
 
 if __name__ == "__main__":
-    from carpy.aerodynamics.aerofoil import NewNDAerofoil
+    from carpy.aerodynamics.aerofoil import NewAerofoil
 
-    n0012 = NewNDAerofoil.from_procedure.NACA("0012")
-    n8412 = NewNDAerofoil.from_procedure.NACA("8412")
+    n0012 = NewAerofoil.from_method.NACA("0012")
+    n8412 = NewAerofoil.from_method.NACA("8412")
 
     # Define buttock-line geometry
     mysections = WingSections()

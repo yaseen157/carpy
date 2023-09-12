@@ -7,16 +7,15 @@ from scipy.optimize import minimize
 from sectionproperties.analysis.section import Section
 from sectionproperties.pre.geometry import Geometry
 
-from carpy.aerodynamics.aerofoil._thinaero import \
-    coords2camber, ThinCamberedAerofoil
 from carpy.utility import Hint, cast2numpy, isNone, point_curvature, point_diff
 from ._generators import (
     NACA4DigitSeries, NACA4DigitModifiedSeries,
     NACA5DigitSeries, NACA5DigitModifiedSeries,
     NACA16Series
 )
+from ._solvers import ThinAerofoils
 
-__all__ = ["NewNDAerofoil", "NDAerofoil"]
+__all__ = ["NewAerofoil", "Aerofoil"]
 __author__ = "Yaseen Reza"
 
 
@@ -367,20 +366,40 @@ class Aerofoil(object):
         """Radius of the leading edge."""
         return 1 / self._curvature.max()
 
-    def _camber_points(self, step_target: Hint.num) -> np.ndarray:
+    def _camber_points(self, step_target: Hint.num,
+                       fast: bool = None) -> np.ndarray:
         """
         An array of points that describe the aerofoil's camber line.
 
         Args:
             step_target: Approximate distance between camber designating points.
+            fast: Boolean flag, True if user wishes to use a lower accuracy but
+                faster approximation. Optional, defaults to True.
 
         Returns:
             A 2D array of points describing the aerofoil's camber line.
 
+        Notes:
+            In fast mode, the camber is determined by averaging the coordinates
+                of upper and lower surfaces. In slow mode, camber points are
+                determined by finding the parameters of circles inscribing the
+                aerofoil geometry.
+
         """
+        # Recast as necessary
+        fast = True if fast is None else fast
+
         idx_le = int(np.argmax(self._curvature))  # Index of the leading edge
-        points = find_camber(
-            points=self._points, idx_le=idx_le, dxtarget=step_target)
+
+        if fast is True:
+            xs = np.arange(0, 1 + step_target, step_target)
+            y_u = np.interp(xs, *self._points[:idx_le + 1][::-1].T)
+            y_l = np.interp(xs, *self._points[idx_le:].T)
+            points = np.column_stack((xs, (y_u + y_l) / 2))
+        else:
+            points = find_camber(
+                points=self._points, idx_le=idx_le, dxtarget=step_target)
+
         return points
 
     def _thickness_function(self, orientation: Hint.num = None) -> Hint.func:
@@ -489,271 +508,7 @@ class Aerofoil(object):
         return
 
 
-class NDAerofoil(object):
-    """Non-dimensional Aerofoil object."""
-
-    def __init__(self, upper_points, lower_points):
-        # Geometry of the aerofoil
-        # Coordinates moving from leading edge to trailing edge
-        self._rawpoints_u = cast2numpy(upper_points)
-        self._rawpoints_l = cast2numpy(lower_points)
-        self._section = None
-        # Performance of the aerofoil
-        self._theory_thin = ThinCamberedAerofoil(camber_points=self.xz_points)
-        self._alpha_zl = None
-        self._Clalpha = None
-        self._Cl = None
-        self._xc_ac = None
-
-        return
-
-    def __add__(self, other):
-        if not isinstance(other, type(self)):
-            raise TypeError(f"Cannot add {type(self)=} to {type(other)=}")
-
-        # The number of points in self and other surfaces aren't necessarily
-        # the same, so some interpolation is required
-        n_upper = round((len(self._rawpoints_u) + len(other._rawpoints_u)) / 2)
-        n_lower = round((len(self._rawpoints_l) + len(other._rawpoints_l)) / 2)
-        xnew_u = (np.cos(np.linspace(np.pi, 0, n_upper)) + 1) / 2
-        xnew_l = (np.cos(np.linspace(np.pi, 0, n_lower)) + 1) / 2
-
-        # Create interpolation functions for upper and lower surfaces
-        def f_upper(xs):
-            """Linear average of the upper surface at each query point in xs."""
-            self_interp = np.interp(xs, *self._rawpoints_u.T)
-            # noinspection PyProtectedMember
-            other_interp = np.interp(xs, *other._rawpoints_u.T)
-            return self_interp + other_interp
-
-        def f_lower(xs):
-            """Linear average of the lower surface at each query point in xs."""
-            self_interp = np.interp(xs, *self._rawpoints_l.T)
-            # noinspection PyProtectedMember
-            other_interp = np.interp(xs, *other._rawpoints_l.T)
-            return self_interp + other_interp
-
-        new_object = type(self)(
-            upper_points=np.vstack([xnew_u, f_upper(xs=xnew_u)]).T,
-            lower_points=np.vstack([xnew_l, f_lower(xs=xnew_l)]).T
-        )
-        # Maintain custom zero-lift angles
-        new_object.alpha_zl = self.alpha_zl + other.alpha_zl
-        return new_object
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __mul__(self, other):
-        # Typechecking
-        if not isinstance(other, Hint.nums.__args__):
-            raise TypeError(f"Cannot multiply {type(self)=} by {type(other)=}")
-        elif isinstance(other, Hint.num.__args__):
-            multiplier = cast2numpy([1, other])
-        else:
-            multiplier = cast2numpy(other)
-        new_object = type(self)(
-            upper_points=self._rawpoints_u * multiplier,
-            lower_points=self._rawpoints_l * multiplier
-        )
-        # Maintain custom zero-lift angles
-        xscale, yscale = multiplier
-        new_object.alpha_zl = (yscale / xscale) * self.alpha_zl
-        return new_object
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    @property
-    def xz_points(self) -> np.ndarray:
-        """Return an array of points approximating the aerofoil's camberline."""
-        xz = coords2camber(self._rawpoints_u, self._rawpoints_l)
-        return xz
-
-    @property
-    def section(self) -> Section:
-        """Section properties, for geometric analysis of the aerofoil."""
-        # Section exists...
-        if self._section is not None:
-            return self._section
-
-        # Create a section...
-        # Create a list of counter clockwise points, ignore duplicated LE point
-        points = list(self._rawpoints_u)[::-1] + list(self._rawpoints_l)[1:]
-        # Describe the connectivity of the points in a nested list
-        facets = (np.arange((n := len(points)))[:, None] + np.array(
-            [0, 1])) % n
-        facets = [list(x) for x in facets]
-        # Identify the inside region of the aerofoil as 10% behind leading edge
-        control_points = [[0.1, 0]]
-
-        # Create a geometry object
-        section_geometry = Geometry.from_points(
-            points=points,
-            facets=facets,
-            control_points=control_points
-        )
-        section_geometry.create_mesh(mesh_sizes=[1])
-        # Use the geometry object to instantiate a Section object
-        self._section = Section(section_geometry)
-        self._section.calculate_geometric_properties()  # Update geometric props
-        return self._section
-
-    def show(self) -> None:
-        """Simple 2D render of the aerofoil geometry."""
-
-        # Gather data to resize the primary plot
-        ymax = self._rawpoints_u[:, 1].max()
-        ymin = self._rawpoints_l[:, 1].min()
-        # Gather data to resize the inset plot
-        zoom = 25
-        dte_u = self._rawpoints_u[-1] - np.array([1, 0])
-        dte_l = self._rawpoints_l[-1] - np.array([1, 0])
-        inset_ax_radius \
-            = max(((dte_u ** 2 + dte_l ** 2) ** 0.5).sum() * 2, .005)
-        te_xm, te_ym = (dte_u + dte_l) / 2 + np.array([1, 0])
-
-        # Imports
-        from matplotlib import pyplot as plt
-        from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
-        from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-
-        # Create primary axes and inset axes
-        fig, ax = plt.subplots(1, dpi=140)
-        axins = zoomed_inset_axes(parent_axes=ax, zoom=zoom, loc="upper right")
-
-        # Draw on both axes objects
-        for axes in (ax, axins):
-            axes.plot(*self._rawpoints_u.T, "blue")
-            axes.plot(*self._rawpoints_l.T, "gold")
-            axes.plot(*self.xz_points.T, "teal", ls="--")
-            axes.fill_between(
-                *np.array(self.section.geometry.points).T, 0, alpha=.1, fc="k")
-            axes.axhline(y=0, ls="-.", c="k", alpha=0.3, lw=1)
-
-        # Make the primary plot pretty
-        fig.canvas.manager.set_window_title(f"{self}.show()")
-        ax.set_title("Aerofoil 2D Profile")
-        ax.set_aspect(1)
-        ax.set_xlim(-0.1, 1.16 + zoom * 2 * inset_ax_radius)
-        ylo, yhi = ax.get_ylim()
-        ax.set_ylim(ylo - (ymax - ymin), yhi + 2 * (ymax - ymin))
-        ax.set_xlabel("x/c")
-        ax.set_ylabel("y/c")
-        ax.grid(alpha=0.3)
-
-        # Make the zoomed-in plot pretty
-        axins.set_xlim(te_xm - inset_ax_radius, te_xm + inset_ax_radius)
-        axins.set_ylim(te_ym - inset_ax_radius, te_ym + inset_ax_radius)
-        axins.set_xlabel(f"{zoom}x zoom", fontsize="small")
-        plt.xticks(visible=False)
-        plt.yticks(visible=False)
-        mark_inset(ax, axins, loc1=2, loc2=3, fc="none", edgecolor="limegreen")
-
-        plt.show()
-        return None
-
-    @property
-    def alpha_zl(self) -> float:
-        """Angle of attack for zero lift."""
-        # Alpha of zero lift is known...
-        if self._alpha_zl is not None:
-            return self._alpha_zl
-
-        # Else it needs to be computed, update locally stored result
-        self._alpha_zl = self._theory_thin.alpha_zl
-        return self._alpha_zl
-
-    @alpha_zl.setter
-    def alpha_zl(self, value):
-        self._alpha_zl = float(value)
-
-    @alpha_zl.deleter
-    def alpha_zl(self):
-        self._alpha_zl = None
-
-    @property
-    def Clalpha(self) -> Hint.func:
-        """Function for determining the sectional lift-curve slope."""
-        # Lift-curve slope is not known...
-        if self._Clalpha is None:
-            return self._theory_thin.Clalpha
-
-        return self._Clalpha
-
-    @Clalpha.setter
-    def Clalpha(self, value):
-        if not callable(value):
-            errormsg = (
-                f"Clalpha.setter is expecting to be given 'function(alpha)', "
-                f"actually got Cla = {value} (invalid {type(value)=})"
-            )
-            raise TypeError(errormsg)
-
-        self._Clalpha = value
-        return
-
-    @Clalpha.deleter
-    def Clalpha(self):
-        self._Clalpha = None
-        return
-
-    @property
-    def Cl(self):
-        """Function for determining the sectional lift coefficient."""
-        # Sectional lift coefficient is not known...
-        if self._Cl is None:
-            return self._theory_thin.Cl
-
-        return self._Cl
-
-    @Cl.setter
-    def Cl(self, value):
-        if not isinstance(value, Hint.func.__args__):
-            errormsg = (
-                f"Cl.setter is expecting to be given 'function(alpha)', "
-                f"actually got Cl = {value} (invalid {type(value)=})"
-            )
-            raise TypeError(errormsg)
-
-        self._Clalpha = value
-        return
-
-    @Cl.deleter
-    def Cl(self):
-        self._Cl = None
-        return
-
-    @property
-    def xc_ac(self):
-        """Chordwise position of the aerofoil's aerodynamic centre."""
-        # If the aerodynamic centre is known...
-        if self._xc_ac is not None:
-            return self._xc_ac
-
-        # Else it must be obtained from theory
-        self._xc_ac = self._theory_thin.xc_ac
-        return self._xc_ac
-
-    @xc_ac.setter
-    def xc_ac(self, value):
-        if value > 1 or value < 0:
-            raise ValueError(f"xc_ac must be bounded by [0, 1] (got {value})")
-        self._xc_ac = float(value)
-        return
-
-    @xc_ac.deleter
-    def xc_ac(self):
-        self._xc_ac = None
-        return
-
-    @property
-    def xc_cp(self):
-        """Chordwise position of the aerofoil's centre of pressure."""
-        return self._theory_thin.xc_cp
-
-
-class NewNDAerofoil(object):
+class NewAerofoil(object):
     """
     A class of methods for generating non-dimensional aerofoil geometries.
     """
@@ -773,7 +528,7 @@ class NewNDAerofoil(object):
         Examples:
 
             >>> my_url = "https://m-selig.ae.illinois.edu/ads/coord/n0012.dat"
-            >>> n0012 = NewNDAerofoil.from_url(url=my_url)
+            >>> n0012 = NewAerofoil.from_url(url=my_url)
             >>> n0012.show()
 
         """
@@ -803,7 +558,7 @@ class NewNDAerofoil(object):
         Examples:
 
             >>> my_path = "C:\\Users\\Public\\Documents\\naca0012.txt"
-            >>> n0012 = NewNDAerofoil.from_path(filepath=my_path)
+            >>> n0012 = NewAerofoil.from_path(filepath=my_path)
             >>> n0012.show()
 
         """
@@ -816,4 +571,4 @@ class NewNDAerofoil(object):
         return aerofoil
 
     # From procedural generators of aerofoil geometry
-    from_procedure = ProceduralProfiles
+    from_method = ProceduralProfiles

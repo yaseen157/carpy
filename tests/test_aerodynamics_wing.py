@@ -3,9 +3,9 @@ import unittest
 
 import numpy as np
 
-from carpy.aerodynamics.aerofoil import NewNDAerofoil
+from carpy.aerodynamics.aerofoil import NewAerofoil
 from carpy.aerodynamics.wing import (
-    WingSection, WingSections, PLLT, HVM)
+    WingSection, WingSections, PLLT, HorseshoeVortex)
 
 
 class Solvers(unittest.TestCase):
@@ -13,9 +13,9 @@ class Solvers(unittest.TestCase):
 
     @staticmethod
     def wing_SuperLazarusMkII():
-        fx76 = NewNDAerofoil.from_url(
+        fx76 = NewAerofoil.from_url(
             "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
-        dae31 = NewNDAerofoil.from_url(
+        dae31 = NewAerofoil.from_url(
             "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
 
         # Define buttock-line geometry
@@ -42,5 +42,6 @@ class Solvers(unittest.TestCase):
         mysections = self.wing_SuperLazarusMkII()
 
         soln0 = PLLT(sections=mysections, span=24, alpha=np.radians(3))
-        soln1 = HVM(sections=mysections, span=24, alpha=np.radians(3))
+        soln1 = HorseshoeVortex(sections=mysections, span=24,
+                                alpha=np.radians(3))
         return

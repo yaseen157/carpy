@@ -1,6 +1,6 @@
 import unittest
 
-from carpy.aerodynamics.aerofoil import NewNDAerofoil
+from carpy.aerodynamics.aerofoil import NewAerofoil, ThinAerofoils
 
 
 class Profiles(unittest.TestCase):
@@ -8,25 +8,26 @@ class Profiles(unittest.TestCase):
 
     def test_generateNACA(self):
         # Four digit series
-        n0012 = NewNDAerofoil.from_procedure.NACA("0012")
-        n2412 = NewNDAerofoil.from_procedure.NACA("2412")
-        n2412_63 = NewNDAerofoil.from_procedure.NACA("2412-63")
+        n0012 = NewAerofoil.from_method.NACA("0012")
+        n2412 = NewAerofoil.from_method.NACA("2412")
+        n2412_63 = NewAerofoil.from_method.NACA("2412-63")
         # Five digit series
-        n23012 = NewNDAerofoil.from_procedure.NACA("23012")
-        n23012_45 = NewNDAerofoil.from_procedure.NACA("23012-45")
-        n44112 = NewNDAerofoil.from_procedure.NACA("44112")
+        n23012 = NewAerofoil.from_method.NACA("23012")
+        n23012_45 = NewAerofoil.from_method.NACA("23012-45")
+        n44112 = NewAerofoil.from_method.NACA("44112")
         # 16-series
-        n16_012 = NewNDAerofoil.from_procedure.NACA("16-012")
-        n16_912_3 = NewNDAerofoil.from_procedure.NACA("16-912,a=0.3")
+        n16_012 = NewAerofoil.from_method.NACA("16-012")
+        n16_912_3 = NewAerofoil.from_method.NACA("16-912,a=0.3")
         return
 
 
-class ThinAerofoils(unittest.TestCase):
+class ThinAerofoilTheory(unittest.TestCase):
     """Methods to test thin aerofoil theory."""
 
     def test_liftcurveslope(self):
-        flatplate = NewNDAerofoil.from_procedure.NACA("0001")
-        Clalpha, = flatplate.Clalpha(0)
+        flatplate = NewAerofoil.from_method.NACA("0001")
+        solution = ThinAerofoils(aerofoil=flatplate, alpha=0)
+        Clalpha = solution.Clalpha
         self.assertAlmostEqual(Clalpha, 2 * 3.1415926535, places=5)
         return
 

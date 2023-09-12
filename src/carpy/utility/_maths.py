@@ -150,8 +150,9 @@ def point_diff(y: Hint.num, x: Hint.num = None) -> np.ndarray:
 
     # Gradient at the points is described by averaging the prior result
     dydx_pts = np.zeros(x.shape)
-    dydx_pts[0], dydx_pts[-1] = dydx_mid[0], dydx_mid[-1]  # copy ends
+    # dydx_pts[0], dydx_pts[-1] = dydx_mid[0], dydx_mid[-1]  # copy ends
     dydx_pts[1:-1] = moving_average(dydx_mid, 2)
+    dydx_pts[0], dydx_pts[-1] = dydx_pts[1], dydx_pts[-2]  # copy ends
 
     return dydx_pts
 

@@ -19,7 +19,7 @@ import scipy.integrate as sint
 
 from carpy.utility import Hint, cast2numpy
 
-__all__ = ["PanelSolutionInviscid"]
+__all__ = ["PanelSolution"]
 __author__ = "Yaseen Reza"
 
 
@@ -145,7 +145,7 @@ class Freestream:
 
     def __init__(self, u_inf=1.0, alpha=0.0):
         """
-        Sets the freestream speed and angle (in degrees).
+        Sets the freestream speed and angle.
 
         Parameters
         ----------
@@ -153,11 +153,11 @@ class Freestream:
             Freestream speed;
             default: 1.0.
         alpha: float, optional
-            Angle of attack in degrees;
+            Angle of attack;
             default 0.0.
         """
         self.u_inf = u_inf
-        self.alpha = np.radians(alpha)  # degrees to radians
+        self.alpha = float(alpha)
 
     @cached_property
     def cos_alpha(self):
@@ -392,15 +392,15 @@ def compute_pressure_coefficient(panels, freestream):
         panel.cp = 1.0 - (panel.vt / freestream.u_inf) ** 2
 
 
-class PanelSolutionInviscid(object):
+class PanelSolution(object):
     """
     Given an aerofoil object, angle of attack, and number of panels to
     discretise the geometry, compute pressure distribution data.
     """
 
-    def __init__(self, aerofoil, alpha_inf: Hint.num, N: int = None):
+    def __init__(self, aerofoil, alpha: Hint.num, N: int = None):
         # Recast as necessary
-        alpha_inf = float(alpha_inf)
+        alpha = float(alpha)
         N = 100 if N is None else N
 
         # discretize geoemetry into panels
@@ -411,7 +411,7 @@ class PanelSolutionInviscid(object):
         B_vortex = vortex_contribution_normal(self.panels)
 
         # define freestream conditions
-        self.freestream = Freestream(u_inf=1.0, alpha=alpha_inf)
+        self.freestream = Freestream(u_inf=1.0, alpha=alpha)
 
         A = build_singularity_matrix(A_source, B_vortex)
         b = build_freestream_rhs(self.panels, self.freestream)

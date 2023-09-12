@@ -2,9 +2,10 @@
 import numpy as np
 from scipy.integrate import simpson, trapezoid
 
+from carpy.aerodynamics.aerofoil import ThinAerofoils
 from carpy.utility import Hint, Quantity, cast2numpy
 
-__all__ = ["PLLT", "HVM"]
+__all__ = ["PLLT", "HorseshoeVortex"]
 __author__ = "Yaseen Reza"
 
 
@@ -73,11 +74,11 @@ def vfil(xyzA: Hint.nums, xyzB: Hint.nums, xyzC: Hint.nums):
     num = (ab * (ac / abs_ac - bc / abs_bc)).sum()
 
     if den <= small:
-        I = np.zeros(3)
+        influence = np.zeros(3)
     else:
-        I = num / den * cross
+        influence = num / den * cross
 
-    return I
+    return influence
 
 
 class WingSolution(object):
@@ -98,7 +99,8 @@ class WingSolution(object):
 
         return_string = f"{type(self).__name__}\n"
         for param in params2print:
-            return_string += f">\t{param:<8} = {getattr(self, param)}\n"
+            if hasattr(self, f"_{param}"):
+                return_string += f">\t{param:<8} = {getattr(self, param)}\n"
 
         return return_string
 
@@ -163,19 +165,24 @@ class PLLT(WingSolution):
         # Create a cosine-spaced distribution of the given extent of sections
         section_max, section_min = max(sections), min(sections)
 
-        def Nsections(y):
-            y = abs(y)
-            selection = np.interp(y, [0, span / 2], [section_min, section_max])
-            return sections[selection]
-
         # Skip first element to prevent the generation of singular matrices
         theta0 = np.linspace(0, np.pi, N + 2)[1:-1]
 
-        # Station parameters
+        # Station parameters (geometric)
         y = np.cos(theta0) * (span / 2)  # ... Span position
-        chord = [Nsections(x).chord for x in y]
-        alpha_zl = [Nsections(x).alpha_zl for x in y]
-        Clalpha = [Nsections(x).Clalpha(alpha) for x in y]
+        Nsections = sections[
+            np.interp(abs(y), [0, span / 2], [section_min, section_max])
+        ]
+        chord = [Nsection.chord for Nsection in Nsections]
+        # Station parameters (aerodynamic)
+        alpha_zl, Clalpha = [], []
+        for i, Nsection in enumerate(Nsections):
+            solution = ThinAerofoils(
+                aerofoil=Nsection.aerofoil,
+                alpha=alpha + Nsection.twist  # Effective AoA
+            )
+            alpha_zl.append(solution.alpha_zl - Nsection.twist)  # Effective ZL
+            Clalpha.append(solution.Clalpha)
 
         chord, alpha_zl, Clalpha = map(cast2numpy, (chord, alpha_zl, Clalpha))
 
@@ -194,8 +201,9 @@ class PLLT(WingSolution):
         n = (np.arange(1, len(matX) + 1))
         delta = (n * (matX / matX[0]) ** 2)[1:].sum()
         # n increases row-wise, theta0 is periodic column-wise
-        integral = simpson(y=chord * np.sin(n[:, None] * theta0), x=y)
-        tau = span / (2 * wingarea) * (n * matX * integral)[1:].sum()
+        # Take -ve of simpson integral because x=y moves from y=+b/2 to y=-b/2
+        integrals = -simpson(y=chord * np.sin(n[:, None] * theta0), x=y)
+        tau = span / (2 * wingarea) * (n * matX * integrals)[1:].sum()
 
         self._AR = span ** 2 / wingarea
         self._CL = np.pi * self.AR * matX[0]
@@ -209,7 +217,7 @@ class PLLT(WingSolution):
         return
 
 
-class HVM(WingSolution):
+class HorseshoeVortex(WingSolution):
     """
     Horseshoe Vortex Method over N-elements.
 
@@ -270,6 +278,12 @@ class HVM(WingSolution):
         dy = bprime / N
         for i in range(N):
 
+            solution = ThinAerofoils(
+                aerofoil=Nsections[i].aerofoil,
+                alpha=alpha + Nsections[i].twist  # Effective AoA
+            )
+            alpha_zl = solution.alpha_zl - Nsections[i].twist  # Effective ZL
+
             # Port-side vortices (any mirrored elements, if they exist)
             if va[i, 1] < 0 and vb[i, 1] <= 0:
                 continue  # skip, we'll populate this later
@@ -278,8 +292,8 @@ class HVM(WingSolution):
             elif va[i, 1] < 0:
                 # Create rotation matrix for aerodynamic + geometric twist
                 # section.alpha_zl automatically combines aero + geo twist...
-                cos_theta = np.cos(-Nsections[i].alpha_zl)
-                sin_theta = np.sin(-Nsections[i].alpha_zl)
+                cos_theta = np.cos(-alpha_zl)
+                sin_theta = np.sin(-alpha_zl)
                 rot_twist = np.array([
                     [cos_theta, 0, sin_theta],
                     [0, 1, 0],  # About the Y-axis
@@ -311,8 +325,8 @@ class HVM(WingSolution):
 
                 # Create rotation matrix for aerodynamic + geometric twist
                 # section.alpha_zl automatically combines aero + geo twist...
-                cos_theta = np.cos(-Nsections[i].alpha_zl)
-                sin_theta = np.sin(-Nsections[i].alpha_zl)
+                cos_theta = np.cos(-alpha_zl)
+                sin_theta = np.sin(-alpha_zl)
                 rot_twist = np.array([
                     [cos_theta, 0, sin_theta],
                     [0, 1, 0],  # About the Y-axis
@@ -354,10 +368,10 @@ class HVM(WingSolution):
         for i in range(N):
             for j in range(N):
                 # Influence contributions; 'LARGE -> va -> vb -> LARGE' on vc
-                I = vfil(va[j], vb[j], vc[i])
-                I += vfil(va[j] + np.array([-large, 0, 0]), va[j], vc[i])
-                I += vfil(vb[j], vb[j] + np.array([-large, 0, 0]), vc[i])
-                A[i, j] = (I * n).sum()
+                infl = vfil(va[j], vb[j], vc[i])
+                infl += vfil(va[j] + np.array([-large, 0, 0]), va[j], vc[i])
+                infl += vfil(vb[j], vb[j] + np.array([-large, 0, 0]), vc[i])
+                A[i, j] = (infl * n).sum()
             rhs[i] = -(Q * n).sum()
 
         # Sum of circulation in z-direction should match freestream, given gamma
@@ -371,10 +385,16 @@ class HVM(WingSolution):
             u = np.copy(Q)
             for j in range(N):
                 u += vfil(va[j], vb[j], bc[i]) * gamma[j]
-                u += vfil(va[j] + np.array([-large, 0, 0]), va[j], bc[i]) * \
-                     gamma[j]
-                u += vfil(vb[j], vb[j] + np.array([-large, 0, 0]), bc[i]) * \
-                     gamma[j]
+                u += vfil(
+                    va[j] + np.array([-large, 0, 0]),
+                    va[j],
+                    bc[i]
+                ) * gamma[j]
+                u += vfil(
+                    vb[j],
+                    vb[j] + np.array([-large, 0, 0]),
+                    bc[i]
+                ) * gamma[j]
             # u cross s gives direction of action of the force from circulation
             s = vb[i] - va[i]
             Fx[i], Fy[i], Fz[i] = np.cross(u, s) * gamma[i]
@@ -388,7 +408,7 @@ class HVM(WingSolution):
         self._CL = Cl
         self._CLalpha = NotImplemented
         self._Sref = Quantity(wingarea, "m^{2}")
-        self._b = Quantity(span)
+        self._b = Quantity(span, "m")
         self._e = Cl ** 2 / np.pi / self._AR / Cdi
         self._delta = 1 / self._e - 1
         self._tau: float = NotImplemented
