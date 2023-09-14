@@ -406,7 +406,7 @@ class HorseshoeVortex(WingSolution):
         self._CLalpha = NotImplemented
         self._Sref = Quantity(wingarea, "m^{2}")
         self._b = Quantity(span, "m")
-        self._e = self._CL ** 2 / np.pi / self._AR / np.sum(self._sectionCdi)
+        self._e = self._CL ** 2 / np.pi / self._AR / self._sectionCdi.sum()
         self._delta = 1 / self._e - 1
         self._tau: float = NotImplemented
 
