@@ -5,7 +5,7 @@ from scipy.integrate import simpson
 from carpy.utility import Hint, cast2numpy, point_diff
 from ._solvers_ipanel import PanelSolution as InviscidPanelMethod
 
-__all__ = ["ThinAerofoils", "InviscidPanel"]
+__all__ = ["ThinAerofoil", "InviscidPanel"]
 __author__ = "Yaseen Reza"
 
 
@@ -81,7 +81,7 @@ class AerofoilSolution(object):
 # Public classes
 # ---------------------------------------------------------------------------- #
 
-class ThinAerofoils(AerofoilSolution):
+class ThinAerofoil(AerofoilSolution):
     """
     Thin and cambered aerofoil theory.
 

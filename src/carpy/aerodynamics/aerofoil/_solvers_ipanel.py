@@ -114,20 +114,20 @@ def define_panels(aerofoil, N: int = None) -> np.ndarray:
         return dir1 | dir2
 
     # compute y-coordinate of end-points by projection
-    I = 0
+    infl = 0
     for i in range(N + 1):  # Iterate over panel end points that need computing
-        while I < len(x) - 1:  # Iterate over source coordinates
-            if approx_bounded(x[I], x_ends[i], x[I + 1]):
+        while infl < len(x) - 1:  # Iterate over source coordinates
+            if approx_bounded(x[infl], x_ends[i], x[infl + 1]):
                 # If x_diff is zero, that means two coordinates with the same
                 # abscissa. To not duplicate the 'y' value, 'I' must advance 1.
                 if i > 0 and np.diff(x_ends)[i - 1] == 0:
-                    I += 1  # <-- implies next set of bounds includes x_ends[i]
+                    infl += 1  # <-- implies next bounds set includes x_ends[i]
                 break
             else:
-                I += 1
+                infl += 1
         # Linear interpolation
-        a = (y[I + 1] - y[I]) / (x[I + 1] - x[I])
-        b = y[I + 1] - a * x[I + 1]
+        a = (y[infl + 1] - y[infl]) / (x[infl + 1] - x[infl])
+        b = y[infl + 1] - a * x[infl + 1]
         y_ends[i] = a * x_ends[i] + b
 
     # create panels
@@ -193,6 +193,7 @@ def integral(x, y, panel, dxdk, dydk):
     """
 
     def integrand(s):
+        """Given arc length s, find influence of panel on target point."""
         return (((x - (panel.xa - panel.sin_beta * s)) * dxdk +
                  (y - (panel.ya + panel.cos_beta * s)) * dydk) /
                 ((x - (panel.xa - panel.sin_beta * s)) ** 2 +

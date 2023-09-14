@@ -62,6 +62,7 @@ class WingSection(object):
 
     @property
     def aerofoil(self):
+        """Non-dimensional aerofoil object, attached to the station."""
         return self._aerofoil
 
     @property

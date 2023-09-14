@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.integrate import simpson, trapezoid
 
-from carpy.aerodynamics.aerofoil import ThinAerofoils
+from carpy.aerodynamics.aerofoil import ThinAerofoil
 from carpy.utility import Hint, Quantity, cast2numpy
 
 __all__ = ["PLLT", "HorseshoeVortex"]
@@ -177,7 +177,7 @@ class PLLT(WingSolution):
         # Station parameters (aerodynamic)
         alpha_zl, Clalpha = [], []
         for i, Nsection in enumerate(Nsections):
-            solution = ThinAerofoils(
+            solution = ThinAerofoil(
                 aerofoil=Nsection.aerofoil,
                 alpha=alpha + Nsection.twist  # Effective AoA
             )
@@ -278,7 +278,7 @@ class HorseshoeVortex(WingSolution):
         dy = bprime / N
         for i in range(N):
 
-            solution = ThinAerofoils(
+            solution = ThinAerofoil(
                 aerofoil=Nsections[i].aerofoil,
                 alpha=alpha + Nsections[i].twist  # Effective AoA
             )
@@ -386,14 +386,10 @@ class HorseshoeVortex(WingSolution):
             for j in range(N):
                 u += vfil(va[j], vb[j], bc[i]) * gamma[j]
                 u += vfil(
-                    va[j] + np.array([-large, 0, 0]),
-                    va[j],
-                    bc[i]
+                    va[j] + np.array([-large, 0, 0]), va[j], bc[i]
                 ) * gamma[j]
                 u += vfil(
-                    vb[j],
-                    vb[j] + np.array([-large, 0, 0]),
-                    bc[i]
+                    vb[j], vb[j] + np.array([-large, 0, 0]), bc[i]
                 ) * gamma[j]
             # u cross s gives direction of action of the force from circulation
             s = vb[i] - va[i]
@@ -401,16 +397,30 @@ class HorseshoeVortex(WingSolution):
 
         # Resolve these forces into perpendicular and parallel to freestream
         wingarea = trapezoid(sections[::(elems := 1000)].chord, dx=span / elems)
-        Cl = np.sum(Fx * np.sin(alpha) - Fz * np.cos(alpha)) / (wingarea / 2)
-        Cdi = np.sum(-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / (wingarea / 2)
+        halfS = wingarea / 2
+        self._sectionCl = (Fx * np.sin(alpha) - Fz * np.cos(alpha)) / halfS
+        self._sectionCdi = (-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / halfS
 
         self._AR = span ** 2 / wingarea
-        self._CL = Cl
+        self._CL = self._sectionCl.sum()
         self._CLalpha = NotImplemented
         self._Sref = Quantity(wingarea, "m^{2}")
         self._b = Quantity(span, "m")
-        self._e = Cl ** 2 / np.pi / self._AR / Cdi
+        self._e = self._CL ** 2 / np.pi / self._AR / np.sum(self._sectionCdi)
         self._delta = 1 / self._e - 1
         self._tau: float = NotImplemented
 
         return
+
+    @property
+    def sectionCL(self) -> np.ndarray:
+        """
+        An array describing the distribution of generated CL. This is from
+        port to starboard in a full wingplane, or from an inboard section to the
+        outboard sections.
+
+        Returns:
+            Section-wise distribution of CL components.
+
+        """
+        return self._sectionCl

@@ -1,6 +1,6 @@
 import unittest
 
-from carpy.aerodynamics.aerofoil import NewAerofoil, ThinAerofoils
+from carpy.aerodynamics.aerofoil import NewAerofoil, ThinAerofoil
 
 
 class Profiles(unittest.TestCase):
@@ -25,8 +25,9 @@ class ThinAerofoilTheory(unittest.TestCase):
     """Methods to test thin aerofoil theory."""
 
     def test_liftcurveslope(self):
+        """Thin aerofoil theory suggests ideal lift slope of 2 pi."""
         flatplate = NewAerofoil.from_method.NACA("0001")
-        solution = ThinAerofoils(aerofoil=flatplate, alpha=0)
+        solution = ThinAerofoil(aerofoil=flatplate, alpha=0)
         Clalpha = solution.Clalpha
         self.assertAlmostEqual(Clalpha, 2 * 3.1415926535, places=5)
         return

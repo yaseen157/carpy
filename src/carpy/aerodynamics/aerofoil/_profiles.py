@@ -13,7 +13,6 @@ from ._generators import (
     NACA5DigitSeries, NACA5DigitModifiedSeries,
     NACA16Series
 )
-from ._solvers import ThinAerofoils
 
 __all__ = ["NewAerofoil", "Aerofoil"]
 __author__ = "Yaseen Reza"
@@ -374,7 +373,8 @@ class Aerofoil(object):
         Args:
             step_target: Approximate distance between camber designating points.
             fast: Boolean flag, True if user wishes to use a lower accuracy but
-                faster approximation. Optional, defaults to True.
+                faster approximation. Optional, defaults to True. See Notes for
+                more details.
 
         Returns:
             A 2D array of points describing the aerofoil's camber line.
@@ -383,7 +383,9 @@ class Aerofoil(object):
             In fast mode, the camber is determined by averaging the coordinates
                 of upper and lower surfaces. In slow mode, camber points are
                 determined by finding the parameters of circles inscribing the
-                aerofoil geometry.
+                aerofoil geometry. This method is not robust, and can have
+                trouble - especially with thinner geometry like that found at
+                the trailing edge.
 
         """
         # Recast as necessary
@@ -396,6 +398,8 @@ class Aerofoil(object):
             y_u = np.interp(xs, *self._points[:idx_le + 1][::-1].T)
             y_l = np.interp(xs, *self._points[idx_le:].T)
             points = np.column_stack((xs, (y_u + y_l) / 2))
+            points[0] = 0, 0
+            points[-1] = 1, 0
         else:
             points = find_camber(
                 points=self._points, idx_le=idx_le, dxtarget=step_target)
@@ -493,7 +497,8 @@ class Aerofoil(object):
 
         fig, ax = plt.subplots(1, dpi=140)
         ax.plot(*self._points.T, c="k")
-        ax.plot(*self._camber_points(step_target=0.1).T, c="orange")
+        camber_points = self._camber_points(step_target=0.05, fast=True)
+        ax.plot(*camber_points.T, c="orange")
 
         # Make the primary plot pretty
         fig.canvas.manager.set_window_title(f"{self}.show()")
