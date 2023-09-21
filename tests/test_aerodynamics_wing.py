@@ -5,7 +5,7 @@ import numpy as np
 
 from carpy.aerodynamics.aerofoil import NewAerofoil
 from carpy.aerodynamics.wing import (
-    WingSection, WingSections, PLLT, HorseshoeVortex)
+    WingSection, WingSections, PLLT, HorseshoeVortex, Cantilever1DStatic)
 
 
 class Solvers(unittest.TestCase):
@@ -14,9 +14,9 @@ class Solvers(unittest.TestCase):
     @staticmethod
     def wing_SuperLazarusMkII():
         fx76 = NewAerofoil.from_url(
-            "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=fx76mp140-il")
+            "https://m-selig.ae.illinois.edu/ads/coord/fx76mp140.dat")
         dae31 = NewAerofoil.from_url(
-            "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=dae31-il")
+            "https://m-selig.ae.illinois.edu/ads/coord/dae31.dat")
 
         # Define buttock-line geometry
         mysections = WingSections()
@@ -27,7 +27,8 @@ class Solvers(unittest.TestCase):
 
         # Add sweep, dihedral, and twist
         mysections[:6].sweep = np.radians(0)
-        mysections[6:].sweep = np.radians(2)
+        # mysections[6:].sweep = np.radians(2)
+        mysections[6:].sweep = np.radians(0)
         mysections[0:].dihedral = np.radians(0)
         mysections[0:].twist = np.radians(0)
         mysections[14].twist = np.radians(-3)
@@ -41,7 +42,33 @@ class Solvers(unittest.TestCase):
         """Check that the methods are even capable of running."""
         mysections = self.wing_SuperLazarusMkII()
 
-        soln0 = PLLT(sections=mysections, span=24, alpha=np.radians(3))
-        soln1 = HorseshoeVortex(sections=mysections, span=24,
-                                alpha=np.radians(3))
+        aoa = np.radians(3)
+        soln0 = PLLT(sections=mysections, span=24, alpha=aoa)
+        soln1 = HorseshoeVortex(sections=mysections, span=24, alpha=aoa)
+        soln2 = Cantilever1DStatic(
+            sections=mysections, spar=None, span=24, alpha=aoa,
+            lift=115 * 9.81, N=60
+        )
+        return
+
+    def test_naca0012elevator(self):
+        """Compare results against XFLR5 test case."""
+
+        n0012 = NewAerofoil.from_method.NACA("0012")
+
+        mysections = WingSections()
+        mysections[0] = WingSection(n0012)
+        mysections[100] = WingSection(n0012)
+
+        mysections[:].sweep = 0
+        mysections[:].dihedral = 0
+        mysections[:].twist = 0
+
+        mysections[0].chord = 0.65
+        mysections[100].chord = 0.24
+
+        aoa = np.radians(10)
+        soln0 = PLLT(sections=mysections, span=4, alpha=aoa)
+        soln1 = HorseshoeVortex(sections=mysections, span=4, alpha=aoa)
+
         return

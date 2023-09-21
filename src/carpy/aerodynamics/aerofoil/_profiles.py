@@ -1,4 +1,5 @@
 """Methods relating to aerofoil profile generation and performance."""
+from functools import cache
 import re
 
 import numpy as np
@@ -520,6 +521,7 @@ class NewAerofoil(object):
 
     # From online sources
     @classmethod
+    @cache
     def from_url(cls, url: str):
         """
         Return an aerofoil object, given the URL to a coordinates data file.

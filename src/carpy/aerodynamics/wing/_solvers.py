@@ -3,9 +3,10 @@ import numpy as np
 from scipy.integrate import simpson, trapezoid
 
 from carpy.aerodynamics.aerofoil import ThinAerofoil
+from carpy.structures import ContinuousIndex, DiscreteIndex
 from carpy.utility import Hint, Quantity, cast2numpy
 
-__all__ = ["PLLT", "HorseshoeVortex"]
+__all__ = ["PLLT", "HorseshoeVortex", "Cantilever1DStatic"]
 __author__ = "Yaseen Reza"
 
 
@@ -14,7 +15,8 @@ __author__ = "Yaseen Reza"
 # ---------------------------------------------------------------------------- #
 
 
-def designate_sections(sections, mirror: bool = None, N: int = None) -> list:
+def designate_sections(sections: DiscreteIndex, mirror: bool = None,
+                       N: int = None) -> list:
     """
     Given a WingSections object, distribute sections over N-elements.
 
@@ -29,7 +31,7 @@ def designate_sections(sections, mirror: bool = None, N: int = None) -> list:
 
     """
     # Recast as necessary
-    mirror = True if mirror is None else False
+    mirror = True if mirror is None else mirror
     N = 40 if N is None else int(N)
 
     # Linearly spaced sections in defined span
@@ -157,8 +159,8 @@ class PLLT(WingSolution):
     high aspect ratio, unswept wings.
     """
 
-    def __init__(
-            self, sections, span: Hint.num, alpha: Hint.num, N: int = None):
+    def __init__(self, sections: DiscreteIndex, span: Hint.num, alpha: Hint.num,
+                 N: int = None):
         # Recast as necessary
         N = 50 if N is None else int(N)
 
@@ -228,7 +230,7 @@ class HorseshoeVortex(WingSolution):
 
     """
 
-    def __init__(self, sections, span: Hint.num, alpha: Hint.num = None,
+    def __init__(self, sections: DiscreteIndex, span: Hint.num, alpha: Hint.num,
                  N: int = None, mirror: bool = None):
         """
         Args:
@@ -246,7 +248,6 @@ class HorseshoeVortex(WingSolution):
 
         """
         # Recast as necessary
-        alpha = 0.0 if alpha is None else float(alpha)
         mirror = True if mirror is None else mirror
         N = 40 if N is None else int(N)
 
@@ -256,6 +257,7 @@ class HorseshoeVortex(WingSolution):
         scalefactor = np.sqrt(N / (N + 1))  # Scaling fix for N = 1 case
         # Linearly spaced sections in defined span
         Nsections = designate_sections(sections=sections, mirror=mirror, N=N)
+        self._Nsections = Nsections
         # bprime = combined span of all horseshoe elements
         bprime = span * scalefactor
         # cprime = longitudinal dist. between control point and horseshoe front
@@ -308,6 +310,9 @@ class HorseshoeVortex(WingSolution):
             # Starboard vortices
             else:
                 # Sweep vortex locators (Move x-coordinates)
+                # ... this assumes that the vortex locators (which are more
+                # ... akin to centre of pressure locators) sweep by the same
+                # ... amount that the leading edge does. Not true in real life!
                 tan_sweep = np.tan(Nsections[i].sweep)
                 va[i + 1:, 0] -= dy * tan_sweep  # Outboard sections
                 vb[i + 1:, 0] -= dy * tan_sweep
@@ -379,17 +384,17 @@ class HorseshoeVortex(WingSolution):
 
         # Forces at centres of bound vortices (parallel with leading edge)
         Fx, Fy, Fz = np.zeros((3, N))
-        bc = 0.5 * (va + vb)
+        self._xyz_cp = 0.5 * (va + vb)
         for i in range(N):
             # Local velocity vector on each load element i
             u = np.copy(Q)
             for j in range(N):
-                u += vfil(va[j], vb[j], bc[i]) * gamma[j]
+                u += vfil(va[j], vb[j], self._xyz_cp[i]) * gamma[j]
                 u += vfil(
-                    va[j] + np.array([-large, 0, 0]), va[j], bc[i]
+                    va[j] + np.array([-large, 0, 0]), va[j], self._xyz_cp[i]
                 ) * gamma[j]
                 u += vfil(
-                    vb[j], vb[j] + np.array([-large, 0, 0]), bc[i]
+                    vb[j], vb[j] + np.array([-large, 0, 0]), self._xyz_cp[i]
                 ) * gamma[j]
             # u cross s gives direction of action of the force from circulation
             s = vb[i] - va[i]
@@ -424,3 +429,114 @@ class HorseshoeVortex(WingSolution):
 
         """
         return self._sectionCl
+
+    @property
+    def xyz_cp(self) -> np.ndarray:
+        """
+        An array of points, describing the distribution of wing section centres
+        of pressures in physical space.
+
+        Returns:
+            Array of (N,3) points, describing xyz coordinates of sectional
+            centres of pressure.
+
+        """
+        return self._xyz_cp
+
+
+class Cantilever1DStatic(WingSolution):
+
+    def __init__(self, sections, spar, span: Hint.num, alpha: Hint.num,
+                 lift: Hint.num, N: int = None, mirror: bool = None,
+                 model: str = None):
+        # Define compatability parameters
+        supported_models = [HorseshoeVortex]
+        supported_models = dict(zip(
+            [x.__name__ for x in supported_models],
+            supported_models
+        ))
+
+        # Recast as necessary
+        kwargs = {
+            "sections": sections, "spar": spar, "span": span, "alpha": alpha,
+            "lift": lift, "N": 40 if N is None else int(N),
+            "mirror": True if mirror is None else mirror,
+            "model": model
+        }
+        if kwargs["model"] is None:  # Model unspecified
+            kwargs["model"] = HorseshoeVortex
+        elif supported_models.get(model) is None:  # Model unsupported
+            errormsg = f"{model=} is unsupported, try one of {supported_models}"
+            raise ValueError(errormsg)
+
+        # Evaluate aerodynamic model
+        # noinspection PyUnresolvedReferences
+        soln_aero = kwargs["model"](
+            **{  # Iterate over kwargs, and pass only those which appear in init
+                k: v for (k, v) in kwargs.items()
+                if k in kwargs["model"].__init__.__annotations__  # <-Typehints!
+            }
+        )
+
+        # Find out if solution is mirrored
+        ys = soln_aero.xyz_cp[:, 1]
+        if kwargs["mirror"] is True:
+            root_i = int(np.ceil(len(ys) / 2))
+            ys = ys[root_i:]
+        else:
+            root_i = 0
+
+        # Lift and moment component distribution
+        sectionL = lift * (soln_aero.sectionCL[root_i:] / soln_aero.CL)
+        sectionM = sectionL * ys
+
+        # Flexural modulus of carbon fibre (?)
+        E_rect = 60e9  # e9 == GPa
+        # Subscript x as it's the effect of material distributed about x-axis
+        t_wall = 1e-3
+        b_spar = 50e-3
+        h0_spar = 100e-3
+        h1_spar = 20e-3
+
+        def Ix_rect(y):
+            """Variable cross-section, hollow rectangular spar."""
+            y = np.abs(y)
+            h_spar = np.interp(y, [0, 10], [h0_spar, h1_spar])
+            Ixx_o = b_spar * h_spar ** 3 / 12
+            Ixx_i = (b_spar - 2 * t_wall) * (h_spar - 2 * t_wall) ** 3 / 12
+            return Ixx_o - Ixx_i
+
+        EI = E_rect * Ix_rect(ys)
+
+        # Distribution of angular increments with each section
+        sectiontheta = sectionM / EI
+
+        # Distibution of vertical displacement with each section
+        sectionnu = np.cumsum(sectiontheta)
+
+        plot_dy, = np.diff(ys[0:2])
+        plot_y = np.zeros_like(sectionnu)
+        plot_z = np.copy(sectionnu)
+
+        for i in range(1, len(sectiontheta)):
+            plot_y[i:] += (plot_dy ** 2 - sectiontheta[i] ** 2) ** 0.5
+
+        from matplotlib import pyplot as plt
+
+        fig, axs = plt.subplots(3, dpi=140)
+        axs[0].plot((plot_y := np.linspace(0, ys[-1], len(ys))), plot_z)
+        axs[0].set_aspect(1)
+
+        axs[1].plot(plot_y, sectionL)
+        axs[2].plot(plot_y, sectionM)
+        plt.show()
+
+        # fig, axs = plt.subplots(3, dpi=140)
+        # axs[0].plot(plot_y, plot_z)
+        # axs[0].set_aspect(1)
+        #
+        # axs[1].plot(plot_y, sectionL)
+        # axs[2].plot(plot_y, sectionM)
+        # plt.show()
+
+        return

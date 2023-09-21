@@ -11,7 +11,7 @@ __author__ = "Yaseen Reza"
 
 class WingSection(object):
     """
-    Class for modelling wing cross-sections.
+    Class for modelling wing cross-sections, as aligned with wing buttock lines.
 
     A wing section is a 2D cross-sectional slice of the 3D wing structure, and
     inclined at the local angle of dihedral. Sections are defined through a
@@ -103,13 +103,12 @@ class WingSection(object):
     @property
     def sweep(self) -> float:
         """
-        The angle between the plane of the wing station and the vehicle's
-        longitudinal axis. A positive value indicates sweep in the traditional
-        sense (outboard leading edge is behind inboard leading edge), and a
-        negative value indicates forward- or reverse-sweep.
+        The sweep angle of the leading edge. A positive value indicates sweep in
+        the traditional sense (outboard leading edge is behind inboard leading
+        edge), and a negative value indicates forward- or reverse-sweep.
 
         Returns:
-            Geometric angle of sweep of the wing station.
+            Geometric angle of sweep of the wing station's leading edge.
 
         """
         return self._sweep
