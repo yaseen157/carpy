@@ -276,6 +276,10 @@ class HorseshoeVortex(WingSolution):
         # ... prescribe normal vectors as if wing is a flat plate
         n[:, 2] = -1.0
 
+        # Locate semi-infinite vortices
+        vinf = np.zeros((N, 3))
+        vinf[:, 0] = -large
+
         # Define horseshoe geometry in the y >= 0, +ve direction
         dy = bprime / N
         for i in range(N):
@@ -306,6 +310,8 @@ class HorseshoeVortex(WingSolution):
                 # Apply rotation to normal vector and control point locator
                 n[i] = rot_twist @ n[i]
                 vc[i] = (va[i] + vb[i]) / 2 + (rot_twist @ cprime[i])
+                vinf[i] = rot_twist @ vinf[i]  # Twist semi-infinite vortices
+                # Dihedral and sweep are safely ignored at the centreline
 
             # Starboard vortices
             else:
@@ -353,6 +359,7 @@ class HorseshoeVortex(WingSolution):
                 # Apply rotations to normal vector and control point locator
                 n[i] = rot_dihedral @ (rot_twist @ n[i])
                 vc[i] = (va[i] + vb[i]) / 2 + (rot_twist @ cprime[i])
+                vinf[i] = rot_twist @ vinf[i]  # Twist semi-infinite vortices
 
         # Now if necessary (wing mirrored), copy starboard geometry to port side
         else:
@@ -374,8 +381,8 @@ class HorseshoeVortex(WingSolution):
             for j in range(N):
                 # Influence contributions; 'LARGE -> va -> vb -> LARGE' on vc
                 infl = vfil(va[j], vb[j], vc[i])
-                infl += vfil(va[j] + np.array([-large, 0, 0]), va[j], vc[i])
-                infl += vfil(vb[j], vb[j] + np.array([-large, 0, 0]), vc[i])
+                infl += vfil(va[j] + vinf[j], va[j], vc[i])
+                infl += vfil(vb[j], vb[j] + vinf[j], vc[i])
                 A[i, j] = (infl * n).sum()
             rhs[i] = -(Q * n).sum()
 
@@ -526,17 +533,13 @@ class Cantilever1DStatic(WingSolution):
         fig, axs = plt.subplots(3, dpi=140)
         axs[0].plot((plot_y := np.linspace(0, ys[-1], len(ys))), plot_z)
         axs[0].set_aspect(1)
-
         axs[1].plot(plot_y, sectionL)
         axs[2].plot(plot_y, sectionM)
-        plt.show()
 
-        # fig, axs = plt.subplots(3, dpi=140)
-        # axs[0].plot(plot_y, plot_z)
-        # axs[0].set_aspect(1)
-        #
-        # axs[1].plot(plot_y, sectionL)
-        # axs[2].plot(plot_y, sectionM)
+        axs[0].set_ylabel("z(y)")
+        axs[1].set_ylabel("L(y)")
+        axs[2].set_ylabel("M(y)")
+
         # plt.show()
 
         return
