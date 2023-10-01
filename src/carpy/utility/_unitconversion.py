@@ -314,6 +314,13 @@ class Quantity(np.ndarray):
         value = cast2numpy(value, dtype=np.float64)
         units = units if isinstance(units, Dimensions) else Dimensions(units)
 
+        # If the value is a quantity, raise error to user on recasted dimensions
+        if isinstance(value, Quantity) and (
+                value.units.si_equivalent != units.si_equivalent
+        ):
+            errormsg = f"Quantity {value} had dimensions recast to {units}"
+            raise ValueError(errormsg)
+
         # Try and convert the value to SI values
         if units.og_string == "degC":
             value = value + 273.15
@@ -608,6 +615,12 @@ class Quantity(np.ndarray):
         else:
             errormsg = "Conversion of multi-element array to scalar is lossy"
             raise ValueError(errormsg)
+
+    # ----------------- #
+    # Slice Overloading #
+    # ----------------- #
+    def __getitem__(self, key):
+        return Quantity(super().__getitem__(key), self.units)
 
     @property
     def x(self) -> Union[float, np.ndarray]:

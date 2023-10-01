@@ -30,26 +30,21 @@ def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
     fp = cast2numpy(fp)
 
     # Prepare differentials between each point
-    dfp = fp[1:] - fp[:-1]
-    dxp = xp[1:] - xp[:-1]
+    dfp = np.diff(fp)
+    dxp = np.diff(xp)
 
-    out = np.zeros_like(x)
+    out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
 
-    for i, (dfpi, dxpi) in enumerate(zip(dfp, dxp)):
-        out = np.where(
-            (xp[i] <= x) & (x <= xp[i + 1]),
-            (x - xp[i]) * (dfpi / dxpi) + fp[i],
-            out
-        )
-    else:
-        del i, dfpi, dxpi  # Clear the namespace a little
+    for i in range(len(dfp)):
+        out[(xp[i] <= x) & (x <= xp[i + 1])] = \
+            (x - xp[i]) * (dfp[i] / dxp[i]) + fp[i]
 
     if bounded is True:
-        out = np.where(x < xp[0], fp[0], out)
-        out = np.where(x > xp[-1], fp[-1], out)
+        out[x < xp[0]] = fp[0]
+        out[x > xp[-1]] = fp[-1]
     else:
-        out = np.where(x < xp[0], (x - xp[0]) * (dfp / dxp)[0] + fp[0], out)
-        out = np.where(xp[-1] < x, (x - xp[-1]) * (dfp / dxp)[-1] + fp[-1], out)
+        out[x < xp[0]] = (x - xp[0]) * (dfp / dxp)[0] + fp[0]
+        out[xp[-1] < x] = (x - xp[-1]) * (dfp / dxp)[-1] + fp[-1]
 
     return out
 

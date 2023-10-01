@@ -366,6 +366,12 @@ class Aerofoil(object):
         """Radius of the leading edge."""
         return 1 / self._curvature.max()
 
+    @property
+    def perimeter(self):
+        """(Non-dimensional) perimeter ratio to a reference chord of 1."""
+        # Take dxs and dys, use pythagoras to find lengths between points, & sum
+        return ((np.diff(self._points, axis=0) ** 2).sum(axis=1) ** 0.5).sum()
+
     def _camber_points(self, step_target: Hint.num,
                        fast: bool = None) -> np.ndarray:
         """

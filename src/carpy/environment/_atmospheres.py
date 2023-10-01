@@ -84,7 +84,7 @@ def atmosphere_builder(altitude: Hint.nums, T: Hint.nums = None,
     T = None if T is None else cast2numpy(T)
     p = None if p is None else cast2numpy(p)
     rho = None if rho is None else cast2numpy(rho)
-    Mbar = co.STANDARD.SL.M if Mbar is None else float(Mbar)
+    Mbar = co.STANDARD.SL.M if Mbar is None else Quantity(Mbar, "kg mol^{-1}")
 
     # Verify that altitude data is increasing
     if all(np.diff(altitude) <= 0):
@@ -128,8 +128,8 @@ def atmosphere_builder(altitude: Hint.nums, T: Hint.nums = None,
         def f_p(y):
             """Atmospheric pressure as a function of altitude."""
             # Initialise values to lowest altitude
-            Ts = np.ones_like(y) * T[0]
-            ps = np.ones_like(y) * p0
+            Ts = np.ones(y.shape) * T[0]
+            ps = np.ones(y.shape) * p0
 
             for j in range(len(altitude) - 1):
                 # Clip alt. by the layer's upper bound, and diff. to lower bound
@@ -295,7 +295,7 @@ class Atmosphere(object):
 
         """
         # Recast as necessary
-        geom = cast2numpy(altitude)
+        geom = Quantity(altitude, "m")
 
         # Compute geopotential altitude
         geop = cls._r_Earth * geom / (cls._r_Earth + geom)
@@ -315,7 +315,7 @@ class Atmosphere(object):
 
         """
         # Recast as necessary
-        geop = cast2numpy(altitude)
+        geop = Quantity(altitude, "m")
 
         # Compute geometric altitude
         geom = cls._r_Earth * geop / (cls._r_Earth - geop)

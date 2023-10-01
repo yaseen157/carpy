@@ -3,10 +3,11 @@ import numpy as np
 from scipy.integrate import simpson, trapezoid
 
 from carpy.aerodynamics.aerofoil import ThinAerofoil
-from carpy.structures import ContinuousIndex, DiscreteIndex
-from carpy.utility import Hint, Quantity, cast2numpy
+from carpy.environment import ISA1975
+from carpy.structures import DiscreteIndex
+from carpy.utility import Hint, Quantity, cast2numpy, moving_average
 
-__all__ = ["PLLT", "HorseshoeVortex", "Cantilever1DStatic"]
+__all__ = ["PLLT", "HorseshoeVortex", "CDfGudmundsson"]  # Cantilever1DStatic"]
 __author__ = "Yaseen Reza"
 
 
@@ -175,7 +176,7 @@ class PLLT(WingSolution):
         Nsections = sections[
             np.interp(abs(y), [0, span / 2], [section_min, section_max])
         ]
-        chord = [Nsection.chord for Nsection in Nsections]
+        chord = [Nsection.chord.x for Nsection in Nsections]
         # Station parameters (aerodynamic)
         alpha_zl, Clalpha = [], []
         for i, Nsection in enumerate(Nsections):
@@ -248,8 +249,8 @@ class HorseshoeVortex(WingSolution):
 
         """
         # Recast as necessary
-        mirror = True if mirror is None else mirror
         N = 40 if N is None else int(N)
+        mirror = True if mirror is None else mirror
 
         # Problem setup
         large = 1e6
@@ -261,7 +262,7 @@ class HorseshoeVortex(WingSolution):
         # bprime = combined span of all horseshoe elements
         bprime = span * scalefactor
         # cprime = longitudinal dist. between control point and horseshoe front
-        chord = np.array([section.chord for section in Nsections])
+        chord = np.array([section.chord.x for section in Nsections])
         cprime = np.array([[-0.5 * cw / scalefactor, 0, 0] for cw in chord])
 
         # Locate vortex segments (a,b), control vectors (c), and normal vectors
@@ -408,7 +409,9 @@ class HorseshoeVortex(WingSolution):
             Fx[i], Fy[i], Fz[i] = np.cross(u, s) * gamma[i]
 
         # Resolve these forces into perpendicular and parallel to freestream
-        wingarea = trapezoid(sections[::(elems := 1000)].chord, dx=span / elems)
+        elems = 1000
+        area_chords = [qty.x for qty in sections[::elems].chord]
+        wingarea = trapezoid(area_chords, dx=span / elems)
         halfS = wingarea / 2
         self._sectionCl = (Fx * np.sin(alpha) - Fz * np.cos(alpha)) / halfS
         self._sectionCdi = (-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / halfS
@@ -543,3 +546,93 @@ class Cantilever1DStatic(WingSolution):
         # plt.show()
 
         return
+
+
+class CDfGudmundsson(object):
+
+    def __init__(self, sections: DiscreteIndex, span: Hint.num, alpha: Hint.num,
+                 altitude: Hint.num, TAS: Hint.num, geometric: bool = None,
+                 atmosphere=None, N: int = None, mirror: bool = None):
+        """
+
+        Args:
+            sections ():
+            span ():
+            alpha ():
+            altitude ():
+            TAS ():
+            geometric:
+            atmosphere ():
+            N ():
+            mirror ():
+
+        Notes:
+            Section 15.3.3, Step-by-step calculation of skin friction drag
+        """
+        # Recast as necessary
+        span = Quantity(span, "m")
+        TAS = Quantity(TAS, "m s^{-1}")
+        geometric = False if geometric is None else geometric
+        atmosphere = ISA1975() if atmosphere is None else atmosphere
+        N = 40 if N is None else int(N)
+        mirror = True if mirror is None else mirror
+
+        # Assume roughness of carefully applied camouflage paint
+        from carpy.utility import constants as co
+        kappa = co.MATERIAL.esg_roughness.camopaint_careful.mean()
+
+        # Linearly spaced sections in defined span (no need to mirror)
+        Nsections = designate_sections(sections=sections, mirror=False, N=N)
+
+        # Step 1) Find Viscosity of air
+        mu_visc = atmosphere.mu_visc(altitude=altitude, geometric=geometric)
+
+        # Step 2) Find Reynolds Number
+        rho = atmosphere.rho(altitude=altitude, geometric=geometric)
+        chords = Quantity([section.chord.x for section in Nsections], "m")
+        Re = rho * TAS * chords / mu_visc
+
+        # Step 3) Cutoff Reynolds number due to surface roughness effects
+        Mach = TAS / atmosphere.c_sound(altitude=altitude, geometric=geometric)
+        if Mach <= 0.7:
+            Re_cutoff = 38.21 * (chords / kappa).x ** 1.053
+        else:
+            Re_cutoff = 44.62 * (chords / kappa).x ** 1.053 * Mach ** 1.16
+
+        # noinspection PyArgumentList
+        Re = np.vstack((Re, Re_cutoff)).min(axis=0)
+
+        # Step 4) Compute skin friction coefficient for fully laminar/turbulent
+        self._Cf_lam = 1.328 * Re ** -0.5
+        self._Cf_turb = 0.455 * np.log10(Re) ** -2.58
+        self._Cf_turb *= (1 + 0.144 * Mach ** 2) ** -0.65  # Compressible corr.
+
+        # Step 5) Determine fictitious turbulent boundary layer origin point X0
+        Xtr = 0.50  # Assume transition @X==0.5, avg of upper/lower transitions
+        X0_C = 36.9 * (Xtr_C := Xtr / chords.x) ** 0.625 * Re ** -0.375
+
+        # Step 6) Compute mixed laminar-turbulent flow skin friction coefficient
+        Cf = 0.074 * Re ** -0.2 * (1 - (Xtr_C - X0_C)) ** 0.8
+
+        # Find chords between stations Cf has been evaluated at
+        b_eval = span.x / 2 if mirror is True else span.x
+        ys = np.concatenate(
+            ([0], moving_average(np.linspace(0, b_eval, N), w=2), [b_eval]))
+        stations = np.interp(ys, [0, b_eval], [min(sections), max(sections)])
+        midchords = np.array([sec.chord.x for sec in sections[stations]])
+        # Find component areas of wing locally surrounding the defined sections
+        Srefs = moving_average(midchords, w=2) * np.diff(ys)
+        Swets = np.array([sec.aerofoil.perimeter for sec in Nsections]) * Srefs
+
+        # Step 7) Compute skin friction drag coefficient
+        Swet = Swets.sum()
+        Sref = Srefs.sum()
+        self._Cf = (Cf * Swets).sum() / Swet
+        self._CDf = (Swet / Sref) * Cf
+
+        return
+
+    @property
+    def CDf(self):
+        """Wing skin friction drag coefficient, CDf."""
+        return self._CDf

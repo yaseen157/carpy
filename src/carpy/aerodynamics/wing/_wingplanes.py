@@ -3,7 +3,7 @@ import numpy as np
 
 from carpy.aerodynamics.aerofoil import Aerofoil
 from carpy.structures import DiscreteIndex
-from carpy.utility import Hint, collapse_array, isNone
+from carpy.utility import Hint, Quantity, collapse_array, isNone
 
 __all__ = ["WingSection", "WingSections"]
 __author__ = "Yaseen Reza"
@@ -23,7 +23,7 @@ class WingSection(object):
                  twist: Hint.num = None):
         self._aerofoil = aerofoil
         self._twist = 0.0 if twist is None else float(twist)
-        self._chord = 1.0 if chord is None else float(chord)
+        self.chord = 1.0 if chord is None else float(chord)
         self._sweep = None
         self._dihedral = None
         return
@@ -66,7 +66,7 @@ class WingSection(object):
         return self._aerofoil
 
     @property
-    def chord(self) -> float:
+    def chord(self) -> Quantity:
         """
         The chord length of the station's aerofoil.
 
@@ -78,7 +78,7 @@ class WingSection(object):
 
     @chord.setter
     def chord(self, value):
-        self._chord = float(value)
+        self._chord = Quantity(value, "m")
         return
 
     @property
