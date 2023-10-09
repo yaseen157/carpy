@@ -36,15 +36,16 @@ def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
     out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
 
     for i in range(len(dfp)):
-        out[(xp[i] <= x) & (x <= xp[i + 1])] = \
-            (x - xp[i]) * (dfp[i] / dxp[i]) + fp[i]
+        slice = (xp[i] <= x) & (x <= xp[i + 1])
+        out[slice] = (x[slice] - xp[i]) * (dfp[i] / dxp[i]) + fp[i]
 
+    sliceL, sliceR = x < xp[0], x > xp[-1]
     if bounded is True:
-        out[x < xp[0]] = fp[0]
-        out[x > xp[-1]] = fp[-1]
+        out[sliceL] = fp[0]
+        out[sliceR] = fp[-1]
     else:
-        out[x < xp[0]] = (x - xp[0]) * (dfp / dxp)[0] + fp[0]
-        out[xp[-1] < x] = (x - xp[-1]) * (dfp / dxp)[-1] + fp[-1]
+        out[sliceL] = (x[sliceL] - xp[0]) * (dfp / dxp)[0] + fp[0]
+        out[sliceR] = (x[sliceR] - xp[-1]) * (dfp / dxp)[-1] + fp[-1]
 
     return out
 
@@ -76,23 +77,19 @@ def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
     b = log_dfp / lin_dxp
     a = fp[:-1] / np.exp(b * xp[:-1])
 
-    out = np.zeros_like(x)
+    out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
 
-    for i, (ai, bi) in enumerate(zip(a, b)):
-        out = np.where(
-            (xp[i] <= x) & (x <= xp[i + 1]),
-            ai * np.exp(bi * x),
-            out
-        )
-    else:
-        del i, ai, bi  # Clear the namespace a little
+    for i in range(len(log_dfp)):
+        slice = (xp[i] <= x) & (x <= xp[i + 1])
+        out[slice] = a[i] * np.exp(b[i] * x[slice])
 
+    sliceL, sliceR = x < xp[0], x > xp[-1]
     if bounded is True:
-        out = np.where(x < xp[0], fp[0], out)
-        out = np.where(x > xp[-1], fp[-1], out)
+        out[sliceL] = fp[0]
+        out[sliceR] = fp[-1]
     else:
-        out = np.where(x < xp[0], a[0] * np.exp(b[0] * x), out)
-        out = np.where(x > xp[-1], a[-1] * np.exp(b[-1] * x), out)
+        out[sliceL] = a[0] * np.exp(b[0] * x[sliceL])
+        out[sliceR] = a[-1] * np.exp(b[-1] * x[sliceR])
 
     return out
 

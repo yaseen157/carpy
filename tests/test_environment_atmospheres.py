@@ -43,6 +43,22 @@ class ISA1975Quantities(unittest.TestCase):
         self.assertTrue(round(isa.p(51e3 + 413, geometric=True)) == 67)
         self.assertTrue(round(isa.p(71e3 + 802, geometric=True)) == 4)
 
+        # Test that functions can handle arrays for pressure (geopotential)
+        goldx_0 = np.array([11e3, 20e3, 32e3, 47e3, 51e3, 71e3])
+        goldx_1 = np.array([11019, 20063, 32162, 47350, 51413, 71802])
+
+        goldy_p = np.array([22632, 5475, 868, 111, 67, 4])
+        self.assertTrue(np.isclose(isa.p(goldx_0).x, goldy_p, atol=1e-1).all())
+
+        # Test that functions can handle arrays for pressure (geometric)
+        self.assertTrue(np.isclose(
+            isa.p(goldx_1, geometric=True).x,
+            goldy_p,
+            atol=1e-1
+        ).all())
+
+        print()
+
         return
 
     def test_airspeeds(self):

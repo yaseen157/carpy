@@ -80,11 +80,13 @@ def atmosphere_builder(altitude: Hint.nums, T: Hint.nums = None,
 
     """
     # Recast as necessary
-    altitude = cast2numpy(altitude)
-    T = None if T is None else cast2numpy(T)
-    p = None if p is None else cast2numpy(p)
-    rho = None if rho is None else cast2numpy(rho)
+    altitude = Quantity(altitude, "m")
+    T = None if T is None else Quantity(T, "K")
+    p = None if p is None else Quantity(p, "Pa")
+    rho = None if rho is None else Quantity(rho, "kg m^{-3}")
     Mbar = co.STANDARD.SL.M if Mbar is None else Quantity(Mbar, "kg mol^{-1}")
+    # pre-package kwargs for interpolation and extrapolation of atm. quantities
+    commonkwargs = dict([("xp", altitude), ("bounded", True)])
 
     # Verify that altitude data is increasing
     if all(np.diff(altitude) <= 0):
@@ -123,7 +125,7 @@ def atmosphere_builder(altitude: Hint.nums, T: Hint.nums = None,
                 p0 /= np.exp(exponent)
 
         # Define functions
-        f_T = functools.partial(interp_lin, xp=altitude, fp=T, bounded=False)
+        f_T = functools.partial(interp_lin, fp=T, **commonkwargs)
 
         def f_p(y):
             """Atmospheric pressure as a function of altitude."""
@@ -133,6 +135,9 @@ def atmosphere_builder(altitude: Hint.nums, T: Hint.nums = None,
 
             for j in range(len(altitude) - 1):
                 # Clip alt. by the layer's upper bound, and diff. to lower bound
+                # If you're a future developer looking to find out how to
+                # extrapolate atmospheric pressure modelling, this is what's
+                # limiting the atmospheric model.
                 dy = np.clip(
                     np.clip(y, None, altitude[j + 1]) - altitude[j],
                     0, None
@@ -156,17 +161,16 @@ def atmosphere_builder(altitude: Hint.nums, T: Hint.nums = None,
             return f_p(y) * Mbar / co.PHYSICAL.R / f_T(y)
 
     elif not all(isNone(T, p)) and rho is None:
-        f_T = functools.partial(interp_lin, xp=altitude, fp=T, bounded=False)
-        f_p = functools.partial(interp_exp, xp=altitude, fp=p, bounded=False)
+        f_T = functools.partial(interp_lin, fp=T, **commonkwargs)
+        f_p = functools.partial(interp_exp, fp=p, **commonkwargs)
 
         def f_rho(y):
             """Compute density, given altitude"""
             return f_p(y) * Mbar / co.PHYSICAL.R / f_T(y)
 
     elif not all(isNone(T, rho)) and p is None:
-        f_T = functools.partial(interp_lin, xp=altitude, fp=T, bounded=False)
-        f_rho = functools.partial(
-            interp_exp, xp=altitude, fp=rho, bounded=False)
+        f_T = functools.partial(interp_lin, fp=T, **commonkwargs)
+        f_rho = functools.partial(interp_exp, fp=rho, **commonkwargs)
 
         def f_p(y):
             """Compute pressure, given altitude"""
@@ -620,6 +624,7 @@ class ISA1975(Atmosphere):
         self._f_p = cast_altitudes(f_geometric=False)(f_pressure)
         self._f_rho = cast_altitudes(f_geometric=False)(f_density)
 
+        # Estimate the specific gas constant, gamma
         X = (("N2", 78.084), ("O2", 20.947_6), ("Ar", 0.934), ("CO2", 0.0314))
         X = ", ".join([f"{species}:{amount}" for (species, amount) in X])
         gas = GasModels.PerfectCaloric()
@@ -680,7 +685,11 @@ for sheet, x_pct in itertools.product(list(df_MILHDBK310), ["1pct", "10pct"]):
     to_set_inside_init = dict([
         ("_f_T", cast_altitudes(f_geometric=True)(f_mil310_T)),
         ("_f_p", cast_altitudes(f_geometric=True)(f_mil310_p)),
-        ("_f_rho", cast_altitudes(f_geometric=True)(f_mil310_rho))
+        ("_f_rho", cast_altitudes(f_geometric=True)(f_mil310_rho)),
+        ("_f_gamma", lambda *args, **kwargs: 1.4),  # Assume perfect gamma=1.4
+        ("_f_c_sound", ISA1975().c_sound),  # Assume same method as ISA1975
+        ("_f_mu_visc", ISA1975().mu_visc),  # Assume same method as ISA1975
+        ("_f_k_thermal", ISA1975().k_thermal)  # Assume same method as ISA1975
     ])
 
 
@@ -739,6 +748,22 @@ class ObsAtmospherePerfect(Atmosphere):
                  p: Hint.nums = None, rho: Hint.nums = None,
                  geometric: bool = None, Mbar: float = None,
                  T_offset: float = None):
+        """
+        Args:
+            altitude: Sequence of altitudes.
+            T: Sequence of temperatures. Optional, at least one of T,p, or rho
+                is required.
+            p: Sequence of pressures. Optional, at least one of T,p, or rho
+                is required.
+            rho: Sequence of densities. Optional, at least one of T,p, or rho
+                is required.
+            geometric: Whether or not the altitude sequence is geopotential or
+                geometric in nature. Optional, defaults to False (geopotential).
+            Mbar: The average molar mass of the atmosphere, per mol. Optional,
+                defaults to that of the standard atmosphere.
+            T_offset: Temperature profile offset from that in the temperature
+                sequence. Optional, defaults to 0 offset.
+        """
         # Super call
         super().__init__(T_offset=T_offset)
 
