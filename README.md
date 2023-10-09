@@ -71,6 +71,11 @@ entering
 
 at the operating system prompt.
 
+If you already have a version of carpy installed and are simply trying to
+upgrade, use the `--upgrade` flag:
+
+    $ pip install carpy --upgrade
+
 An alternative approach to installing carpy is to clone the GitHub repository
 using `git`, by typing
 
@@ -81,6 +86,11 @@ navigate to the library root (this contains the file `pyproject.toml`). At this
 point, you may enter the following:
 
     $ python -m pip install ./
+
+Alternatively, adventurous users who want an editable install to make any
+customisations in their local build should use the `--editable` flag:
+
+    $ python -m pip install -e ./
 
 Should you find that your installation requires packages you do not have in your
 current Python environment, install them by typing this in the same prompt:
@@ -112,7 +122,7 @@ print(f"{atm} density at 41,000 feet:",
 
 You should see the following output:
 
-    ISA1975(+10°C) density at 41,000 feet: [0.28740209] kg m⁻³
+    ISA1975(+10°C) density at 41,000 feet: 0.28740209 kg m⁻³
 
 You can learn more about `CARPy`'s capabilities through the exemplary
 [notebooks](./docs/source/).
@@ -122,4 +132,3 @@ You can learn more about `CARPy`'s capabilities through the exemplary
 The library was authored by:
 
 - Yaseen Reza
-- Luana Defourny
