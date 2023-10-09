@@ -9,7 +9,7 @@ __author__ = "Yaseen Reza"
 
 
 def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
-               bounded: bool = True) -> np.ndarray:
+               bounded: bool = True) -> Hint.nums:
     """
     A linear interpolation function offering unbounded extrapolation.
 
@@ -51,7 +51,7 @@ def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
 
 
 def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
-               bounded: bool = True) -> np.ndarray:
+               bounded: bool = True) -> Hint.nums:
     """
     A linear interpolation function offering unbounded extrapolation.
 

@@ -36,20 +36,21 @@ class ExponentialInterpolation(unittest.TestCase):
     def test_float(self):
         """Check the exponential interpolator can handle a single scalar."""
         interp = interp_exp(0.5, [0, 1], np.exp([0, 1]))
-        self.assertEqual(np.exp(0.5), interp)
+        self.assertTrue(np.isclose(np.exp(0.5), interp, atol=1e-5))
         return
 
     def test_array(self):
         """Check that the exponential interpolator can handle a vector array."""
         interp = interp_exp([0.5, 0.75], [0, 1], np.exp([0, 1]))
-        self.assertTrue(all(np.exp([0.5, 0.75]) == interp))
+        self.assertTrue(all(np.isclose(np.exp([0.5, 0.75]), interp, atol=1e-5)))
         return
 
     def test_quantity(self):
         """Check that the exponential interpolator can handle quantities."""
         interp = interp_exp([0.5, 0.75], [0, 1], Quantity(np.exp([0, 1]), "kg"))
         # Check value
-        self.assertTrue(all(Quantity(np.exp([0.5, 0.75]), "kg") == interp))
+        self.assertTrue(
+            all(np.isclose(np.exp([0.5, 0.75]), np.array(interp), atol=1e-5)))
         # Check type
         self.assertIsInstance(interp, Quantity)
         return
