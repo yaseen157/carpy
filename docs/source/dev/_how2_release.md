@@ -37,5 +37,6 @@ See: [Official Packaging Instructions](https://packaging.python.org/en/latest/tu
 
 1. Generate distribution archives
 2. Upload distribution archives to GitHub's release/tags section.
-3. ???
+3. If set to "pre-release", package will NOT appear on PyPI. Ensure you have the
+   correct choice selected.
 4. Profit
