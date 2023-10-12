@@ -94,6 +94,8 @@ class GudmundssonSkinFriction(unittest.TestCase):
 
         soln = CDfGudmundsson(
             sections=mysections, span=Quantity(38.3, "ft"),
-            alpha=0, altitude=0, TAS=Quantity(185, "kt"))
+            altitude=0, TAS=Quantity(185, "kt"))
+
+        self.assertTrue(np.isclose(soln._Cf, 0.001999, atol=1e-4))
 
         return

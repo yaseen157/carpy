@@ -252,6 +252,9 @@ class HorseshoeVortex(WingSolution):
         N = 40 if N is None else int(N)
         mirror = True if mirror is None else mirror
 
+        if mirror is False:
+            raise NotImplementedError("Sorry, this method isn't ready yet.")
+
         # Problem setup
         large = 1e6
         Q = np.array([-np.cos(alpha), 0.0, -np.sin(alpha)])  # Freestream orient
@@ -360,6 +363,7 @@ class HorseshoeVortex(WingSolution):
                 # Apply rotations to normal vector and control point locator
                 n[i] = rot_dihedral @ (rot_twist @ n[i])
                 vc[i] = (va[i] + vb[i]) / 2 + (rot_twist @ cprime[i])
+                # apparently, the below step is controversial???
                 vinf[i] = rot_twist @ vinf[i]  # Twist semi-infinite vortices
 
         # Now if necessary (wing mirrored), copy starboard geometry to port side
@@ -398,12 +402,8 @@ class HorseshoeVortex(WingSolution):
             u = np.copy(Q)
             for j in range(N):
                 u += vfil(va[j], vb[j], self._xyz_cp[i]) * gamma[j]
-                u += vfil(
-                    va[j] + np.array([-large, 0, 0]), va[j], self._xyz_cp[i]
-                ) * gamma[j]
-                u += vfil(
-                    vb[j], vb[j] + np.array([-large, 0, 0]), self._xyz_cp[i]
-                ) * gamma[j]
+                u += vfil(va[j] + vinf[j], va[j], self._xyz_cp[i]) * gamma[j]
+                u += vfil(vb[j], vb[j] + vinf[j], self._xyz_cp[i]) * gamma[j]
             # u cross s gives direction of action of the force from circulation
             s = vb[i] - va[i]
             Fx[i], Fy[i], Fz[i] = np.cross(u, s) * gamma[i]
@@ -413,22 +413,22 @@ class HorseshoeVortex(WingSolution):
         area_chords = [qty.x for qty in sections[::elems].chord]
         wingarea = trapezoid(area_chords, dx=span / elems)
         halfS = wingarea / 2
-        self._sectionCl = (Fx * np.sin(alpha) - Fz * np.cos(alpha)) / halfS
-        self._sectionCdi = (-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / halfS
+        self._Cl = (Fx * np.sin(alpha) - Fz * np.cos(alpha)) / halfS
+        self._Cdi = (-Fx * np.cos(alpha) - Fz * np.sin(alpha)) / halfS
 
         self._AR = span ** 2 / wingarea
-        self._CL = self._sectionCl.sum()
+        self._CL = self._Cl.sum()
         self._CLalpha = NotImplemented
         self._Sref = Quantity(wingarea, "m^{2}")
         self._b = Quantity(span, "m")
-        self._e = self._CL ** 2 / np.pi / self._AR / self._sectionCdi.sum()
+        self._e = self._CL ** 2 / np.pi / self._AR / self._Cdi.sum()
         self._delta = 1 / self._e - 1
         self._tau: float = NotImplemented
 
         return
 
     @property
-    def sectionCL(self) -> np.ndarray:
+    def Cl(self) -> np.ndarray:
         """
         An array describing the distribution of generated CL. This is from
         port to starboard in a full wingplane, or from an inboard section to the
@@ -438,7 +438,7 @@ class HorseshoeVortex(WingSolution):
             Section-wise distribution of CL components.
 
         """
-        return self._sectionCl
+        return self._Cl
 
     @property
     def xyz_cp(self) -> np.ndarray:
@@ -497,7 +497,7 @@ class Cantilever1DStatic(WingSolution):
             root_i = 0
 
         # Lift and moment component distribution
-        sectionL = lift * (soln_aero.sectionCL[root_i:] / soln_aero.CL)
+        sectionL = lift * (soln_aero.Cl[root_i:] / soln_aero.CL)
         sectionM = sectionL * ys
 
         # Flexural modulus of carbon fibre (?)
@@ -550,7 +550,7 @@ class Cantilever1DStatic(WingSolution):
 
 class CDfGudmundsson(object):
 
-    def __init__(self, sections: DiscreteIndex, span: Hint.num, alpha: Hint.num,
+    def __init__(self, sections: DiscreteIndex, span: Hint.num,
                  altitude: Hint.num, TAS: Hint.num, geometric: bool = None,
                  atmosphere=None, N: int = None, mirror: bool = None):
         """
@@ -558,7 +558,6 @@ class CDfGudmundsson(object):
         Args:
             sections ():
             span ():
-            alpha ():
             altitude ():
             TAS ():
             geometric:
@@ -577,9 +576,9 @@ class CDfGudmundsson(object):
         N = 40 if N is None else int(N)
         mirror = True if mirror is None else mirror
 
-        # Assume roughness of carefully applied camouflage paint
+        # Assume roughness of carefully applied matte paint
         from carpy.utility import constants as co
-        kappa = co.MATERIAL.esg_roughness.camopaint_careful.mean()
+        kappa = co.MATERIAL.esg_roughness.mattepaint_careful.mean()
 
         # Linearly spaced sections in defined span (no need to mirror)
         Nsections = designate_sections(sections=sections, mirror=False, N=N)
@@ -608,8 +607,8 @@ class CDfGudmundsson(object):
         self._Cf_turb *= (1 + 0.144 * Mach ** 2) ** -0.65  # Compressible corr.
 
         # Step 5) Determine fictitious turbulent boundary layer origin point X0
-        Xtr = 0.50  # Assume transition @X==0.5, avg of upper/lower transitions
-        X0_C = 36.9 * (Xtr_C := Xtr / chords.x) ** 0.625 * Re ** -0.375
+        Xtr_C = 0.5  # Assume transition @X==0.5, avg of upper/lower transitions
+        X0_C = 36.9 * Xtr_C ** 0.625 * Re ** -0.375
 
         # Step 6) Compute mixed laminar-turbulent flow skin friction coefficient
         Cf = 0.074 * Re ** -0.2 * (1 - (Xtr_C - X0_C)) ** 0.8
@@ -628,7 +627,7 @@ class CDfGudmundsson(object):
         Swet = Swets.sum()
         Sref = Srefs.sum()
         self._Cf = (Cf * Swets).sum() / Swet
-        self._CDf = (Swet / Sref) * Cf
+        self._CDf = self._Cf * (Swet / Sref)
 
         return
 

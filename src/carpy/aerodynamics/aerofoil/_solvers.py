@@ -3,9 +3,8 @@ import numpy as np
 from scipy.integrate import simpson
 
 from carpy.utility import Hint, cast2numpy, point_diff
-from ._solvers_ipanel import PanelSolution as InviscidPanelMethod
 
-__all__ = ["ThinAerofoil", "InviscidPanel"]
+__all__ = ["ThinAerofoil"]
 __author__ = "Yaseen Reza"
 
 
@@ -215,27 +214,3 @@ class ThinAerofoil(AerofoilSolution):
 
         alpha_zl = (1 / np.pi) * simpson(dz_dx * (2 * xs), theta)
         return alpha_zl
-
-
-class InviscidPanel(InviscidPanelMethod, AerofoilSolution):
-    """A method for deriving the pressure distribution on an aerofoil."""
-
-    def __init__(self, aerofoil, alpha: Hint.num, N: int = None):
-        """
-        Args:
-            aerofoil: Aerofoil object.
-            alpha: Angle of attack.
-            N: Number of discretised points in the aerofoil's surface.
-        """
-        # Make super class call
-        super().__init__(aerofoil, alpha, N)
-
-        # !!! Without wake panels, Cl and Cd cannot be trusted apparently
-        # https://www.symscape.com/blog/why_use_panel_method
-        # Compute normal and tangent force coefficients, then inviscid cl and cd
-        # cn = sum([-pnl.cp * pnl.length * pnl.sin_beta for pnl in self.panels])
-        # ct = sum([-pnl.cp * pnl.length * pnl.cos_beta for pnl in self.panels])
-        # cl = cn * self.freestream.cos_alpha - ct * self.freestream.sin_alpha
-        # cd = cn * self.freestream.sin_alpha + ct * self.freestream.cos_alpha
-
-        return

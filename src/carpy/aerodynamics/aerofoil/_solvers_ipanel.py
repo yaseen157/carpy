@@ -18,8 +18,9 @@ import numpy as np
 import scipy.integrate as sint
 
 from carpy.utility import Hint, cast2numpy
+from ._solvers import AerofoilSolution
 
-__all__ = ["PanelSolution"]
+__all__ = ["InviscidPanelMethod"]
 __author__ = "Yaseen Reza"
 
 
@@ -451,7 +452,7 @@ class PanelSolution(object):
         fig, ax = plt.subplots(1, dpi=140)
 
         ax.grid()
-        ax.set_xlabel('$x$', fontsize=16)
+        ax.set_xlabel('$x/c$', fontsize=16)
         ax.set_ylabel('$C_p$', fontsize=16)
         ax.plot([panel.xc for panel in self.panels if panel.loc == 'upper'],
                 [panel.cp for panel in self.panels if panel.loc == 'upper'],
@@ -470,4 +471,28 @@ class PanelSolution(object):
         ax.set_ylim(*ax.get_ylim()[::-1])
         ax.set_title(f'Number of panels: {self.panels.size}', fontsize=16)
         plt.show()
+        return
+
+
+class InviscidPanelMethod(PanelSolution, AerofoilSolution):
+    """A method for deriving the pressure distribution on an aerofoil."""
+
+    def __init__(self, aerofoil, alpha: Hint.num, N: int = None):
+        """
+        Args:
+            aerofoil: Aerofoil object.
+            alpha: Angle of attack.
+            N: Number of discretised points in the aerofoil's surface.
+        """
+        # Make super class call
+        super().__init__(aerofoil, alpha, N)
+
+        # !!! Without wake panels, Cl and Cd cannot be trusted apparently
+        # https://www.symscape.com/blog/why_use_panel_method
+        # Compute normal and tangent force coefficients, then inviscid cl and cd
+        # cn = sum([-pnl.cp * pnl.length * pnl.sin_beta for pnl in self.panels])
+        # ct = sum([-pnl.cp * pnl.length * pnl.cos_beta for pnl in self.panels])
+        # cl = cn * self.freestream.cos_alpha - ct * self.freestream.sin_alpha
+        # cd = cn * self.freestream.sin_alpha + ct * self.freestream.cos_alpha
+
         return
