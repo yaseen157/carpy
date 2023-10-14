@@ -3,7 +3,7 @@ import numpy as np
 from scipy.integrate import simpson, trapezoid
 
 from carpy.aerodynamics.aerofoil import ThinAerofoil
-from carpy.environment import ISA1975
+from carpy.environment import LIBREF_ATM
 from carpy.structures import DiscreteIndex
 from carpy.utility import Hint, Quantity, cast2numpy, moving_average
 
@@ -572,7 +572,7 @@ class CDfGudmundsson(object):
         span = Quantity(span, "m")
         TAS = Quantity(TAS, "m s^{-1}")
         geometric = False if geometric is None else geometric
-        atmosphere = ISA1975() if atmosphere is None else atmosphere
+        atmosphere = LIBREF_ATM if atmosphere is None else atmosphere
         N = 40 if N is None else int(N)
         mirror = True if mirror is None else mirror
 

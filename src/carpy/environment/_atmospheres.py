@@ -14,7 +14,8 @@ from carpy.utility import (
     cast2numpy, cast2quantity, constants as co, isNone, interp_lin, interp_exp
 )
 
-__all__ = ["ISA1975", "US1976", "MILHDBK310", "ObsAtmospherePerfect"]
+__all__ = [
+    "LIBREF_ATM", "ISA1975", "US1976", "MILHDBK310", "ObsAtmospherePerfect"]
 __author__ = "Yaseen Reza"
 
 
@@ -562,7 +563,7 @@ class Atmosphere(object):
             elif CAS is None and EAS is not None and TAS is not None:
                 # Use isentropic flow relations to find the Mach number
                 Mach = TAS / a
-                pt_p = 1 / IsentropicFlow.p_p0(M=Mach, gamma=gamma)
+                pt_p = 1 / IsentropicFlow.p_pt(M=Mach, gamma=gamma)
                 qc = p * (pt_p - 1)
                 Tt_Tsl = (qc / p_sl + 1) ** ((gamma - 1) / gamma)
                 Tt_T = (qc / p + 1) ** ((gamma - 1) / gamma)
@@ -575,7 +576,7 @@ class Atmosphere(object):
             elif TAS is None and CAS is not None:
                 # Use isentropic flow relations to find the Mach number
                 M_sl = CAS / a_sl
-                pt_psl = 1 / IsentropicFlow.p_p0(M=M_sl, gamma=gamma)
+                pt_psl = 1 / IsentropicFlow.p_pt(M=M_sl, gamma=gamma)
                 qc = p_sl * (pt_psl - 1)
                 Mach = IsentropicFlow.M(p_p0=(p / (p + qc)), gamma=gamma)
                 TAS = Mach * a
@@ -651,6 +652,10 @@ class ISA1975(Atmosphere):
         return mu
 
 
+# Instantiate a single ISA1975, reference library atmosphere
+LIBREF_ATM = ISA1975(T_offset=0)
+
+
 # ---------------------------------------------------------------------------- #
 
 
@@ -687,9 +692,9 @@ for sheet, x_pct in itertools.product(list(df_MILHDBK310), ["1pct", "10pct"]):
         ("_f_p", cast_altitudes(f_geometric=True)(f_mil310_p)),
         ("_f_rho", cast_altitudes(f_geometric=True)(f_mil310_rho)),
         ("_f_gamma", lambda *args, **kwargs: 1.4),  # Assume perfect gamma=1.4
-        ("_f_c_sound", ISA1975().c_sound),  # Assume same method as ISA1975
-        ("_f_mu_visc", ISA1975().mu_visc),  # Assume same method as ISA1975
-        ("_f_k_thermal", ISA1975().k_thermal)  # Assume same method as ISA1975
+        ("_f_c_sound", LIBREF_ATM.c_sound),  # Assume same method as ISA1975
+        ("_f_mu_visc", LIBREF_ATM.mu_visc),  # Assume same method as ISA1975
+        ("_f_k_thermal", LIBREF_ATM.k_thermal)  # Assume same method as ISA1975
     ])
 
 
@@ -722,7 +727,7 @@ for sheet, x_pct in itertools.product(list(df_MILHDBK310), ["1pct", "10pct"]):
     milhdbk310_atms[f"{sheet}_{x_pct}"] = model(T_offset=0)  # Instantiate it!
 
 
-# Doesn't matter what the name of the parent is, instantiate a catalogue of atms
+# Doesn't matter what the name of the parent is, define a catalogue of atms.
 class MILHDBK310(type("catalogue", (object,), milhdbk310_atms)):
     """A collection of atmospheric property models as given in MIL-HDBK-310."""
 

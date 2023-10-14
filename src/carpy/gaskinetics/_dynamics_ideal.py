@@ -30,13 +30,13 @@ def set_theta(theta: Hint.nums = None) -> np.ndarray:
     return cast2numpy(theta)
 
 
-def V_max(cp: Hint.nums, Ttotal: Hint.nums):
+def V_max(cp: Hint.nums, Tt: Hint.nums):
     """
     Maximum attainable velocity of a gas as a function of energy content.
 
     Args:
         cp: Specific heat of the gas at constant pressure.
-        Ttotal: Total (stagnation) temperature of the flow.
+        Tt: Total (stagnation) temperature of the flow.
 
     Returns:
         Maximum thermodynamic velocity of the gas.
@@ -44,9 +44,8 @@ def V_max(cp: Hint.nums, Ttotal: Hint.nums):
     """
     # Recast as necessary
     cp = cast2numpy(cp)
-    Ttotal = cast2numpy(Ttotal
-                        )
-    maximum_velocity = np.sqrt(2 * cp * Ttotal)
+    Tt = cast2numpy(Tt)
+    maximum_velocity = np.sqrt(2 * cp * Tt)
     return maximum_velocity
 
 
@@ -76,7 +75,7 @@ class IsentropicFlow(object):
     """
 
     @staticmethod
-    def T_T0(M: Hint.nums, gamma: Hint.nums = None) -> np.ndarray:
+    def T_Tt(M: Hint.nums, gamma: Hint.nums = None) -> np.ndarray:
         """
         Compute the static to total temperature ratio.
 
@@ -115,14 +114,14 @@ class IsentropicFlow(object):
         gamma = set_gamma(gamma)
 
         # Compute sonic ratio
-        T_Ttotal = cls.T_T0(M=M, gamma=gamma)
-        Tstar_Ttotal = cls.T_T0(M=1, gamma=gamma)
-        ratio = T_Ttotal / Tstar_Ttotal
+        T_Tt = cls.T_Tt(M=M, gamma=gamma)
+        Tstar_Tt = cls.T_Tt(M=1, gamma=gamma)
+        ratio = T_Tt / Tstar_Tt
 
         return ratio
 
     @classmethod
-    def p_p0(cls, M: Hint.nums, gamma: Hint.nums = None) -> np.ndarray:
+    def p_pt(cls, M: Hint.nums, gamma: Hint.nums = None) -> np.ndarray:
         """
         Compute the static to total pressure ratio.
 
@@ -139,7 +138,7 @@ class IsentropicFlow(object):
         gamma = set_gamma(gamma)
 
         # Isentropic relation
-        ratio = cls.T_T0(M=M, gamma=gamma) ** (gamma / (gamma - 1))
+        ratio = cls.T_Tt(M=M, gamma=gamma) ** (gamma / (gamma - 1))
 
         return ratio
 
@@ -161,14 +160,14 @@ class IsentropicFlow(object):
         gamma = set_gamma(gamma)
 
         # Compute sonic ratio
-        p_ptotal = cls.p_p0(M=M, gamma=gamma)
-        pstar_ptotal = cls.p_p0(M=1, gamma=gamma)
+        p_ptotal = cls.p_pt(M=M, gamma=gamma)
+        pstar_ptotal = cls.p_pt(M=1, gamma=gamma)
         ratio = p_ptotal / pstar_ptotal
 
         return ratio
 
     @classmethod
-    def rho_rho0(cls, M: Hint.nums, gamma: Hint.nums = None) -> np.ndarray:
+    def rho_rhot(cls, M: Hint.nums, gamma: Hint.nums = None) -> np.ndarray:
         """
         Compute the static to total density ratio.
 
@@ -185,7 +184,7 @@ class IsentropicFlow(object):
         gamma = set_gamma(gamma)
 
         # Isentropic relation
-        ratio = cls.T_T0(M=M, gamma=gamma) ** (1 / (gamma - 1))
+        ratio = cls.T_Tt(M=M, gamma=gamma) ** (1 / (gamma - 1))
 
         return ratio
 
@@ -207,8 +206,8 @@ class IsentropicFlow(object):
         gamma = set_gamma(gamma)
 
         # Compute sonic ratio
-        rho_rhototal = cls.rho_rho0(M=M, gamma=gamma)
-        rhostar_rhototal = cls.rho_rho0(M=1, gamma=gamma)
+        rho_rhototal = cls.rho_rhot(M=M, gamma=gamma)
+        rhostar_rhototal = cls.rho_rhot(M=1, gamma=gamma)
         ratio = rho_rhototal / rhostar_rhototal
 
         return ratio
@@ -233,7 +232,7 @@ class IsentropicFlow(object):
         # Compute terms
         M = np.where(M == 0, np.nan, M)
         term1 = ((gamma + 1) / 2) ** -((gamma + 1) / 2 / (gamma - 1))
-        term2 = 1 / M / cls.rho_rho0(M=M, gamma=gamma) ** ((gamma + 1) / 2)
+        term2 = 1 / M / cls.rho_rhot(M=M, gamma=gamma) ** ((gamma + 1) / 2)
 
         # Compute sonic ratio
         ratio = term1 * term2
@@ -266,7 +265,7 @@ class IsentropicFlow(object):
         # Compute choked mass flow rate
         mdot = kwargs["A"] * kwargs["pt"] * kwargs["Tt"] ** -0.5
         mdot = mdot * M * (gamma / kwargs["Rs"]) ** 0.5
-        mdot = mdot * cls.rho_rho0(M=M, gamma=gamma) ** ((gamma + 1) / 2)
+        mdot = mdot * cls.rho_rhot(M=M, gamma=gamma) ** ((gamma + 1) / 2)
 
         return Quantity(mdot, "kg s^{-1}")
 
@@ -898,8 +897,8 @@ class ExpansionFan(object):
     @cached_property
     def T2_T1(self):
         """Static temperature ratio over the fan."""
-        T2_Tt = IsentropicFlow.T_T0(M=self._M2, gamma=self._gamma)
-        T1_Tt = IsentropicFlow.T_T0(M=self._M1, gamma=self._gamma)
+        T2_Tt = IsentropicFlow.T_Tt(M=self._M2, gamma=self._gamma)
+        T1_Tt = IsentropicFlow.T_Tt(M=self._M1, gamma=self._gamma)
         return T2_Tt / T1_Tt
 
     @property
@@ -1263,7 +1262,7 @@ class FannoFlow(object):
         gamma = set_gamma(gamma)
 
         # Compute
-        H = IsentropicFlow.T_T0(M=M, gamma=gamma)
+        H = IsentropicFlow.T_Tt(M=M, gamma=gamma)
 
         return H
 
@@ -1303,9 +1302,9 @@ def visualise_flow():
 
     # Isentropic flow
     axs.flat[0].set_title(IsentropicFlow.__name__)
-    axs.flat[0].plot(Machs, IsentropicFlow.T_T0(Machs))
-    axs.flat[0].plot(Machs, IsentropicFlow.p_p0(Machs))
-    axs.flat[0].plot(Machs, IsentropicFlow.rho_rho0(Machs))
+    axs.flat[0].plot(Machs, IsentropicFlow.T_Tt(Machs))
+    axs.flat[0].plot(Machs, IsentropicFlow.p_pt(Machs))
+    axs.flat[0].plot(Machs, IsentropicFlow.rho_rhot(Machs))
     axs.flat[0].plot(Machs, IsentropicFlow.A_Astar(Machs))
 
     # Normal shock jump
