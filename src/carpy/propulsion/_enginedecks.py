@@ -36,7 +36,7 @@ def TPratio(altitude, geometric, atmosphere):
 class EngineDeck(object):
     """Class for models of engines or "performance decks"."""
 
-    _f_alpha = NotImplemented
+    _f_Tlapse = NotImplemented
     _f_TSFC = NotImplemented
 
     @staticmethod
@@ -48,12 +48,11 @@ class EngineDeck(object):
         atmosphere = LIBREF_ATM if atmosphere is None else atmosphere
 
         # Only broadcast these parameters
-        Mach, altitude, geometric = \
-            np.broadcast_arrays(Mach, altitude, geometric)
+        Mach, altitude = np.broadcast_arrays(Mach, altitude)
         return Mach, altitude, geometric, atmosphere
 
-    def alpha(self, Mach: Hint.nums, altitude: Hint.nums = None,
-              geometric: bool = None, atmosphere: object = None) -> np.ndarray:
+    def Tlapse(self, Mach: Hint.nums, altitude: Hint.nums = None,
+               geometric: bool = None, atmosphere: object = None) -> np.ndarray:
         """
         Return the thrust lapse as a function of Mach number and altitude.
 
@@ -67,7 +66,7 @@ class EngineDeck(object):
                 reference atmosphere.
 
         Returns:
-            Thrust lapse parameter, alpha.
+            Thrust lapse parameter, Tlapse.
 
         """
         # Recast as necessary
@@ -77,17 +76,17 @@ class EngineDeck(object):
         )
 
         # Compute
-        alpha = self._f_alpha(
+        Tlapse = self._f_Tlapse(
             Mach=Mach, altitude=altitude, geometric=geometric,
             atmosphere=atmosphere
         )
-        return alpha
+        return Tlapse
 
     def TSFC(self, Mach: Hint.nums, altitude: Hint.nums = None,
              geometric: bool = None, atmosphere: object = None) -> Quantity:
         """
-        Return the thrust specific fuel consumption as a function of Mach number
-        and altitude.
+        Return the installed thrust specific fuel consumption as a function of
+        Mach number and altitude.
 
         Args:
             Mach: Flight Mach number.
@@ -99,7 +98,7 @@ class EngineDeck(object):
                 reference atmosphere.
 
         Returns:
-            Thrust-specific fuel consumption.
+            (Installed) Thrust-specific fuel consumption.
 
         """
         # Recast as necessary
@@ -119,11 +118,15 @@ class EngineDeck(object):
 # ---------------------------------------------------------------------------- #
 # J. D. Mattingly - Basic decks for conceptual analysis
 
-class HiBPR(EngineDeck):
-    """Performance deck for a high bypass ratio, subsonic turbofan."""
+class MattinglyBasicTurbomachine(object):
+    """Common methods for Mattingly's basic turbomachine models."""
 
     def __init__(self, TR: Hint.num = None):
-        self.TR = 1.1 if TR is None else TR
+        """
+        Args:
+            TR: Throttle ratio, a.k.a theta break of the engine.
+        """
+        self.TR = 1.05 if TR is None else TR
         return
 
     @property
@@ -144,17 +147,28 @@ class HiBPR(EngineDeck):
         self._TR = float(value)
         return
 
-    def _f_alpha(self, Mach: np.ndarray, altitude: np.ndarray,
-                 geometric: np.ndarray[bool], atmosphere,
-                 TR: Hint.nums = None) -> np.ndarray:
+
+class HiBPR(EngineDeck, MattinglyBasicTurbomachine):
+    """
+    Performance deck for a high bypass ratio, subsonic turbofan.
+
+    References:
+        -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+            2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
+
+    """
+
+    def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
         # Remove Mach numbers >= 0.9 from consideration
-        warnmsg = f"{type(self).__name__} should not be evaluated at Mach > 0.9"
-        if any(Mach >= 0.9):
+        warnmsg = f"{type(self).__name__} shouldn't be evaluated w/ Mach >= 0.9"
+        if (Mach >= 0.9).any():
             warnings.warn(message=warnmsg, category=RuntimeWarning)
-        Mach[Mach >= 0.9] = np.nan
+            Mach[Mach >= 0.9] = np.nan
 
         # Non-dimensional static and stagnation quantities
         theta, delta = TPratio(
@@ -167,16 +181,19 @@ class HiBPR(EngineDeck):
         delta0 = delta * Tt_T ** (gamma / (gamma - 1))
 
         # Compute lapse
-        alpha = delta0 * (1 - 0.49 * Mach ** 0.5)
-        alpha[theta0 > TR] -= delta0 * (3 * (theta0 - TR) / (1.5 + Mach))
+        Tlapse = delta0 * (1 - 0.49 * Mach ** 0.5)
+        slice = theta0 > TR
+        Tlapse[slice] -= (delta0 * (3 * (theta0 - TR) / (1.5 + Mach)))[slice]
 
-        return alpha
+        Tlapse[Tlapse < 0] = np.nan
+
+        return Tlapse
 
     def _f_TSFC(self, Mach: np.ndarray, altitude: np.ndarray,
                 geometric: np.ndarray[bool], atmosphere) -> Quantity:
         # Remove Mach numbers >= 0.9 from consideration
         warnmsg = f"{type(self).__name__} should not be evaluated at Mach > 0.9"
-        if any(Mach >= 0.9):
+        if (Mach >= 0.9).any():
             warnings.warn(message=warnmsg, category=RuntimeWarning)
         Mach[Mach >= 0.9] = np.nan
 
@@ -193,34 +210,19 @@ class HiBPR(EngineDeck):
         return TSFC
 
 
-class LoBPRmixed(EngineDeck):
-    """Performance deck for a low bypass ratio, mixed flow turbofan."""
+class LoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
+    """
+    Performance deck for a low bypass ratio, mixed flow turbofan.
 
-    def __init__(self, TR: Hint.num = None):
-        self.TR = 1.1 if TR is None else TR
-        return
+    References:
+    -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+        2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
 
-    @property
-    def TR(self) -> float:
-        """
-        Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
+    """
 
-        This is the stagnation temperature ratio at which maximum allowable
-        compressor pressure ratio and turbine entry temperature are achieved
-        simultaneously.
-
-        """
-        return self._TR
-
-    @TR.setter
-    def TR(self, value):
-        self._TR = float(value)
-        return
-
-    def _f_alpha(self, Mach: np.ndarray, altitude: np.ndarray,
-                 geometric: np.ndarray[bool], atmosphere,
-                 TR: Hint.nums = None) -> np.ndarray:
+    def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
@@ -235,10 +237,13 @@ class LoBPRmixed(EngineDeck):
         delta0 = delta * Tt_T ** (gamma / (gamma - 1))
 
         # Compute lapse
-        alpha = 0.6 * delta0
-        alpha[theta0 > TR] *= 1 - 3.8 * (theta0 - TR) / theta0
+        Tlapse = 0.6 * delta0
+        slice = theta0 > TR
+        Tlapse[slice] *= (1 - 3.8 * (theta0 - TR) / theta0)[slice]
 
-        return alpha
+        Tlapse[Tlapse < 0] = np.nan
+
+        return Tlapse
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -256,37 +261,20 @@ class LoBPRmixed(EngineDeck):
         return TSFC
 
 
-class LoBPRmixedAB(EngineDeck):
+class LoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan with reheat
     (afterburner) engaged.
+
+    References:
+    -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+        2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
+
     """
 
-    def __init__(self, TR: Hint.num = None):
-        self.TR = 1.1 if TR is None else TR
-        return
-
-    @property
-    def TR(self) -> float:
-        """
-        Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
-
-        This is the stagnation temperature ratio at which maximum allowable
-        compressor pressure ratio and turbine entry temperature are achieved
-        simultaneously.
-
-        """
-        return self._TR
-
-    @TR.setter
-    def TR(self, value):
-        self._TR = float(value)
-        return
-
-    def _f_alpha(self, Mach: np.ndarray, altitude: np.ndarray,
-                 geometric: np.ndarray[bool], atmosphere,
-                 TR: Hint.nums = None) -> np.ndarray:
+    def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
@@ -301,10 +289,13 @@ class LoBPRmixedAB(EngineDeck):
         delta0 = delta * Tt_T ** (gamma / (gamma - 1))
 
         # Compute lapse
-        alpha = delta0
-        alpha[theta0 > TR] *= 1 - 3.5 * (theta0 - TR) / theta0
+        Tlapse = delta0
+        slice = theta0 > TR
+        Tlapse[slice] *= (1 - 3.5 * (theta0 - TR) / theta0)[slice]
 
-        return alpha
+        Tlapse[Tlapse < 0] = np.nan
+
+        return Tlapse
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -322,34 +313,19 @@ class LoBPRmixedAB(EngineDeck):
         return TSFC
 
 
-class Turbojet(EngineDeck):
-    """Performance deck for a turbojet."""
+class Turbojet(EngineDeck, MattinglyBasicTurbomachine):
+    """
+    Performance deck for a turbojet.
 
-    def __init__(self, TR: Hint.num = None):
-        self.TR = 1.1 if TR is None else TR
-        return
+    References:
+        -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+            2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
 
-    @property
-    def TR(self) -> float:
-        """
-        Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
+    """
 
-        This is the stagnation temperature ratio at which maximum allowable
-        compressor pressure ratio and turbine entry temperature are achieved
-        simultaneously.
-
-        """
-        return self._TR
-
-    @TR.setter
-    def TR(self, value):
-        self._TR = float(value)
-        return
-
-    def _f_alpha(self, Mach: np.ndarray, altitude: np.ndarray,
-                 geometric: np.ndarray[bool], atmosphere,
-                 TR: Hint.nums = None) -> np.ndarray:
+    def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
@@ -364,11 +340,14 @@ class Turbojet(EngineDeck):
         delta0 = delta * Tt_T ** (gamma / (gamma - 1))
 
         # Compute lapse
-        alpha = 0.8 * delta0 * (1 - 0.16 * Mach ** 0.5)
-        alpha[theta0 > TR] -= \
-            0.8 * delta0 * 24 * (theta0 - TR) / (9 + Mach) / theta0
+        Tlapse = 0.8 * delta0 * (1 - 0.16 * Mach ** 0.5)
+        slice = theta0 > TR
+        Tlapse[slice] -= \
+            (0.8 * delta0 * 24 * (theta0 - TR) / (9 + Mach) / theta0)[slice]
 
-        return alpha
+        Tlapse[Tlapse < 0] = np.nan
+
+        return Tlapse
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -386,34 +365,19 @@ class Turbojet(EngineDeck):
         return TSFC
 
 
-class TurbojetAB(EngineDeck):
-    """Performance deck for a turbojet with reheat (afterburner) engaged."""
+class TurbojetAB(EngineDeck, MattinglyBasicTurbomachine):
+    """
+    Performance deck for a turbojet with reheat (afterburner) engaged.
 
-    def __init__(self, TR: Hint.num = None):
-        self.TR = 1.1 if TR is None else TR
-        return
+    References:
+        -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+            2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
 
-    @property
-    def TR(self) -> float:
-        """
-        Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
+    """
 
-        This is the stagnation temperature ratio at which maximum allowable
-        compressor pressure ratio and turbine entry temperature are achieved
-        simultaneously.
-
-        """
-        return self._TR
-
-    @TR.setter
-    def TR(self, value):
-        self._TR = float(value)
-        return
-
-    def _f_alpha(self, Mach: np.ndarray, altitude: np.ndarray,
-                 geometric: np.ndarray[bool], atmosphere,
-                 TR: Hint.nums = None) -> np.ndarray:
+    def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
@@ -428,10 +392,13 @@ class TurbojetAB(EngineDeck):
         delta0 = delta * Tt_T ** (gamma / (gamma - 1))
 
         # Compute lapse
-        alpha = delta0 * (1 - 0.3 * (theta0 - 1) - 0.1 * Mach ** 0.5)
-        alpha[theta0 > TR] -= delta0 * 1.5 * (theta0 - TR) / theta0
+        Tlapse = delta0 * (1 - 0.3 * (theta0 - 1) - 0.1 * Mach ** 0.5)
+        slice = theta0 > TR
+        Tlapse[slice] -= (delta0 * 1.5 * (theta0 - TR) / theta0)[slice]
 
-        return alpha
+        Tlapse[Tlapse < 0] = np.nan
+
+        return Tlapse
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -449,34 +416,19 @@ class TurbojetAB(EngineDeck):
         return TSFC
 
 
-class Turboprop(EngineDeck):
-    """Performance deck for a turboprop engine."""
+class Turboprop(EngineDeck, MattinglyBasicTurbomachine):
+    """
+    Performance deck for a turboprop engine.
 
-    def __init__(self, TR: Hint.num = None):
-        self.TR = 1.1 if TR is None else TR
-        return
+    References:
+        -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+            2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
 
-    @property
-    def TR(self) -> float:
-        """
-        Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
+    """
 
-        This is the stagnation temperature ratio at which maximum allowable
-        compressor pressure ratio and turbine entry temperature are achieved
-        simultaneously.
-
-        """
-        return self._TR
-
-    @TR.setter
-    def TR(self, value):
-        self._TR = float(value)
-        return
-
-    def _f_alpha(self, Mach: np.ndarray, altitude: np.ndarray,
-                 geometric: np.ndarray[bool], atmosphere,
-                 TR: Hint.nums = None) -> np.ndarray:
+    def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
@@ -491,12 +443,17 @@ class Turboprop(EngineDeck):
         delta0 = delta * Tt_T ** (gamma / (gamma - 1))
 
         # Compute lapse
-        alpha = delta0
-        alpha[Mach > 0.1] *= (1 - 0.96 * (Mach - 1) ** 0.25)
-        alpha[(Mach > 0.1) & (theta0 > TR)] -= \
-            delta0 * 3 * (theta0 - TR) / 8.13 / (Mach - 0.1)
+        Tlapse = delta0
+        slice0 = Mach > 0.1
+        slice1 = slice0 & (theta0 > TR)
+        # I think Mattingly makes a mistake below in writing M-1 instead of M-.1
+        Tlapse[slice0] *= (1 - 0.96 * (Mach - 0.1) ** 0.25)[slice0]
+        Tlapse[slice1] -= \
+            (delta0 * 3 * (theta0 - TR) / 8.13 / (Mach - 0.1))[slice1]
 
-        return alpha
+        Tlapse[Tlapse < 0] = np.nan
+
+        return Tlapse
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -529,7 +486,12 @@ mattinglybasicdecks = {
 class MattinglyBasic(type("catalogue", (object,), mattinglybasicdecks)):
     """
     A collection of algebraic equations to model engine installed thrust lapse
-    from the year 2000 and beyond.
+    and installed thrust specific fuel consumption from year 2000 and beyond.
+
+    References:
+    -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
+        2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
+
     """
 
     def __init__(self):
