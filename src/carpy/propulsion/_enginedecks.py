@@ -7,7 +7,7 @@ from carpy.environment import LIBREF_ATM
 from carpy.gaskinetics import IsentropicFlow as IFlow
 from carpy.utility import constants as co, Hint, Quantity, cast2numpy
 
-__all__ = ["MattinglyBasic"]
+__all__ = ["BasicMattingly", "BasicTurbo", "BasicPiston"]
 __author__ = "Yaseen Reza"
 
 
@@ -36,6 +36,8 @@ def TPratio(altitude, geometric, atmosphere):
 class EngineDeck(object):
     """Class for models of engines or "performance decks"."""
 
+    _f_BSFC = NotImplemented
+    _f_Plapse = NotImplemented
     _f_Tlapse = NotImplemented
     _f_TSFC = NotImplemented
 
@@ -50,6 +52,69 @@ class EngineDeck(object):
         # Only broadcast these parameters
         Mach, altitude = np.broadcast_arrays(Mach, altitude)
         return Mach, altitude, geometric, atmosphere
+
+    def BSFC(self, Mach: Hint.nums, altitude: Hint.nums = None,
+             geometric: bool = None, atmosphere: object = None) -> Quantity:
+        """
+        Return the brake (power) specific fuel consumption as a function of
+        Mach number and altitude.
+
+        Args:
+            Mach: Flight Mach number.
+            altitude: Flight altitude. Optional, defaults to altitude=0
+                (sea-level conditions).
+            geometric: Flag specifying if given altitudes are geometric or not.
+                Optional, defaults to False.
+            atmosphere: Atmosphere object. Optional, defaults to the library
+                reference atmosphere.
+
+        Returns:
+            Brake (power)-specific fuel consumption.
+
+        """
+        # Recast as necessary
+        Mach, altitude, geometric, atmosphere = self._parse_arguments(
+            Mach=Mach, altitude=altitude, geometric=geometric,
+            atmosphere=atmosphere
+        )
+
+        # Compute
+        BSFC = self._f_BSFC(
+            Mach=Mach, altitude=altitude, geometric=geometric,
+            atmosphere=atmosphere
+        )
+        return BSFC
+
+    def Plapse(self, Mach: Hint.nums, altitude: Hint.nums = None,
+               geometric: bool = None, atmosphere: object = None) -> np.ndarray:
+        """
+        Return the brake power lapse as a function of Mach number and altitude.
+
+        Args:
+            Mach: Flight Mach number.
+            altitude: Flight altitude. Optional, defaults to altitude=0
+                (sea-level conditions).
+            geometric: Flag specifying if given altitudes are geometric or not.
+                Optional, defaults to False.
+            atmosphere: Atmosphere object. Optional, defaults to the library
+                reference atmosphere.
+
+        Returns:
+            Brake power lapse parameter, Plapse.
+
+        """
+        # Recast as necessary
+        Mach, altitude, geometric, atmosphere = self._parse_arguments(
+            Mach=Mach, altitude=altitude, geometric=geometric,
+            atmosphere=atmosphere
+        )
+
+        # Compute
+        Plapse = self._f_Plapse(
+            Mach=Mach, altitude=altitude, geometric=geometric,
+            atmosphere=atmosphere
+        )
+        return Plapse
 
     def Tlapse(self, Mach: Hint.nums, altitude: Hint.nums = None,
                geometric: bool = None, atmosphere: object = None) -> np.ndarray:
@@ -132,12 +197,12 @@ class MattinglyBasicTurbomachine(object):
     @property
     def TR(self) -> float:
         """
-        Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
-
         This is the stagnation temperature ratio at which maximum allowable
         compressor pressure ratio and turbine entry temperature are achieved
         simultaneously.
+
+        Returns:
+            The throttle ratio, a.k.a theta break (theta0 break).
 
         """
         return self._TR
@@ -148,7 +213,7 @@ class MattinglyBasicTurbomachine(object):
         return
 
 
-class HiBPR(EngineDeck, MattinglyBasicTurbomachine):
+class TurbofanHiBPR(EngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a high bypass ratio, subsonic turbofan.
 
@@ -210,7 +275,7 @@ class HiBPR(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class LoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
+class TurbofanLoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan.
 
@@ -261,7 +326,7 @@ class LoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class LoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
+class TurbofanLoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan with reheat
     (afterburner) engaged.
@@ -471,11 +536,117 @@ class Turboprop(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
+# ---------------------------------------------------------------------------- #
+# Basic decks for conceptual analysis of reciprocating engines
+
+class PistonGaggFarrar(EngineDeck):
+    """
+    Performance deck for a reciprocating engine.
+    """
+
+    @staticmethod
+    def _f_Plapse(Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere) -> np.ndarray:
+        # Non-dimensional static quantities
+        theta, delta = TPratio(
+            altitude=altitude,
+            geometric=geometric,
+            atmosphere=atmosphere
+        )
+        densityratio = delta / theta
+
+        # Compute lapse
+        Plapse = densityratio - (1 - densityratio) / 7.55
+
+        return Plapse
+
+
+class PistonNACA925(EngineDeck):
+    """
+    Performance deck for a reciprocating engine, assuming no pumping losses.
+
+    References:
+        - NACA Report No. 925
+
+    """
+
+    def __init__(self, eta_m: float = None, r_mloss: float = None):
+        """
+        Args:
+            eta_m: Mechanical efficiency at sea level. Optional, defaults to
+                0.88 (88% mechanical efficiency).
+            r_mloss: Ratio of mechanical friction losses to friction power
+                losses at sea level. Optional, defaults to 0.5 (50% of friction
+                power losses are due to mechanical losses).
+        """
+        self.eta_m = 0.88 if eta_m is None else eta_m
+        self.r_mloss = 0.5 if r_mloss is None else r_mloss
+        return
+
+    @property
+    def eta_m(self) -> float:
+        """
+        Returns:
+            The mechanical efficiency of the engine at sea level.
+
+        """
+        return self._eta_m
+
+    @eta_m.setter
+    def eta_m(self, value):
+        self._eta_m = float(value)
+        return
+
+    @property
+    def r_mloss(self) -> float:
+        """
+        Returns:
+            The ratio of mechanical friction losses to friction power losses at
+                sea level.
+
+        Notes:
+            Friction power is the power wasted by the engine in overcoming
+                both mechanical friction and pumping losses in the engine.
+                A value of r_mloss=1 indicates no pumping losses (all friction
+                losses are mechanical in nature).
+
+        """
+        return self._r_mloss
+
+    @r_mloss.setter
+    def r_mloss(self, value):
+        self._r_mloss = float(value)
+        return
+
+    def _f_Plapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: np.ndarray[bool], atmosphere,
+                  eta_m: Hint.nums = None,
+                  r_mloss: Hint.nums = None) -> np.ndarray:
+        # Recast as necessary
+        eta_m = cast2numpy(self.eta_m if eta_m is None else eta_m)
+        r_mloss = cast2numpy(self.r_mloss if r_mloss is None else r_mloss)
+
+        # Non-dimensional static quantities
+        theta, delta = TPratio(
+            altitude=altitude,
+            geometric=geometric,
+            atmosphere=atmosphere
+        )
+
+        # Compute lapse
+        factor = (r_mloss - r_mloss * eta_m) / eta_m
+        Plapse = delta * theta ** -0.5 * (1 + factor) - factor
+        return Plapse
+
+
+# ---------------------------------------------------------------------------- #
+# Deck collections
+
 # Collect all the basic Mattingly decks
-mattinglybasicdecks = {
-    HiBPR.__name__: HiBPR,
-    LoBPRmixed.__name__: LoBPRmixed,
-    LoBPRmixedAB.__name__: LoBPRmixedAB,
+basicdecks = {
+    TurbofanHiBPR.__name__: TurbofanHiBPR,
+    TurbofanLoBPRmixed.__name__: TurbofanLoBPRmixed,
+    TurbofanLoBPRmixedAB.__name__: TurbofanLoBPRmixedAB,
     Turbojet.__name__: Turbojet,
     TurbojetAB.__name__: TurbojetAB,
     Turboprop.__name__: Turboprop
@@ -483,7 +654,7 @@ mattinglybasicdecks = {
 
 
 # Define a catalogue of basic decks from Mattingly
-class MattinglyBasic(type("catalogue", (object,), mattinglybasicdecks)):
+class BasicMattingly(type("catalogue", (object,), basicdecks)):
     """
     A collection of algebraic equations to model engine installed thrust lapse
     and installed thrust specific fuel consumption from year 2000 and beyond.
@@ -492,6 +663,51 @@ class MattinglyBasic(type("catalogue", (object,), mattinglybasicdecks)):
     -   J. D. Mattingly, W. H. Heiser, D. T. Pratt, *Aircraft Engine Design*
         2nd ed. Reston, Virginia: AIAA, 2002. Sections 2.3.2, 3.3.2.
 
+    """
+
+    def __init__(self):
+        errormsg = (
+            "This is a catalogue of atmospheres, and it should not be "
+            "instantiated directly. Try one of my attributes!"
+        )
+        raise RuntimeError(errormsg)
+
+
+# Collect all the basic turbomachine decks
+basicdecks = {
+    TurbofanHiBPR.__name__: TurbofanHiBPR,
+    TurbofanLoBPRmixed.__name__: TurbofanLoBPRmixed,
+    TurbofanLoBPRmixedAB.__name__: TurbofanLoBPRmixedAB,
+    Turbojet.__name__: Turbojet,
+    TurbojetAB.__name__: TurbojetAB,
+    Turboprop.__name__: Turboprop
+}
+
+
+class BasicTurbo(type("catalogue", (object,), basicdecks)):
+    """
+    A collection of algebraic equations to model engine performance decks
+    based on turbomachinery cycles.
+    """
+
+    def __init__(self):
+        errormsg = (
+            "This is a catalogue of atmospheres, and it should not be "
+            "instantiated directly. Try one of my attributes!"
+        )
+        raise RuntimeError(errormsg)
+
+
+basicdecks = {
+    PistonGaggFarrar.__name__: PistonGaggFarrar,
+    PistonNACA925.__name__: PistonNACA925,
+}
+
+
+class BasicPiston(type("catalogue", (object,), basicdecks)):
+    """
+    A collection of algebraic equations to model engine performance decks
+    based on reciprocating designs.
     """
 
     def __init__(self):
