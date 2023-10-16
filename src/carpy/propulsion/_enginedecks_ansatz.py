@@ -7,7 +7,10 @@ from carpy.environment import LIBREF_ATM
 from carpy.gaskinetics import IsentropicFlow as IFlow
 from carpy.utility import constants as co, Hint, Quantity, cast2numpy
 
-__all__ = ["BasicMattingly", "BasicTurbo", "BasicPiston"]
+__all__ = [
+    "BasicPropeller", "BasicMattingly", "BasicTurbo", "BasicPiston",
+    "BasicElectric"
+]
 __author__ = "Yaseen Reza"
 
 
@@ -28,30 +31,46 @@ def TPratio(altitude, geometric, atmosphere):
     return theta, delta
 
 
+def parse_arguments(Mach, altitude, geometric, atmosphere):
+    """
+    Broadcast the Mach and altitude arguments, fill in missing arguments.
+
+    Args:
+        Mach: Flight Mach number.
+        altitude: Flight altitude. Optional, defaults to altitude=0
+            (sea-level conditions).
+        geometric: Flag specifying if given altitudes are geometric or not.
+            Optional, defaults to False.
+        atmosphere: Atmosphere object. Optional, defaults to the library
+            reference atmosphere.
+
+    Returns:
+        tuple of Mach, altitude, geometric, atmosphere.
+
+    """
+    # Recast as necessary
+    Mach = cast2numpy(Mach, dtype=np.float64)  # dtype=float permits slicing
+    altitude = cast2numpy(0.0 if altitude is None else altitude)
+    geometric = False if geometric is None else geometric
+    atmosphere = LIBREF_ATM if atmosphere is None else atmosphere
+
+    # Only broadcast these parameters
+    Mach, altitude = np.broadcast_arrays(Mach, altitude)
+    return Mach, altitude, geometric, atmosphere
+
+
 # ============================================================================ #
 # Engine Deck objects
 # ---------------------------------------------------------------------------- #
 # Base objects
 
-class EngineDeck(object):
+class BasicEngineDeck(object):
     """Class for models of engines or "performance decks"."""
 
     _f_BSFC = NotImplemented
     _f_Plapse = NotImplemented
     _f_Tlapse = NotImplemented
     _f_TSFC = NotImplemented
-
-    @staticmethod
-    def _parse_arguments(Mach, altitude, geometric, atmosphere):
-        # Recast as necessary
-        Mach = cast2numpy(Mach, dtype=np.float64)  # dtype=float permits slicing
-        altitude = cast2numpy(0.0 if altitude is None else altitude)
-        geometric = False if geometric is None else geometric
-        atmosphere = LIBREF_ATM if atmosphere is None else atmosphere
-
-        # Only broadcast these parameters
-        Mach, altitude = np.broadcast_arrays(Mach, altitude)
-        return Mach, altitude, geometric, atmosphere
 
     def BSFC(self, Mach: Hint.nums, altitude: Hint.nums = None,
              geometric: bool = None, atmosphere: object = None) -> Quantity:
@@ -73,7 +92,7 @@ class EngineDeck(object):
 
         """
         # Recast as necessary
-        Mach, altitude, geometric, atmosphere = self._parse_arguments(
+        Mach, altitude, geometric, atmosphere = parse_arguments(
             Mach=Mach, altitude=altitude, geometric=geometric,
             atmosphere=atmosphere
         )
@@ -104,7 +123,7 @@ class EngineDeck(object):
 
         """
         # Recast as necessary
-        Mach, altitude, geometric, atmosphere = self._parse_arguments(
+        Mach, altitude, geometric, atmosphere = parse_arguments(
             Mach=Mach, altitude=altitude, geometric=geometric,
             atmosphere=atmosphere
         )
@@ -135,7 +154,7 @@ class EngineDeck(object):
 
         """
         # Recast as necessary
-        Mach, altitude, geometric, atmosphere = self._parse_arguments(
+        Mach, altitude, geometric, atmosphere = parse_arguments(
             Mach=Mach, altitude=altitude, geometric=geometric,
             atmosphere=atmosphere
         )
@@ -167,7 +186,7 @@ class EngineDeck(object):
 
         """
         # Recast as necessary
-        Mach, altitude, geometric, atmosphere = self._parse_arguments(
+        Mach, altitude, geometric, atmosphere = parse_arguments(
             Mach=Mach, altitude=altitude, geometric=geometric,
             atmosphere=atmosphere
         )
@@ -178,6 +197,207 @@ class EngineDeck(object):
             atmosphere=atmosphere
         )
         return TSFC
+
+
+class BasicPropeller(object):
+    """Class for modelling propeller performance."""
+    _f_eta_prop = NotImplemented
+
+    def __add__(self, other):
+
+        if not isinstance(other, BasicEngineDeck):
+            errormsg = "BasicPropellers can only attach to BasicEngineDecks"
+            raise ValueError(errormsg)
+
+        # If f_BSFC *IS* implemented, we want to make the TSFC version
+        if other._f_BSFC is not NotImplemented:
+            def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
+                        geometric: bool, atmosphere) -> np.ndarray:
+                # Compute efficiency and power based metric
+                kwargs = dict([
+                    ("Mach", Mach), ("altitude", altitude),
+                    ("geometric", geometric), ("atmosphere", atmosphere)
+                ])
+                eta_prop = self.eta_prop(**kwargs)
+                bsfc = other.BSFC(**kwargs)
+
+                # Compute airspeed
+                c = atmosphere.c_sound(altitude=altitude, geometric=geometric)
+                V = Mach * c
+
+                # Compute lapse
+                tsfc = eta_prop / V / bsfc
+
+                return tsfc
+
+            # Save it to the engine deck
+            other._f_TSFC = _f_TSFC
+
+        # If f_Plapse *IS* implemented, we want to make the Tlapse version
+        if other._f_Plapse is not NotImplemented:
+            def _f_Tlapse(Mach: np.ndarray, altitude: np.ndarray,
+                          geometric: bool, atmosphere) -> np.ndarray:
+                # Compute efficiency and power based metric
+                kwargs = dict([
+                    ("Mach", Mach), ("altitude", altitude),
+                    ("geometric", geometric), ("atmosphere", atmosphere)
+                ])
+                eta_prop = self.eta_prop(**kwargs)
+                Plapse = other.Plapse(**kwargs)
+
+                # Compute airspeed
+                c = atmosphere.c_sound(altitude=altitude, geometric=geometric)
+                V = Mach * c
+
+                # Compute lapse
+                Tlapse = eta_prop / V * Plapse
+
+                return Tlapse
+
+            # Save it to the engine deck
+            other._f_Tlapse = _f_Tlapse
+
+        return other
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def eta_prop(self, Mach: Hint.nums, altitude: Hint.nums = None,
+                 geometric: bool = None,
+                 atmosphere: object = None) -> np.ndarray:
+        """
+        Return the brake power lapse as a function of Mach number and altitude.
+
+        Args:
+            Mach: Flight Mach number.
+            altitude: Flight altitude. Optional, defaults to altitude=0
+                (sea-level conditions).
+            geometric: Flag specifying if given altitudes are geometric or not.
+                Optional, defaults to False.
+            atmosphere: Atmosphere object. Optional, defaults to the library
+                reference atmosphere.
+
+        Returns:
+            Brake power lapse parameter, Plapse.
+
+        """
+        # Recast as necessary
+        Mach, altitude, geometric, atmosphere = parse_arguments(
+            Mach=Mach, altitude=altitude, geometric=geometric,
+            atmosphere=atmosphere
+        )
+
+        # Compute
+        eta_prop = self._f_eta_prop(
+            Mach=Mach, altitude=altitude, geometric=geometric,
+            atmosphere=atmosphere
+        )
+        return eta_prop
+
+
+# ---------------------------------------------------------------------------- #
+# Ansatz propellers - Basic decks for conceptual analysis
+
+
+class PropFixPitch(BasicPropeller):
+    """Performance estimator for fixed-pitch propellers."""
+
+    def __init__(self, eta_max: float = None, Vdes: float = None):
+        """
+        Args:
+            eta_max: Maximum achievable efficiency. Optional, defaults to 0.88.
+            Vdes: Design airspeed of the fixed pitch propeller. Optional,
+                defaults to None (no design airspeed, variable pitch propeller).
+        """
+        # Recast as necessary
+        eta_max = 0.88 if eta_max is None else float(eta_max)
+
+        def eta_fixed(Mach: np.ndarray, altitude: np.ndarray,
+                      geometric: bool, atmosphere) -> np.ndarray:
+            """
+            Compute fixed pitch (constant speed) propeller efficiency.
+
+            Args:
+                Mach: Flight Mach number.
+                altitude: Flight altitude.
+                geometric: Flag specifying if given altitudes are geometric
+                    or not.
+                atmosphere: Atmosphere object.
+
+            Returns:
+                Propeller efficiency, eta.
+
+            Notes:
+                Proper shape of the output requires that the inputs have been
+                    properly broadcasted against each other.
+
+            """
+            # For some equation eta=f(V), solve df/dV = 0 for point of max eta
+            k = 1.746 / Vdes
+
+            c = atmosphere.c_sound(altitude=altitude, geometric=geometric)
+            V = Mach * c
+
+            # Need something to np.nan velocities that are too great
+
+            # This is the equation eta=f(V). Peaks at 0.90511, so correct that
+            eta_prop = k * (np.exp(-k * V) + np.cos(k * V)) / 0.90511 * eta_max
+
+            return eta_prop
+
+        self._f_eta_prop = eta_fixed
+
+        raise NotImplementedError(
+            "Need to make sure the function clips at high airspeeds, or else "
+            "sinusoidal nature of function will lead to erroneous efficiency "
+            "evaluation."
+        )
+
+
+class PropVarPitch(BasicPropeller):
+    """Performance estimator for variable-pitch propellers."""
+
+    def __init__(self, eta_max: float = None):
+        """
+        Args:
+            eta_max: Maximum achievable efficiency. Optional, defaults to 0.88.
+        """
+        # Recast as necessary
+        eta_max = 0.88 if eta_max is None else float(eta_max)
+
+        def eta_variable(Mach: np.ndarray, altitude: np.ndarray,
+                         geometric: bool, atmosphere) -> np.ndarray:
+            """
+            Compute variable pitch propeller efficiency.
+
+            Args:
+                Mach: Flight Mach number.
+                altitude: Flight altitude.
+                geometric: Flag specifying if given altitudes are geometric
+                    or not.
+                atmosphere: Atmosphere object.
+
+            Returns:
+                Propeller efficiency, eta.
+
+            Notes:
+                Proper shape of the output requires that the inputs have been
+                    properly broadcasted against each other.
+
+            """
+            # Use J.D.Mattingly propeller model
+            eta_prop = np.zeros_like(Mach) * np.nan
+            slice0 = Mach <= 0.85
+            slice1 = Mach <= 0.70
+            slice2 = (0 <= Mach) & (Mach <= 0.1)
+            eta_prop[slice0] = eta_max * (1 - (Mach - 0.7) / 3)
+            eta_prop[slice1] = eta_max
+            eta_prop[slice2] = eta_max * 10 * Mach
+
+            return eta_prop
+
+        self._f_eta_prop = eta_variable
+        return
 
 
 # ---------------------------------------------------------------------------- #
@@ -213,7 +433,7 @@ class MattinglyBasicTurbomachine(object):
         return
 
 
-class TurbofanHiBPR(EngineDeck, MattinglyBasicTurbomachine):
+class TurbofanHiBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a high bypass ratio, subsonic turbofan.
 
@@ -224,7 +444,7 @@ class TurbofanHiBPR(EngineDeck, MattinglyBasicTurbomachine):
     """
 
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
@@ -255,7 +475,7 @@ class TurbofanHiBPR(EngineDeck, MattinglyBasicTurbomachine):
         return Tlapse
 
     def _f_TSFC(self, Mach: np.ndarray, altitude: np.ndarray,
-                geometric: np.ndarray[bool], atmosphere) -> Quantity:
+                geometric: bool, atmosphere) -> Quantity:
         # Remove Mach numbers >= 0.9 from consideration
         warnmsg = f"{type(self).__name__} should not be evaluated at Mach > 0.9"
         if (Mach >= 0.9).any():
@@ -275,7 +495,7 @@ class TurbofanHiBPR(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class TurbofanLoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
+class TurbofanLoBPRmixed(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan.
 
@@ -286,7 +506,7 @@ class TurbofanLoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
     """
 
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
@@ -312,7 +532,7 @@ class TurbofanLoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
-                geometric: np.ndarray[bool], atmosphere) -> Quantity:
+                geometric: bool, atmosphere) -> Quantity:
         # Non-dimensional static quantity
         theta, _ = TPratio(
             altitude=altitude,
@@ -326,7 +546,7 @@ class TurbofanLoBPRmixed(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class TurbofanLoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
+class TurbofanLoBPRmixedAB(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan with reheat
     (afterburner) engaged.
@@ -338,7 +558,7 @@ class TurbofanLoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
     """
 
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
@@ -364,7 +584,7 @@ class TurbofanLoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
-                geometric: np.ndarray[bool], atmosphere) -> Quantity:
+                geometric: bool, atmosphere) -> Quantity:
         # Non-dimensional static quantity
         theta, _ = TPratio(
             altitude=altitude,
@@ -378,7 +598,7 @@ class TurbofanLoBPRmixedAB(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class Turbojet(EngineDeck, MattinglyBasicTurbomachine):
+class Turbojet(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a turbojet.
 
@@ -389,7 +609,7 @@ class Turbojet(EngineDeck, MattinglyBasicTurbomachine):
     """
 
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
@@ -416,7 +636,7 @@ class Turbojet(EngineDeck, MattinglyBasicTurbomachine):
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
-                geometric: np.ndarray[bool], atmosphere) -> Quantity:
+                geometric: bool, atmosphere) -> Quantity:
         # Non-dimensional static quantity
         theta, _ = TPratio(
             altitude=altitude,
@@ -430,7 +650,7 @@ class Turbojet(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class TurbojetAB(EngineDeck, MattinglyBasicTurbomachine):
+class TurbojetAB(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a turbojet with reheat (afterburner) engaged.
 
@@ -441,7 +661,7 @@ class TurbojetAB(EngineDeck, MattinglyBasicTurbomachine):
     """
 
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
@@ -467,7 +687,7 @@ class TurbojetAB(EngineDeck, MattinglyBasicTurbomachine):
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
-                geometric: np.ndarray[bool], atmosphere) -> Quantity:
+                geometric: bool, atmosphere) -> Quantity:
         # Non-dimensional static quantity
         theta, _ = TPratio(
             altitude=altitude,
@@ -481,7 +701,7 @@ class TurbojetAB(EngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class Turboprop(EngineDeck, MattinglyBasicTurbomachine):
+class Turboprop(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a turboprop engine.
 
@@ -492,7 +712,7 @@ class Turboprop(EngineDeck, MattinglyBasicTurbomachine):
     """
 
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
@@ -522,7 +742,7 @@ class Turboprop(EngineDeck, MattinglyBasicTurbomachine):
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
-                geometric: np.ndarray[bool], atmosphere) -> Quantity:
+                geometric: bool, atmosphere) -> Quantity:
         # Non-dimensional static quantity
         theta, _ = TPratio(
             altitude=altitude,
@@ -539,14 +759,14 @@ class Turboprop(EngineDeck, MattinglyBasicTurbomachine):
 # ---------------------------------------------------------------------------- #
 # Basic decks for conceptual analysis of reciprocating engines
 
-class PistonGaggFarrar(EngineDeck):
+class PistonGaggFarrar(BasicEngineDeck):
     """
     Performance deck for a reciprocating engine.
     """
 
     @staticmethod
     def _f_Plapse(Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere) -> np.ndarray:
+                  geometric: bool, atmosphere) -> np.ndarray:
         # Non-dimensional static quantities
         theta, delta = TPratio(
             altitude=altitude,
@@ -561,7 +781,7 @@ class PistonGaggFarrar(EngineDeck):
         return Plapse
 
 
-class PistonNACA925(EngineDeck):
+class PistonNACA925(BasicEngineDeck):
     """
     Performance deck for a reciprocating engine, assuming no pumping losses.
 
@@ -619,7 +839,7 @@ class PistonNACA925(EngineDeck):
         return
 
     def _f_Plapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: np.ndarray[bool], atmosphere,
+                  geometric: bool, atmosphere,
                   eta_m: Hint.nums = None,
                   r_mloss: Hint.nums = None) -> np.ndarray:
         # Recast as necessary
@@ -640,7 +860,70 @@ class PistonNACA925(EngineDeck):
 
 
 # ---------------------------------------------------------------------------- #
+# Basic decks for electric engines
+
+class ElectricMotor(BasicEngineDeck):
+    """Performance deck for an electric engine."""
+
+    def __init__(self, eta: float = None):
+        self.eta = 0.77 if eta is None else eta
+        return
+
+    @property
+    def eta(self):
+        """
+        Returns:
+            The electrical efficiency of the engine.
+
+        """
+        return self._eta
+
+    @eta.setter
+    def eta(self, value):
+        self._eta = float(value)
+        return
+
+    @staticmethod
+    def _f_BSFC(Mach: np.ndarray, altitude: np.ndarray,
+                geometric: bool, atmosphere,
+                eta: Hint.nums = None):
+        # BSFC for an engine not burning off any fuel is... zero.
+        return np.zeros_like(Mach)  # Make same shape as at least 1 arg.
+
+    def _f_Plapse(self, Mach: np.ndarray, altitude: np.ndarray,
+                  geometric: bool, atmosphere,
+                  eta: Hint.nums = None) -> np.ndarray:
+        # Recast as necessary
+        eta = cast2numpy(self.eta if eta is None else eta)
+
+        # Compute lapse
+        Plapse = eta * np.ones_like(Mach)  # Make same shape as at least 1 arg.
+        return Plapse
+
+
+# ---------------------------------------------------------------------------- #
 # Deck collections
+
+# Collect the propeller decks
+basicdecks = {
+    PropFixPitch.__name__: PropFixPitch,
+    PropVarPitch.__name__: PropVarPitch
+}
+
+
+# Define a catalogue of basic propeller decks
+class BasicPropeller(type("catalogue", (object,), basicdecks)):
+    """
+    A collection of algebraic equations to model propeller performance.
+    """
+
+    def __init__(self):
+        errormsg = (
+            "This is a catalogue of atmospheres, and it should not be "
+            "instantiated directly. Try one of my attributes!"
+        )
+        raise RuntimeError(errormsg)
+
 
 # Collect all the basic Mattingly decks
 basicdecks = {
@@ -716,3 +999,21 @@ class BasicPiston(type("catalogue", (object,), basicdecks)):
             "instantiated directly. Try one of my attributes!"
         )
         raise RuntimeError(errormsg)
+
+
+basicdecks = {
+    ElectricMotor.__name__: ElectricMotor
+}
+
+
+class BasicElectric(type("catalogue", (object,), basicdecks)):
+    """
+    A collection of algebraic equations to model engine performance decks
+    based primarily on electric principles.
+    """
+
+    def __init__(self):
+        errormsg = (
+            "This is a catalogue of atmospheres, and it should not be "
+            "instantiated directly. Try one of my attributes!"
+        )
