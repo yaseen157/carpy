@@ -226,7 +226,7 @@ class BasicPropeller(object):
                 V = Mach * c
 
                 # Compute lapse
-                tsfc = eta_prop / V / bsfc
+                tsfc = bsfc / (eta_prop / V)
 
                 return tsfc
 
@@ -237,6 +237,9 @@ class BasicPropeller(object):
         if other._f_Plapse is not NotImplemented:
             def _f_Tlapse(Mach: np.ndarray, altitude: np.ndarray,
                           geometric: bool, atmosphere) -> np.ndarray:
+                # Recast as necessary
+                Mach[Mach == 0] = 1e-6  # Prevent zero division errors later
+
                 # Compute efficiency and power based metric
                 kwargs = dict([
                     ("Mach", Mach), ("altitude", altitude),
@@ -250,9 +253,22 @@ class BasicPropeller(object):
                 V = Mach * c
 
                 # Compute lapse
-                Tlapse = eta_prop / V * Plapse
+                Tlapse = eta_prop * Plapse / V
+                # Because the above computation is messy and unpredictable as
+                # V tends to zero, the Tlapse result for anything V > 0 is
+                # extremely small. To fix this, normalise the thrust lapse with
+                # something close to sea level static, instead of actual static:
+                # ... introducing, Quasi-static result for lapse correction
+                quasistatickwargs = dict([
+                    ("Mach", (Mqs := 1e-6)), ("altitude", 0),
+                    ("geometric", geometric), ("atmosphere", atmosphere)
+                ])
+                eta_propsls = self.eta_prop(**quasistatickwargs)
+                Vsls = Mqs * atmosphere.c_sound(altitude=0, geometric=geometric)
+                Plapsesls = other.Plapse(**quasistatickwargs)
+                correction = eta_propsls * Plapsesls / Vsls
 
-                return Tlapse
+                return Tlapse / correction
 
             # Save it to the engine deck
             other._f_Tlapse = _f_Tlapse
@@ -262,7 +278,7 @@ class BasicPropeller(object):
     def __radd__(self, other):
         return self.__add__(other)
 
-    def eta_prop(self, Mach: Hint.nums, altitude: Hint.nums = None,
+    def eta_prop(self, Mach: Hint.nums, altitude: Hint.nums,
                  geometric: bool = None,
                  atmosphere: object = None) -> np.ndarray:
         """
@@ -302,12 +318,11 @@ class BasicPropeller(object):
 class PropFixPitch(BasicPropeller):
     """Performance estimator for fixed-pitch propellers."""
 
-    def __init__(self, eta_max: float = None, Vdes: float = None):
+    def __init__(self, Vdes: float, eta_max: float = None):
         """
         Args:
+            Vdes: Design airspeed of the fixed pitch propeller.
             eta_max: Maximum achievable efficiency. Optional, defaults to 0.88.
-            Vdes: Design airspeed of the fixed pitch propeller. Optional,
-                defaults to None (no design airspeed, variable pitch propeller).
         """
         # Recast as necessary
         eta_max = 0.88 if eta_max is None else float(eta_max)
@@ -332,26 +347,26 @@ class PropFixPitch(BasicPropeller):
                     properly broadcasted against each other.
 
             """
-            # For some equation eta=f(V), solve df/dV = 0 for point of max eta
-            k = 1.746 / Vdes
-
             c = atmosphere.c_sound(altitude=altitude, geometric=geometric)
             V = Mach * c
 
-            # Need something to np.nan velocities that are too great
-
-            # This is the equation eta=f(V). Peaks at 0.90511, so correct that
-            eta_prop = k * (np.exp(-k * V) + np.cos(k * V)) / 0.90511 * eta_max
+            # Custom model developed by CARPy's author because it "looks right"
+            # Based on the idea that eta=f(advance_ratio) and
+            # advance_ratio = f(V) for constant rotational speed n, diameter D.
+            # The first part of the efficiency curve is sinusoidal.
+            # The second part of the efficiency curve is elliptical.
+            eta_prop = np.ones_like(Mach) * np.nan
+            slice0 = (0 <= V) & (V <= Vdes)
+            slice1 = (Vdes < V) & (V <= Vdes + Vdes ** 0.75)
+            eta_prop[slice0] = \
+                np.sin((np.pi / 2) * ((V[slice0] - Vdes) / Vdes + 1))
+            eta_prop[slice1] = (1 - ((V[slice1] - Vdes) ** 2) / (Vdes ** 1.5))
+            eta_prop *= eta_max
 
             return eta_prop
 
         self._f_eta_prop = eta_fixed
-
-        raise NotImplementedError(
-            "Need to make sure the function clips at high airspeeds, or else "
-            "sinusoidal nature of function will lead to erroneous efficiency "
-            "evaluation."
-        )
+        return
 
 
 class PropVarPitch(BasicPropeller):
@@ -390,9 +405,9 @@ class PropVarPitch(BasicPropeller):
             slice0 = Mach <= 0.85
             slice1 = Mach <= 0.70
             slice2 = (0 <= Mach) & (Mach <= 0.1)
-            eta_prop[slice0] = eta_max * (1 - (Mach - 0.7) / 3)
+            eta_prop[slice0] = eta_max * (1 - (Mach[slice0] - 0.7) / 3)
             eta_prop[slice1] = eta_max
-            eta_prop[slice2] = eta_max * 10 * Mach
+            eta_prop[slice2] = eta_max * 10 * Mach[slice2]
 
             return eta_prop
 
@@ -865,24 +880,6 @@ class PistonNACA925(BasicEngineDeck):
 class ElectricMotor(BasicEngineDeck):
     """Performance deck for an electric engine."""
 
-    def __init__(self, eta: float = None):
-        self.eta = 0.77 if eta is None else eta
-        return
-
-    @property
-    def eta(self):
-        """
-        Returns:
-            The electrical efficiency of the engine.
-
-        """
-        return self._eta
-
-    @eta.setter
-    def eta(self, value):
-        self._eta = float(value)
-        return
-
     @staticmethod
     def _f_BSFC(Mach: np.ndarray, altitude: np.ndarray,
                 geometric: bool, atmosphere,
@@ -891,13 +888,9 @@ class ElectricMotor(BasicEngineDeck):
         return np.zeros_like(Mach)  # Make same shape as at least 1 arg.
 
     def _f_Plapse(self, Mach: np.ndarray, altitude: np.ndarray,
-                  geometric: bool, atmosphere,
-                  eta: Hint.nums = None) -> np.ndarray:
-        # Recast as necessary
-        eta = cast2numpy(self.eta if eta is None else eta)
-
+                  geometric: bool, atmosphere) -> np.ndarray:
         # Compute lapse
-        Plapse = eta * np.ones_like(Mach)  # Make same shape as at least 1 arg.
+        Plapse = np.ones_like(Mach)  # Make same shape as at least 1 arg.
         return Plapse
 
 

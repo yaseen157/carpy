@@ -42,7 +42,7 @@ def _metar_from_api(*station_ids: str, hours: int = None) -> str:
     hours = int(3 if hours is None else hours)
 
     # Build request
-    url_base = "https://beta.aviationweather.gov/"
+    url_base = "https://aviationweather.gov/"
     api_path = "cgi-bin/data/metar.php?ids="
     api_querytext = ",".join(station_ids) + f"&hours={hours}"
 
@@ -93,13 +93,6 @@ class METARtools(object):
         # Rate-limit calls to the API according to a logarithmic schedule
         api_response = _metar_from_api(*station_ids, hours=hours)
         api_calls = _metar_from_api.call_count
-        warnmsg = (
-            f"This method depends on the functionality of an API service that "
-            f"is currently in beta and may break without warning. Notify the "
-            f"developers if this feature is not working as expected!"
-        )
-        if api_calls == 1:
-            warnings.warn(message=warnmsg, category=RuntimeWarning)
         time.sleep(np.log(api_calls + 1))
 
         # Let's be real, most users want a list of METARs, not a single string
