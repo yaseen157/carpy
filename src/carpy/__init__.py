@@ -18,7 +18,7 @@ __version__ = "0.0.4"
 __license__ = "GNU GPLv3"
 # Console interaction copyright notice
 __copyright__ = (
-    f"\nADRpy  Copyright (C) 2023  Yaseen Reza, Luana Defourny"
+    f"\nADRpy  Copyright (C) 2023  Yaseen Reza"
     f"\nThis program comes with ABSOLUTELY NO WARRANTY; "
     f"for details type `ADRpy.w()'."
     f"\nThis is free software, and you are welcome to redistribute it "

@@ -9,8 +9,7 @@ readme = "README.md"
 requires-python = ">=3.9.5"
 license = {file = "LICENSE.md"}
 authors =[
-    { name="Yaseen Reza", email="yaseen605@gmail.com" },
-    { name="Luana Defourny", email="luanadefourny@gmail.com" },
+    { name="Yaseen Reza", email="yaseen605@gmail.com" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

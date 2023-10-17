@@ -1,6 +1,6 @@
 <!--
     Consolidated Aircraft Recipes in Python (carpy)
-    Copyright (C) 2023  Yaseen Reza, Luana Defourny
+    Copyright (C) 2023  Yaseen Reza
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 ![CARPy](./docs/source/_static/carpy.svg)
 <h2 align="center"><p>Consolidated Aircraft Recipes in Python</p></h2>
-<p align="center">Yaseen Reza, Luana Defourny</p>
+<p align="center">Yaseen Reza</p>
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python Version](https://img.shields.io/badge/python-3.9.5-blue.svg)](https://www.python.org/downloads/release/python-395/)
