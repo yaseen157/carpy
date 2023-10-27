@@ -1,5 +1,5 @@
 """Methods for generating and optimising wing planforms."""
-from functools import partial, cached_property
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -8,8 +8,7 @@ from scipy.interpolate import griddata
 
 from carpy.aerodynamics.aerofoil import Aerofoil
 from carpy.structures import DiscreteIndex
-from carpy.utility import (
-    CacheClr, Hint, Quantity, cast2numpy, collapse_array, isNone)
+from carpy.utility import Hint, Quantity, cast2numpy, collapse_array, isNone
 
 __all__ = ["WingSection", "WingSections", "WingPlane", "NewWingPlane"]
 __author__ = "Yaseen Reza"
@@ -142,7 +141,7 @@ class WingSection(object):
         return
 
 
-class WingSections(DiscreteIndex, CacheClr):
+class WingSections(DiscreteIndex):
 
     def __init__(self, b: Hint.num, mirrored: bool = None):
         """
@@ -274,22 +273,27 @@ class WingSections(DiscreteIndex, CacheClr):
         AR = float(self.b / self.MGC)
         return AR
 
-    @cached_property
+    @property
     def MAC(self) -> Quantity:
         """Mean aerodynamic chord, MAC."""
-        sections = self.spansections(N=(N := 1001), dist_type="linear")
-        chords = np.array([sec.chord.x for sec in sections])
+        station_nos, sections = zip(*self.items())
+        chords = Quantity([sec.chord.x for sec in sections], "m")
 
-        MAC = Quantity(
-            simpson(chords ** 2, dx=self.b.x / (N - 1)) / self.Sref.x, "m")
+        # (Effective) physical distance of stations (after mirroring)
+        station_positions = Quantity(np.interp(
+            station_nos, [min(self), max(self)], [0, self.b.x]), "m")
+
+        ys = np.linspace(0, self.b.x)
+        cs = np.interp(ys, station_positions.x, chords.x)
+
+        MAC = Quantity(simpson(y=cs ** 2, x=ys) / self.Sref.x, "m")
 
         return MAC
 
-    @cached_property
+    @property
     def MGC(self) -> Quantity:
         """Mean geometric chord, MGC."""
-        sections = self.spansections(N=1001, dist_type="linear")
-        MGC = Quantity(np.mean([section.chord.x for section in sections]), "m")
+        MGC = self.Sref / self.b
         return MGC
 
     @property
@@ -300,19 +304,37 @@ class WingSections(DiscreteIndex, CacheClr):
     @property
     def Sref(self) -> Quantity:
         """Reference area of the wing, Sref."""
-        Sref = self.b * self.MGC
+        station_nos, sections = zip(*self.items())
+        chords = Quantity([sec.chord.x for sec in sections], "m")
+
+        # If only one section has been defined, trivial response
+        if (N := len(chords)) == 1:
+            Sref = chords[0] * self.b
+            return Sref
+
+        # (Effective) physical distance between stations (after mirroring)
+        station_intervals = Quantity(np.diff(np.interp(
+            station_nos, [min(self), max(self)], [0, self.b.x])), "m")
+
+        # Trapezoidal integration
+        Sref = Quantity(0, "m^{2}")
+        for i in range(N - 1):
+            Sref += chords[i:i + 2].mean() * station_intervals[i]
+
         return Sref
 
-    @cached_property
+    @property
     def Swet(self) -> Quantity:
         """Wetted area of the wing, Swet."""
+        # This function is slow, because we interpolate aerofoil geometry to
+        # accurately determine the perimeter of sections along the span.
         sections = self.spansections(N=(N := 1001), dist_type="linear")
         perimeters = np.array([sec.aerofoil.perimeter for sec in sections])
         chords = np.array([sec.chord.x for sec in sections])
-        nd_wetlengths = perimeters * chords
 
-        Swet = Quantity(
-            simpson(nd_wetlengths, dx=self.b.x / (N - 1)), "m^{2}")
+        wetlengths = perimeters * chords  # Sectional wetted length
+
+        Swet = Quantity(simpson(wetlengths, dx=self.b.x / (N - 1)), "m^{2}")
 
         return Swet
 

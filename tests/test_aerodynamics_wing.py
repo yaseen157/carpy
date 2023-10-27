@@ -49,8 +49,8 @@ class Solvers(unittest.TestCase):
         soln2 = HorseshoeVortex(**basekwargs, alpha=aoa)
         return
 
-    def test_naca0012elevator(self):
-        """Compare results against XFLR5 test case."""
+    def test_geometry(self):
+        """Test that geometry methods work as intended."""
 
         n0012 = NewAerofoil.from_method.NACA("0012")
 
@@ -65,11 +65,12 @@ class Solvers(unittest.TestCase):
         mysections[0].chord = 0.65
         mysections[100].chord = 0.24
 
-        aoa = np.radians(10)
-        basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 0}
-        soln0 = MixedBLDrag(**basekwargs, alpha=aoa, beta=aoa)
-        soln1 = PrandtlLLT(**basekwargs, alpha=aoa)
-        soln2 = HorseshoeVortex(**basekwargs, alpha=aoa)
+        # Wing area is simply determined from trapezoidal area of the wing
+        self.assertEqual(mysections.Sref, 1.78)
+
+        # Wing mean geometric chord is simply the average of root and tip
+        self.assertEqual(mysections.MGC, (0.65 + 0.24) / 2)
+        self.assertEqual(mysections.SMC, (0.65 + 0.24) / 2)
 
         return
 
@@ -77,7 +78,7 @@ class Solvers(unittest.TestCase):
 class GudmundssonSkinFriction(unittest.TestCase):
 
     def test_method(self):
-        from carpy.utility import Quantity
+        from carpy.utility import Quantity  # Idk why, but this only works here?
 
         n2412 = NewAerofoil.from_method.NACA("2412")
 

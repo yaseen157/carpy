@@ -214,38 +214,3 @@ def call_depth(func):
 
 
 __all__ += [call_count.__name__, call_depth.__name__]
-
-
-# ============================================================================ #
-# Objects
-# ---------------------------------------------------------------------------- #
-
-class CacheClr(object):
-    """Convenient means for handling values in cached attributes/properties."""
-
-    def cache_clear(self):
-        """Clears the stored values of any public, cached attributes."""
-        warnmsg = (
-            f"The use of the .cache_clear() method is strongly discouraged, and"
-            f" may not receive continued support in future. Consider making use"
-            f" of a new object wherever possible."
-        )
-        warnings.warn(message=warnmsg, category=PendingDeprecationWarning)
-        myattributes = [attr for attr in dir(self) if not attr.startswith("_")]
-
-        cleared = []
-        for attr in myattributes:
-            if isinstance(getattr(type(self), attr), functools.cached_property):
-                if attr in self.__dict__:
-                    cleared.append(attr)
-                    del self.__dict__[attr]
-
-        if len(cleared) > 0:
-            print(f"Cleared values from the following attributes: {cleared}")
-        else:
-            print(f"No cached attributes were cleared from {self}")
-
-        return None
-
-
-__all__ += [CacheClr.__name__]
