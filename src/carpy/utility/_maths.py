@@ -94,7 +94,7 @@ def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
     return out
 
 
-def moving_average(x: Hint.nums, w: int = None):
+def moving_average(x: Hint.nums, w: int = None) -> np.ndarray:
     """
     Compute the moving average of an array.
 

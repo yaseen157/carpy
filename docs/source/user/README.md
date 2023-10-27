@@ -2,9 +2,9 @@
 
 ***
 
-### Level 0: I'm new to Python
+### Prelude (i): I'm new to Python
 
-_It's recommended that readers are familiar with:_
+_It's recommended that readers are familiar with Python built-ins:_
 
 - Your first program: Hello World
 - Data types: Integers, Floats, Lists, Tuples, Strings, etc.
@@ -18,9 +18,9 @@ _Optionally:_
 
 - Classes: Instantiation, objects, overloading
 
-### Level 1: I'm familiar with vanilla Python
+### Prelude (ii): I'm familiar with vanilla Python
 
-_It's recommended that readers are familiar with:_
+_It's recommended that readers are familiar with science oriented libraries:_
 
 - NumPy
 
@@ -28,9 +28,9 @@ _Optionally:_
 
 - SciPy
 
-### Level 2: CARPy - basic
+### Level 0: CARPy - basic
 
-_It's recommended that readers are familiar with:_
+_Readers are introduced to the basic data structures of CARPy:_
 
 - Quantity and Unit Conversions
 
@@ -38,9 +38,9 @@ _Optionally:_
 
 - Constants for Engineers
 
-### Level 3: CARPy - intermediate
+### Level 1: CARPy - intermediate
 
-_It's recommended that readers are familiar with:_
+_Readers learn how to interface with basic methods of CARPy's component modules:_
 
 - Atmosphere Models
 - Engine Performance Decks
@@ -52,5 +52,8 @@ Optionally:
 - Airfield Properties
 - Compressible Gas Dynamics
 
-### ~~Level 4: CARPy - advanced~~ [coming soon]
+### ~~Level 2: CARPy - advanced~~ [coming soon]
 
+_Readers learn how to carry out advanced concept analysis with CARPy:_
+
+- Coming soon...

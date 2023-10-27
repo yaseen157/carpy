@@ -558,7 +558,7 @@ class NewAerofoil(object):
 
     # From local filepath
     @classmethod
-    def from_path(cls, filepath):
+    def from_file(cls, filepath):
         """
         Return an aerofoil object, given the path to a coordinates data file.
 
@@ -571,7 +571,7 @@ class NewAerofoil(object):
         Examples:
 
             >>> my_path = "C:\\Users\\Public\\Documents\\naca0012.txt"
-            >>> n0012 = NewAerofoil.from_path(filepath=my_path)
+            >>> n0012 = NewAerofoil.from_file(filepath=my_path)
             >>> n0012.show()
 
         """

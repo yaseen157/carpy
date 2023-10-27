@@ -5,8 +5,7 @@ import numpy as np
 
 from carpy.aerodynamics.aerofoil import NewAerofoil
 from carpy.aerodynamics.wing import (
-    WingSection, WingSections, PLLT, HorseshoeVortex, CDfGudmundsson
-)  # , Cantilever1DStatic)
+    WingSection, WingSections, PrandtlLLT, HorseshoeVortex, MixedBLDrag)
 
 
 class Solvers(unittest.TestCase):
@@ -20,7 +19,7 @@ class Solvers(unittest.TestCase):
             "https://m-selig.ae.illinois.edu/ads/coord/dae31.dat")
 
         # Define buttock-line geometry
-        mysections = WingSections()
+        mysections = WingSections(b=26)
         mysections[0] = WingSection(fx76)
         mysections[6] = WingSection(fx76)
         mysections[10] = WingSection(fx76)
@@ -44,12 +43,10 @@ class Solvers(unittest.TestCase):
         mysections = self.wing_SuperLazarusMkII()
 
         aoa = np.radians(3)
-        soln0 = PLLT(sections=mysections, span=24, alpha=aoa)
-        soln1 = HorseshoeVortex(sections=mysections, span=24, alpha=aoa)
-        # soln2 = Cantilever1DStatic(
-        #     sections=mysections, spar=None, span=24, alpha=aoa,
-        #     lift=115 * 9.81, N=60
-        # )
+        basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 0}
+        soln0 = MixedBLDrag(**basekwargs, alpha=aoa)
+        soln1 = PrandtlLLT(**basekwargs, alpha=aoa)
+        soln2 = HorseshoeVortex(**basekwargs, alpha=aoa)
         return
 
     def test_naca0012elevator(self):
@@ -57,7 +54,7 @@ class Solvers(unittest.TestCase):
 
         n0012 = NewAerofoil.from_method.NACA("0012")
 
-        mysections = WingSections()
+        mysections = WingSections(b=4)
         mysections[0] = WingSection(n0012)
         mysections[100] = WingSection(n0012)
 
@@ -69,8 +66,10 @@ class Solvers(unittest.TestCase):
         mysections[100].chord = 0.24
 
         aoa = np.radians(10)
-        soln0 = PLLT(sections=mysections, span=4, alpha=aoa)
-        soln1 = HorseshoeVortex(sections=mysections, span=4, alpha=aoa)
+        basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 0}
+        soln0 = MixedBLDrag(**basekwargs, alpha=aoa, beta=aoa)
+        soln1 = PrandtlLLT(**basekwargs, alpha=aoa)
+        soln2 = HorseshoeVortex(**basekwargs, alpha=aoa)
 
         return
 
@@ -78,9 +77,11 @@ class Solvers(unittest.TestCase):
 class GudmundssonSkinFriction(unittest.TestCase):
 
     def test_method(self):
+        from carpy.utility import Quantity
+
         n2412 = NewAerofoil.from_method.NACA("2412")
 
-        mysections = WingSections()
+        mysections = WingSections(b=Quantity(38.3, "ft"))
         mysections[0] = WingSection(n2412)
         mysections[100] = WingSection(n2412)
 
@@ -92,9 +93,8 @@ class GudmundssonSkinFriction(unittest.TestCase):
         mysections[:].dihedral = 0
         mysections[:].twist = 0
 
-        soln = CDfGudmundsson(
-            sections=mysections, span=Quantity(38.3, "ft"),
-            altitude=0, TAS=Quantity(185, "kt"))
+        basekwargs = {"wingsections": mysections, "altitude": 0}
+        soln = MixedBLDrag(**basekwargs, TAS=Quantity(185, "kt"))
 
         self.assertTrue(np.isclose(soln._Cf, 0.001999, atol=1e-4))
 

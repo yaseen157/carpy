@@ -2,6 +2,7 @@
 setuptools>=67.0.0
 
 # Development/Deployment
+fsspec
 matplotlib
 numpy
 openpyxl
