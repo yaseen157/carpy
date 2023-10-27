@@ -374,9 +374,16 @@ class Quantity(np.ndarray):
     def __repr__(self):
         return f"{super().__repr__()[:-1]}, units='{self.units}')"
 
+    def __format__(self, format_spec):
+        if self.size > 1:
+            errormsg = "Only scalar quantities can be formatted (not arrays!)"
+            raise ValueError(errormsg)
+        si_units_utf8 = Unicodify.mathscript_safe(self.units.si_equivalent)
+        return f"{format(self.x, format_spec)} {si_units_utf8}"
+
     def __str__(self):
         si_units_utf8 = Unicodify.mathscript_safe(self.units.si_equivalent)
-        if len(self.flat) != 1:
+        if self.size > 1:
             return f"{super().__str__()} {si_units_utf8}"
         return f"{super().__str__()[1:-1]} {si_units_utf8}"
 
