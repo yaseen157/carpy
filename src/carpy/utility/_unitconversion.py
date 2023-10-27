@@ -705,7 +705,7 @@ def cast2quantity(pandas_df: pd.DataFrame) -> dict:
     output = dict()
     for column_name in pandas_df.columns:
         name_components = re.split(r"\s\[(.+)]", column_name)
-        new_values = pandas_df[column_name]
+        new_values = pandas_df[column_name].to_numpy()
 
         # If units are not present, just copy the values over to the output
         if len(name_components) == 1:
@@ -715,7 +715,10 @@ def cast2quantity(pandas_df: pd.DataFrame) -> dict:
         # Otherwise, check that the column doesn't already exist in output
         output_col, units, _ = name_components
         if output_col not in output:
-            output[output_col] = Quantity(new_values, units)
+            try:
+                output[output_col] = Quantity(new_values, units)
+            except ValueError:  # Couldn't parse the unit that was detected
+                output[column_name] = new_values  # Just copy the values over
 
         # If column name already exists, assume both new column and old column
         # are referring to the same quantity - just different units. Try to
