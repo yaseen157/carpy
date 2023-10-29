@@ -545,14 +545,23 @@ class NewAerofoil(object):
             >>> n0012.show()
 
         """
-        response = requests.get(url=url)
+
+        try:
+            response = requests.get(url=url)
+        except requests.ConnectionError as e:
+            errormsg = (
+                "Couldn't reach aerofoil geometry database. Is an internet"
+                "connection available and working?"
+            )
+            raise ConnectionError(errormsg) from e
 
         # On successful request
         if response.status_code == 200:
             upper_pts, lower_pts = parse_datfile(response.text)
             aerofoil = Aerofoil(upper_points=upper_pts, lower_points=lower_pts)
         else:
-            raise ConnectionError("Couldn't access given URL")
+            errormsg = f"Operation failed with HTTP {response.status_code=}"
+            raise ConnectionError(errormsg)
 
         return aerofoil
 

@@ -478,26 +478,14 @@ class Standards(object):
 # Useful guesses for values in materials, from wherever on the internet
 # ---------------------------------------------------------------------------- #
 
-class esg_roughness(object):
+class RoughnessKs(object):
     """
-    Values from DATCOM Table 4.1.5.1-A and S. Gudmundsson General Aviation
-    Aircraft Design (methods on estimating skin friction).
+    References:
+        -   DATCOM Table 4.1.5.1-A
+        -   S. Gudmundsson General Aviation Aircraft Design (methods on
+            estimating skin friction).
+        -   University of Texas at Austin, online: https://www.caee.utexas.edu/prof/kinnas/319lab/notes13/table10.4.pdf
     """
-
-    @property
-    def camopaint_careful(self) -> Quantity:
-        """Carefully applied camouflage paint on aluminium."""
-        return Quantity(10.16, "um")
-
-    @property
-    def camopaint_production(self) -> Quantity:
-        """Production-level quality application of camouflage paint."""
-        return Quantity(30.48, "um")
-
-    @property
-    def castiron_production(self) -> Quantity:
-        """Production-level quality of cast iron surface."""
-        return Quantity(254, "um")
 
     @property
     def composite_molded(self) -> Quantity:
@@ -505,34 +493,89 @@ class esg_roughness(object):
         return Quantity(0.518, "um")
 
     @property
-    def mattepaint_careful(self) -> Quantity:
-        """Careful application of matte paint."""
-        return Quantity(6.350, "um")
+    def concrete(self) -> Quantity:
+        """Concrete."""
+        return Quantity([0.3, 3], "mm")
 
     @property
-    def metal_dipgalvanised(self) -> Quantity:
+    def glass_smooth(self) -> Quantity:
+        """Smooth glass surface."""
+        return Quantity(0, "m")
+
+    @property
+    def iron_cast_asphalted(self) -> Quantity:
+        """Asphalted cast iron."""
+        return Quantity(0.12, "mm")
+
+    @property
+    def iron_cast(self) -> Quantity:
+        """Production-level quality of cast iron surface."""
+        return Quantity(254, "um")
+
+    @property
+    def iron_galvanised(self) -> Quantity:
+        """Galvanised iron."""
+        return Quantity(0.15, "mm")
+
+    @property
+    def iron_wrought(self) -> Quantity:
+        """Wrought (worked) iron/steel."""
+        return Quantity(0.046, "mm")
+
+    @property
+    def metal_galvanised(self) -> Quantity:
         """Dip galvanised metal."""
         return Quantity(152.4, "um")
 
     @property
-    def metal_polished(self) -> Quantity:
+    def metal_smooth(self) -> Quantity:
         """Carefully polished metal surface."""
         return Quantity([0.508, 2.032], "um")
 
     @property
-    def sheetmetal_polished(self) -> Quantity:
+    def paint_camo_smooth(self) -> Quantity:
+        """Carefully applied camouflage paint on aluminium."""
+        return Quantity(10.16, "um")
+
+    @property
+    def paint_camo(self) -> Quantity:
+        """Production-level quality application of camouflage paint."""
+        return Quantity(30.48, "um")
+
+    @property
+    def paint_matte_smooth(self) -> Quantity:
+        """Careful (smooth) application of matte paint."""
+        return Quantity(6.350, "um")
+
+    @property
+    def plastic_smooth(self) -> Quantity:
+        """Smooth plastic surface."""
+        return Quantity(0, "m")
+
+    @property
+    def sheetmetal_smooth(self) -> Quantity:
         """Carefully polished sheet metal surface."""
         return Quantity(1.524, "um")
 
     @property
-    def sheetmetal_production(self) -> Quantity:
+    def sheetmetal(self) -> Quantity:
         """Production-level quality of sheet metal surface."""
         return Quantity(4.064, "um")
 
     @property
-    def wood_polished(self) -> Quantity:
+    def steel_riveted(self) -> Quantity:
+        """Riveted steel."""
+        return Quantity([0.9, 9], "mm")
+
+    @property
+    def steel_wrought(self) -> Quantity:
+        """Wrought (worked) iron/steel."""
+        return Quantity(0.046, "mm")
+
+    @property
+    def wood_smooth(self) -> Quantity:
         """Carefully polished wooden surface."""
-        return self.metal_polished
+        return Quantity([0.508, 2.032], "um")
 
 
 # ---------------------------------------------------------------------------- #
@@ -540,18 +583,15 @@ class esg_roughness(object):
 class Material(object):
     """Library of aeronautical material references"""
 
-    _esg_roughness = esg_roughness()
+    _roughness_Ks = RoughnessKs()
 
     @property
-    def esg_roughness(self) -> esg_roughness:
+    def roughness_Ks(self) -> RoughnessKs:
         """
-        Returns a dictionary of representative values for (wing and aerofoil)
-        surface roughness (equivalent sand-grain roughness).
-
-        Values from DATCOM Table 4.1.5.1-A and S. Gudmundsson General Aviation
-        Aircraft Design (methods on estimating skin friction).
+        Returns a dictionary of representative values for hydrodynamic
+        surface roughness (equivalent sand-grain roughness, Ks).
         """
-        return self._esg_roughness
+        return self._roughness_Ks
 
 
 # ============================================================================ #

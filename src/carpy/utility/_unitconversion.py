@@ -375,7 +375,9 @@ class Quantity(np.ndarray):
         return f"{super().__repr__()[:-1]}, units='{self.units}')"
 
     def __format__(self, format_spec):
-        if self.size > 1:
+        if self.size == 1 or format_spec == "":
+            pass  # Pass with conditional, allows me to add elifs down the line
+        else:
             errormsg = "Only scalar quantities can be formatted (not arrays!)"
             raise ValueError(errormsg)
         si_units_utf8 = Unicodify.mathscript_safe(self.units.si_equivalent)

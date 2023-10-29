@@ -24,14 +24,22 @@ class WingSection(object):
     sweep, and dihedral angles.
     """
 
-    def __init__(self, aerofoil: Aerofoil = None, chord: Hint.num = None,
+    def __init__(self, aerofoil: Aerofoil, chord: Hint.num = None,
                  twist: Hint.num = None):
+        # We use many arguments in __init__, even if they aren't called by the
+        # user, to facilitate the overloaded math operations on type(self)
         self._aerofoil = aerofoil
         self._twist = 0.0 if twist is None else float(twist)
         self.chord = 1.0 if chord is None else float(chord)
+        # Sweep and dihedral are only properly characterised at the macroscale
+        # of WingSections, not for WingSection (singular) objects.
         self._sweep = None
         self._dihedral = None
         return
+
+    def __repr__(self):
+        returnstr = f"<carpy {type(self).__name__} at {hex(id(self))}>"
+        return returnstr
 
     def __add__(self, other):
         # Typechecking
@@ -60,10 +68,6 @@ class WingSection(object):
             twist=new_theta
         )
         return new_object
-
-    def deepcopy(self):
-        """Returns a deep copy of self (no values are shared in memory)."""
-        return type(self)(aerofoil=self._aerofoil, twist=self._twist)
 
     @property
     def aerofoil(self):
@@ -108,9 +112,18 @@ class WingSection(object):
     @property
     def sweep(self) -> float:
         """
-        The sweep angle of the leading edge. A positive value indicates sweep in
-        the traditional sense (outboard leading edge is behind inboard leading
-        edge), and a negative value indicates forward- or reverse-sweep.
+        If one is defined at the station, return the value of the wing sweep
+        angle from this station forward (away from the wing root).
+
+        Notes:
+            A positive value indicates sweep in the traditional sense (outboard
+            leading edge is behind inboard leading edge), and a negative value
+            indicates forward- or reverse-sweep.
+
+            Wing sweep is a 3D property of a wing that isn't clear from an
+            instantaneous, 2D sectional view. For this reason, the sweep
+            parameter is defined in terms of what happens to the rest of the
+            wing from this station forwards.
 
         Returns:
             Geometric angle of sweep of the wing station's leading edge.
@@ -126,8 +139,16 @@ class WingSection(object):
     @property
     def dihedral(self) -> float:
         """
-        The angle between the station plane's normal vector and the vehicle
-        plane formed of longitudinal (X) and lateral (Y) axes.
+        If one is defined at the station, return the value of the angle between
+        the station plane's normal vector and the vehicle plane formed of
+        longitudinal (X) and lateral (Y) axes from this station forward (away
+        from the wing root).
+
+        Notes:
+            Wing dihedral is a 3D property of a wing that isn't clear from an
+            instantaneous, 2D sectional view. For this reason, the dihedral
+            parameter is defined in terms of what happens to the rest of the
+            wing from this station forwards.
 
         Returns:
             Geometric angle of dihedral of the wing station.
@@ -168,37 +189,63 @@ class WingSections(DiscreteIndex):
 
         return
 
-    def __getitem__(self, key):
-        nd_sections = super().__getitem__(key)
+    def __setitem__(self, key, value):
 
+        # Ensure the appropriate type of object is presented
+        if isinstance(value, Aerofoil):
+            value = WingSection(aerofoil=value)
+        elif isinstance(value, WingSection):
+            pass
+        else:
+            errormsg = f"__setitem__ expected type Aerofoil, not {type(value)=}"
+            raise TypeError(errormsg)
+
+        # Call the super method
+        super(WingSections, self).__setitem__(key, value)
+
+        return
+
+    def __getitem__(self, key):
+        # Obtain the interpolated (and extrapolated) set of wing sections
+        key_sections = super().__getitem__(key)
+
+        # If references are made to an out of bounds (extrapolated) station...
         if isinstance(key, slice):
             for slice_bound in [key.start, key.stop]:
                 if slice_bound not in self and not isNone(slice_bound):
                     errormsg = (
-                        f"Slice is bounded by key that has no associated value."
-                        f" Try creating a new element of {self} with the index "
-                        f"{slice_bound}"
+                        f"Cannot slice wing sections object using a bound that "
+                        f"is undefined. Try creating a new element of {self} "
+                        f"with the index of '{slice_bound}' first."
                     )
-                    raise RuntimeError(errormsg)
+                    raise KeyError(errormsg)
 
-        # Cast to list temporarily, if necessary
-        if not isinstance(nd_sections, Hint.iter.__args__):
-            nd_sections = [nd_sections]
+        # Cast to list temporarily, if necessary (allow iteration)
+        if not isinstance(key_sections, Hint.iter.__args__):
+            key_sections = [key_sections]
 
         # Missing sweep and dihedral angles should be inherited from inboard
-        for i, aerofoil in enumerate(nd_sections):
-            # If aerofoil is derived, it has parents (one of which is inboard)
-            if hasattr(aerofoil, "_parents"):
-                parent = self[min(getattr(aerofoil, "_parents"))]
-                # Assign private vars, skips float typecasting for 'None' values
-                aerofoil._sweep = parent.sweep
-                aerofoil._dihedral = parent.dihedral
-                delattr(aerofoil, "_parents")
+        if isNone(parent_sweep := key_sections[0].sweep):
+            parent_sweep = 0.0  # If it was undefined, set to zero.
+        if isNone(parent_dihedral := key_sections[0].dihedral):
+            parent_dihedral = 0.0  # If it was undefined, set to zero.
+
+        for i, key_section in enumerate(key_sections):
+            # Attribute sweep, if necessary
+            if isNone(sweep := key_section.sweep):
+                key_section.sweep = parent_sweep
+            else:
+                parent_sweep = sweep
+            # Attribute sweep, if necessary
+            if isNone(dihedral := key_section.dihedral):
+                key_section.dihedral = parent_dihedral
+            else:
+                parent_dihedral = dihedral
 
         # If sliced, return an array
         if isinstance(key, slice):
-            return nd_sections
-        return collapse_array(nd_sections)
+            return key_sections
+        return collapse_array(key_sections)
 
     def spansections(self, N: int = None, dist_type: str = None) -> tuple:
         """

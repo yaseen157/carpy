@@ -144,7 +144,11 @@ class DiscreteIndex(dict):
             return
 
         elif isinstance(key, slice):
-            raise NotImplementedError("Cannot set using slice object!")
+            errormsg = (
+                "Do not set values using a slice object. Instead, use "
+                "individual keys as appropriate."
+            )
+            raise NotImplementedError(errormsg)
         #     # Record current entries of the dictionary, and clear self
         #     items = list(self.items())
         #     self.clear()
@@ -189,11 +193,6 @@ class DiscreteIndex(dict):
                 val_hi = super().__getitem__(key_hi)
                 val_lo = super().__getitem__(key_lo)
                 val_new = val_hi * weight + val_lo * (1 - weight)
-                try:
-                    # If the object allows new attributes, record parents
-                    val_new._parents = (key_lo, key_hi)
-                except AttributeError as _:
-                    pass  # Couldn't assign attribute '_parents' to this object
                 vals2rtn.append(val_new)
 
         # If sliced, return an array

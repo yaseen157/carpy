@@ -81,49 +81,85 @@ class WingSolution(object):
         self._Nctrlpts = 40 if N is None else int(N)
         return
 
+    def __str__(self):
+        returnstr = f"{self._wingsections}"
+        returnstr += "\n".join([
+            f"\tCD = {self.CD:7F} | CY  = {self.CY:7F}  | CL  = {self.CL:7F} ",
+            f"    \r\t        `-->  CD0 = {self.CD0:7F} + CDi = {self.CDi:7F}",
+            f"\tCl = {self.Cl:7F} | Cm  = {self.Cm:7F}  | Cn  = {self.Cn:7F} ",
+            f"\tCni ={self.Cni:7F}"
+        ])
+        return returnstr
+
     @property
     def CL(self) -> float:
         """Wing coefficient of lift, CL."""
+        if self._CL is NotImplemented:
+            return np.nan
         return self._CL
 
     @property
     def CDi(self) -> float:
         """Induced component of wing's coefficient of drag, CDi."""
+        if self._CDi is NotImplemented:
+            return np.nan
         return self._CDi
 
     @property
     def CD0(self) -> float:
         """Profile component of wing's coefficient of drag, CD0."""
+        if self._CD0 is NotImplemented:
+            return np.nan
         return self._CD0
 
     @property
     def CD(self) -> float:
         """Wing coefficient of drag (profile + induced), CD."""
-        return self._CD
+        if self._CD is NotImplemented:
+            return self.CD0 + self.CDi
+        elif np.isclose(self._CD, self.CD0 + self.CDi):
+            return self._CD
+        else:
+            errormsg = (
+                f"Total wing drag coefficient CD is not equal to the sum of "
+                f"component profile and induced drags! ({self._CD} != "
+                f"{self.CD0=} + {self.CDi})"
+            )
+            raise ValueError(errormsg)
 
     @property
     def CY(self) -> float:
         """Wing coefficient of side/lateral force (+ve := slip right), CY."""
+        if self._CY is NotImplemented:
+            return np.nan
         return self._CY
 
     @property
     def Cl(self) -> float:
         """Wing rolling moment coefficient (+ve := roll right), Cl."""
+        if self._Cl is NotImplemented:
+            return np.nan
         return self._Cl
 
     @property
     def Cm(self) -> float:
         """Wing pitching moment coefficient (+ve := pitch up), Cm."""
+        if self._Cm is NotImplemented:
+            return np.nan
         return self._Cm
 
     @property
     def Cn(self) -> float:
         """Wing yawing moment coefficient (+ve := right rudder), Cn."""
+        if self._Cn is NotImplemented:
+            return np.nan
         return self._Cn
 
     @property
     def Cni(self) -> float:
         """Wing induced yawing moment coefficient (+ve := right rudder), Cni."""
+        if self._Cni is NotImplemented:
+            return np.nan
         return self._Cni
 
     @property
@@ -132,6 +168,8 @@ class WingSolution(object):
         Chordwise location of centre of pressure, as a fraction of the root
         chord behind the leading edge.
         """
+        if self._x_cp is NotImplemented:
+            return np.nan
         return self._x_cp
 
 
@@ -150,24 +188,22 @@ class MixedBLDrag(WingSolution):
     """
 
     def __init__(self, wingsections, altitude: Hint.num, TAS: Hint.num,
-                 esg_roughness: Hint.num = None, **kwargs):
+                 Ks: Hint.num = None, **kwargs):
         # Super class call
         super().__init__(wingsections, altitude, TAS, **kwargs)
 
         # Recast as necessary
         TAS = Quantity(TAS, "m s^{-1}")
-        if esg_roughness is None:
-            kappa = np.mean(co.MATERIAL.esg_roughness.mattepaint_careful)
-        else:
-            kappa = float(esg_roughness)
+        Ks = co.MATERIAL.roughness_Ks.paint_matte_smooth if Ks is None else Ks
+        Ks = np.mean(Ks)
+        self._CDf_CD0 = 0.85  # Assume 85% of profile drag is friction
 
         # Bail early if necessary (why would anyone evaluate zero speed drag?)
         if TAS == 0:
-            self._Cf_laminar = 0.0
-            self._Cf_turbulent = 0.0
-            self._Cf = 0.0
-            self._CDf = 0.0
-            self._CDf_CD0 = 0.85  # Assume 85% of profile drag is friction
+            self._Cf_laminar = np.nan
+            self._Cf_turbulent = np.nan
+            self._Cf = np.nan
+            self._CDf = np.nan
             self._CD0 = self._CDf / self.CDf_CD0
             return
 
@@ -189,9 +225,9 @@ class MixedBLDrag(WingSolution):
         # Step 3) Cutoff Reynolds number due to surface roughness effects
         Mach = TAS / self._atmosphere.c_sound(**fltconditions)
         if Mach <= 0.7:
-            Re_cutoff = 38.21 * (chords / kappa).x ** 1.053
+            Re_cutoff = 38.21 * (chords / Ks).x ** 1.053
         else:
-            Re_cutoff = 44.62 * (chords / kappa).x ** 1.053 * Mach ** 1.16
+            Re_cutoff = 44.62 * (chords / Ks).x ** 1.053 * Mach ** 1.16
         Re = np.vstack((Re, Re_cutoff)).min(axis=0)
 
         # Step 4) Compute skin friction coefficient for fully laminar/turbulent
@@ -222,7 +258,6 @@ class MixedBLDrag(WingSolution):
         self._CDf = self._Cf * (Swet / Sref)
 
         # Assignments
-        self._CDf_CD0 = 0.85  # Assume 85% of profile drag is friction
         self._CD0 = self._CDf / self.CDf_CD0
 
         return
@@ -271,6 +306,11 @@ class PrandtlLLT(WingSolution):
                  **kwargs):
         # Super class call
         super().__init__(wingsections, altitude, TAS, **kwargs)
+
+        # Library limitations
+        self._CY = 0  # This is an assumption, I'm not actually sure...
+        if (beta := self._beta) != 0:
+            raise ValueError(f"Sorry, non-zero beta is unsupported ({beta=})")
 
         # Cosine distribution of wing sections (skip first and last section)
         theta0 = np.linspace(0, np.pi, (N := self._Nctrlpts) + 2)[1:-1]
