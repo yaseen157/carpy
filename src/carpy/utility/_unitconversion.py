@@ -496,6 +496,7 @@ class Quantity(np.ndarray):
             f"operator. Collapsing result into regular numpy arrays w/o units"
         )
         warnings.warn(message=warnmsg, category=RuntimeWarning)
+        # noinspection PyUnresolvedReferences
         return np.array(self).__imatmul__(other)
 
     def __truediv__(self, other):
@@ -633,16 +634,11 @@ class Quantity(np.ndarray):
 
     @property
     def x(self) -> Union[float, np.ndarray]:
-        """The raw value(s) of the numpy array, without associated units."""
+        """The raw value(s) of the array, without associated units."""
         try:
             return float(self)
-        except:
+        except ValueError:  # Error from converting size > 1 array to scalar
             return np.array(self)
-
-    @property
-    def u(self) -> Dimensions:
-        """Easy access property for this quantity object's units."""
-        return self.units
 
     def to(self, units: str, /) -> np.ndarray:
         """

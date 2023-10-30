@@ -3,7 +3,6 @@ import functools
 import inspect
 import os
 import typing
-import warnings
 
 import numpy as np
 import pandas as pd

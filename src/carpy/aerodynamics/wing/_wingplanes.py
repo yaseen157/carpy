@@ -1,5 +1,6 @@
 """Methods for generating and optimising wing planforms."""
 from functools import partial
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,7 @@ from carpy.aerodynamics.aerofoil import Aerofoil
 from carpy.structures import DiscreteIndex
 from carpy.utility import Hint, Quantity, cast2numpy, collapse_array, isNone
 
-__all__ = ["WingSection", "WingSections", "WingPlane", "NewWingPlane"]
+__all__ = ["WingSection", "WingSections"]
 __author__ = "Yaseen Reza"
 
 
@@ -33,8 +34,8 @@ class WingSection(object):
         self.chord = 1.0 if chord is None else float(chord)
         # Sweep and dihedral are only properly characterised at the macroscale
         # of WingSections, not for WingSection (singular) objects.
-        self._sweep = None
-        self._dihedral = None
+        self._sweep = 0.0
+        self._dihedral = 0.0
         return
 
     def __repr__(self):
@@ -224,23 +225,23 @@ class WingSections(DiscreteIndex):
         if not isinstance(key_sections, Hint.iter.__args__):
             key_sections = [key_sections]
 
-        # Missing sweep and dihedral angles should be inherited from inboard
-        if isNone(parent_sweep := key_sections[0].sweep):
-            parent_sweep = 0.0  # If it was undefined, set to zero.
-        if isNone(parent_dihedral := key_sections[0].dihedral):
-            parent_dihedral = 0.0  # If it was undefined, set to zero.
-
-        for i, key_section in enumerate(key_sections):
-            # Attribute sweep, if necessary
-            if isNone(sweep := key_section.sweep):
-                key_section.sweep = parent_sweep
-            else:
-                parent_sweep = sweep
-            # Attribute sweep, if necessary
-            if isNone(dihedral := key_section.dihedral):
-                key_section.dihedral = parent_dihedral
-            else:
-                parent_dihedral = dihedral
+        # # Missing sweep and dihedral angles should be inherited from inboard
+        # if isNone(parent_sweep := key_sections[0].sweep):
+        #     parent_sweep = 0.0  # If it was undefined, set to zero.
+        # if isNone(parent_dihedral := key_sections[0].dihedral):
+        #     parent_dihedral = 0.0  # If it was undefined, set to zero.
+        #
+        # for i, key_section in enumerate(key_sections):
+        #     # Attribute sweep, if necessary
+        #     if isNone(sweep := key_section.sweep):
+        #         key_section.sweep = parent_sweep
+        #     else:
+        #         parent_sweep = sweep
+        #     # Attribute sweep, if necessary
+        #     if isNone(dihedral := key_section.dihedral):
+        #         key_section.dihedral = parent_dihedral
+        #     else:
+        #         parent_dihedral = dihedral
 
         # If sliced, return an array
         if isinstance(key, slice):
@@ -382,6 +383,17 @@ class WingSections(DiscreteIndex):
         wetlengths = perimeters * chords  # Sectional wetted length
 
         Swet = Quantity(simpson(wetlengths, dx=self.b.x / (N - 1)), "m^{2}")
+
+        # The below warning is because if you physically measured the amount of
+        # spar you need from root to tip of a wing with 3 degree dihedral, the
+        # spar length is the defined span / np.cos(3 degrees). At some point,
+        # this method needs to be modified to account for the increase in
+        # material required to construct a wing even though the "span" is fixed.
+        warnmsg = (
+            f"Wetted surface area calculation does not yet include the effect "
+            f"of dihedral on increasing the area of a wing, for a given span."
+        )
+        warnings.warn(message=warnmsg, category=RuntimeWarning)
 
         return Swet
 
