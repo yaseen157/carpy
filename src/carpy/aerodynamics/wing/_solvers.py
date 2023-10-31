@@ -91,6 +91,10 @@ class WingSolution(object):
         ])
         return returnstr
 
+    def __or__(self, other):
+        print("Hi!!")
+        return
+
     @property
     def CL(self) -> float:
         """Wing coefficient of lift, CL."""
@@ -262,15 +266,15 @@ class MixedBLDrag(WingSolution):
 
         return
 
-    @property
-    def Cf_laminar(self) -> float:
-        """100% Laminar limit of skin friction coefficient, Cflaminar."""
-        return self._Cf_laminar
-
-    @property
-    def Cf_turbulent(self) -> float:
-        """100% Turbulent limit of skin friction coefficient, Cfturbulent."""
-        return self._Cf_turbulent
+    # @property
+    # def Cf_laminar(self) -> float:
+    #     """100% Laminar limit of skin friction coefficient, Cflaminar."""
+    #     return self._Cf_laminar
+    #
+    # @property
+    # def Cf_turbulent(self) -> float:
+    #     """100% Turbulent limit of skin friction coefficient, Cfturbulent."""
+    #     return self._Cf_turbulent
 
     @property
     def Cf(self) -> float:

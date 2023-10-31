@@ -34,8 +34,8 @@ class WingSection(object):
         self.chord = 1.0 if chord is None else float(chord)
         # Sweep and dihedral are only properly characterised at the macroscale
         # of WingSections, not for WingSection (singular) objects.
-        self._sweep = 0.0
-        self._dihedral = 0.0
+        self._sweep = None
+        self._dihedral = None
         return
 
     def __repr__(self):
@@ -201,6 +201,12 @@ class WingSections(DiscreteIndex):
             errormsg = f"__setitem__ expected type Aerofoil, not {type(value)=}"
             raise TypeError(errormsg)
 
+        # Since we are defining a station of the wing, give it some defaults
+        if isNone(value.sweep):
+            value.sweep = 0.0
+        if isNone(value.dihedral):
+            value.dihedral = 0.0
+
         # Call the super method
         super(WingSections, self).__setitem__(key, value)
 
@@ -212,6 +218,7 @@ class WingSections(DiscreteIndex):
 
         # If references are made to an out of bounds (extrapolated) station...
         if isinstance(key, slice):
+            key_start = key.start
             for slice_bound in [key.start, key.stop]:
                 if slice_bound not in self and not isNone(slice_bound):
                     errormsg = (
@@ -220,28 +227,36 @@ class WingSections(DiscreteIndex):
                         f"with the index of '{slice_bound}' first."
                     )
                     raise KeyError(errormsg)
+        elif isinstance(key, Hint.iter.__args__):
+            key_start = key[0]
+        else:
+            key_start = key
 
         # Cast to list temporarily, if necessary (allow iteration)
         if not isinstance(key_sections, Hint.iter.__args__):
             key_sections = [key_sections]
 
-        # # Missing sweep and dihedral angles should be inherited from inboard
-        # if isNone(parent_sweep := key_sections[0].sweep):
-        #     parent_sweep = 0.0  # If it was undefined, set to zero.
-        # if isNone(parent_dihedral := key_sections[0].dihedral):
-        #     parent_dihedral = 0.0  # If it was undefined, set to zero.
-        #
-        # for i, key_section in enumerate(key_sections):
-        #     # Attribute sweep, if necessary
-        #     if isNone(sweep := key_section.sweep):
-        #         key_section.sweep = parent_sweep
-        #     else:
-        #         parent_sweep = sweep
-        #     # Attribute sweep, if necessary
-        #     if isNone(dihedral := key_section.dihedral):
-        #         key_section.dihedral = parent_dihedral
-        #     else:
-        #         parent_dihedral = dihedral
+        # Missing sweep and dihedral angles should be inherited from inboard
+        if key_start is None:  # Parent is at the root of the wing
+            parent_sweep = (parent := list(self.values())[0]).sweep
+            parent_dihedral = parent.dihedral
+        else:  # Parent needs to be located
+            parent = list(self.values())[
+                (np.array(list(self)) <= key_start).sum() - 1]
+            parent_sweep = parent.sweep
+            parent_dihedral = parent.dihedral
+
+        for i, key_section in enumerate(key_sections):
+            # Attribute sweep, if necessary and applicable
+            if isNone(sweep := key_section.sweep):
+                key_section.sweep = parent_sweep
+            else:
+                parent_sweep = sweep
+            # Attribute dihedral, if necessary and applicable
+            if isNone(dihedral := key_section.dihedral):
+                key_section.dihedral = parent_dihedral
+            else:
+                parent_dihedral = dihedral
 
         # If sliced, return an array
         if isinstance(key, slice):
