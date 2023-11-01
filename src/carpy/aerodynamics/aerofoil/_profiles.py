@@ -414,6 +414,20 @@ class Aerofoil(object):
         return points
 
     def _thickness_function(self, orientation: Hint.num = None) -> Hint.func:
+        """
+        Create and return a function that estimates the aerofoil thickness at a
+        chordwise station in the direction of the given orientation.
+
+        Args:
+            orientation: Angle at which the thinkness should be measured.
+                Optional, defaults to zero (aerofoil thickness measured as
+                per the British convention of camber and thickness definitions).
+
+        Returns:
+            The thickness of the aerofoil at the chordwise position and in the
+            given orientation.
+
+        """
         # Recast as necessary
         convention = "American" if orientation is None else "British"
 

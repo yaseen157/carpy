@@ -864,7 +864,10 @@ class ExpansionFan(object):
             return M
 
         # Map P-M angle after deflection to downstream Mach number
-        self._M2 = np.vectorize(solver)(a=self._gamma, b=nu2)
+        try:
+            self._M2 = np.vectorize(solver)(a=self._gamma, b=nu2)
+        except RuntimeError:
+            self._M2 = np.nan
         return
 
     def __repr__(self):

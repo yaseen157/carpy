@@ -1,4 +1,6 @@
 """A module of various methods used to estimate wing aerodynamic performance."""
+import warnings
+
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import ThinAerofoil
@@ -82,18 +84,74 @@ class WingSolution(object):
         return
 
     def __str__(self):
-        returnstr = f"{self._wingsections}"
+        returnstr = f"{self._wingsections}\n"
         returnstr += "\n".join([
             f"\tCD = {self.CD:7F} | CY  = {self.CY:7F}  | CL  = {self.CL:7F} ",
-            f"    \r\t        `-->  CD0 = {self.CD0:7F} + CDi = {self.CDi:7F}",
+            f"  \r\t          `-->  CD0 = {self.CD0:7F}  + CDi = {self.CDi:7F}",
             f"\tCl = {self.Cl:7F} | Cm  = {self.Cm:7F}  | Cn  = {self.Cn:7F} ",
             f"\tCni ={self.Cni:7F}"
-        ])
+        ]).replace("NAN", " NAN")
         return returnstr
 
     def __or__(self, other):
-        print("Hi!!")
+        """Logical OR, fills missing parameters of self with other"""
+        # Verify objects are of the same type
+        errormsg = f"Union only applies if both objects are of {type(self)=}"
+        assert type(self).__bases__ == type(other).__bases__, errormsg
+
+        # Verify it's okay to add the predictions together (common lift bodies)
+        errormsg = (
+            f"Can only apply union when wingsections attributes are identical "
+            f"(actually got {self.wingsections, other.wingsections})"
+        )
+        # Use symmetric difference of wingsections sets
+        memoryset_self = set([hex(id(x)) for x in self.wingsections])
+        memoryset_other = set([hex(id(x)) for x in other.wingsections])
+        assert len(memoryset_self ^ memoryset_other) is 0, errormsg
+
+        # Verify that the flight conditions are the same
+        privates = ["_altitude", "_TAS", "_geometric", "_atmosphere",
+                    "_alpha", "_beta"]
+        errormsg = (
+            "Can't do union, found mismatch in one or more flight conditions: "
+            "altitude, TAS, geometric, atmosphere, alpha (AoA), beta (AoS)"
+        )
+        for private in privates:
+            if getattr(self, private) == getattr(other, private):
+                continue
+            raise ValueError(errormsg)
+
+        # Find parameters of self and other, combine them
+        to_combine = "CL,CDi,CD0,CD,CY,Cl,Cm,Cn,Cni,x_cp".split(",")
+        dict_self = {attr: getattr(self, attr) for attr in to_combine}
+        dict_other = {attr: getattr(other, attr) for attr in to_combine}
+        dict_new = {
+            attr: dict_self[attr]
+            if ~np.isnan(dict_self[attr]) else dict_other[attr]
+            for attr in to_combine
+        }
+
+        # Assign new performance parameters to new object
+        new_soln = type(self)(
+            wingsections=self.wingsections,
+            altitude=self._altitude, TAS=self._TAS,
+            alpha=self._alpha, beta=self._beta,
+            geometric=self._geometric, atmosphere=self._atmosphere
+        )
+        for (k, v) in dict_new.items():
+            if ~np.isnan(v):
+                setattr(new_soln, f"_{k}", v)
+
+        return new_soln
+
+    def __add__(self, other):
+        """Addition, additively combines the performance of self and other"""
         return
+
+    @property
+    def wingsections(self) -> tuple:
+        """The wing sections that comprise this wing performance prediction."""
+        return self._wingsections
 
     @property
     def CL(self) -> float:

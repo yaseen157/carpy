@@ -190,6 +190,10 @@ class WingSections(DiscreteIndex):
 
         return
 
+    def __repr__(self):
+        returnstr = f"<carpy {type(self).__name__} at {hex(id(self))}>"
+        return returnstr
+
     def __setitem__(self, key, value):
 
         # Ensure the appropriate type of object is presented

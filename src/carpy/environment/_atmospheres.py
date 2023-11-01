@@ -762,7 +762,7 @@ class ObsAtmospherePerfect(Atmosphere):
                 is required.
             rho: Sequence of densities. Optional, at least one of T,p, or rho
                 is required.
-            geometric: Whether or not the altitude sequence is geopotential or
+            geometric: Whether the altitude sequence is geopotential or
                 geometric in nature. Optional, defaults to False (geopotential).
             Mbar: The average molar mass of the atmosphere, per mol. Optional,
                 defaults to that of the standard atmosphere.
