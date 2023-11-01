@@ -564,7 +564,7 @@ class NewAerofoil(object):
             response = requests.get(url=url)
         except requests.ConnectionError as e:
             errormsg = (
-                "Couldn't reach aerofoil geometry database. Is an internet"
+                "Couldn't reach aerofoil geometry database. Is an internet "
                 "connection available and working?"
             )
             raise ConnectionError(errormsg) from e

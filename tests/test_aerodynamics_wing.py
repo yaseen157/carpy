@@ -149,6 +149,7 @@ class Combinatorics(unittest.TestCase):
     """Test that interactions between Wing Solutions make sense"""
 
     def test_union(self):
+        """Can methods combine?"""
         mysections = SampleWings.SUHPALazarus()
 
         aoa = np.radians(3)

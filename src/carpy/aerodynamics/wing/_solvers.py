@@ -6,7 +6,7 @@ import numpy as np
 from carpy.aerodynamics.aerofoil import ThinAerofoil
 from carpy.environment import LIBREF_ATM
 from carpy.utility import (
-    Hint, Quantity, cast2numpy, constants as co, moving_average)
+    Hint, Quantity, call_count, cast2numpy, constants as co, moving_average)
 
 __all__ = ["MixedBLDrag", "PrandtlLLT", "HorseshoeVortex"]
 __author__ = "Yaseen Reza"
@@ -81,25 +81,30 @@ class WingSolution(object):
         self._geometric = False if geometric is None else geometric
         self._atmosphere = LIBREF_ATM if atmosphere is None else atmosphere
         self._Nctrlpts = 40 if N is None else int(N)
+        # Track which attributes are accessed during computation:
+        self._accessed = dict()
         return
 
     def __str__(self):
-        returnstr = f"{self._wingsections}\n"
+        returnstr = f"{self._wingsections} performance:\n"
+        # I know it looks funny but the 7F format means these all line up fine
+        returnstr += ("-" * len(returnstr)) + "\n"
         returnstr += "\n".join([
-            f"\tCD = {self.CD:7F} | CY  = {self.CY:7F}  | CL  = {self.CL:7F} ",
-            f"  \r\t          `-->  CD0 = {self.CD0:7F}  + CDi = {self.CDi:7F}",
-            f"\tCl = {self.Cl:7F} | Cm  = {self.Cm:7F}  | Cn  = {self.Cn:7F} ",
-            f"\tCni ={self.Cni:7F}"
-        ]).replace("NAN", " NAN")
+            f"| CD = {self.CD:7F} | CY  = {self.CY:7F}  | CL  = {self.CL:7F} |",
+            f"|           `-->  CD0 = {self.CD0:7F}  + CDi = {self.CDi:7F} |",
+            f"| Cl = {self.Cl:7F} | Cm  = {self.Cm:7F}  | Cn  = {self.Cn:7F} |",
+            f"|                                   Cni = {self.Cni:7F} |"
+        ]).replace("NAN", "NAN ")
         return returnstr
 
     def __or__(self, other):
         """Logical OR, fills missing parameters of self with other"""
-        # Verify objects are of the same type
+        # Verify objects are of the same type, and it makes sense to logical OR
         errormsg = f"Union only applies if both objects are of {type(self)=}"
         assert type(self).__bases__ == type(other).__bases__, errormsg
 
-        # Verify it's okay to add the predictions together (common lift bodies)
+        # Verify it's okay to add the predictions together:
+        # ... are the solutions for common lift bodies?
         errormsg = (
             f"Can only apply union when wingsections attributes are identical "
             f"(actually got {self.wingsections, other.wingsections})"
@@ -109,49 +114,90 @@ class WingSolution(object):
         memoryset_other = set([hex(id(x)) for x in other.wingsections])
         assert len(memoryset_self ^ memoryset_other) is 0, errormsg
 
-        # Verify that the flight conditions are the same
-        privates = ["_altitude", "_TAS", "_geometric", "_atmosphere",
-                    "_alpha", "_beta"]
-        errormsg = (
-            "Can't do union, found mismatch in one or more flight conditions: "
-            "altitude, TAS, geometric, atmosphere, alpha (AoA), beta (AoS)"
-        )
-        for private in privates:
-            if getattr(self, private) == getattr(other, private):
-                continue
-            raise ValueError(errormsg)
+        # ... do the solutions have compatible flight conditions?
+        # Observing the following private attributes can change their value,
+        # Schrödinger's variable style, when using an interactive debugger. For
+        # your own sanity, these parameters are now saved into definite vars.
+        accessed_self = self._accessed
+        accessed_other = other._accessed
 
-        # Find parameters of self and other, combine them
+        # If both solutions depend on a parameter, make sure they are similar
+        common_attrs = set(accessed_self) & set(accessed_other)
+        errormsg = (
+            f"Can't do union for {type(self).__name__} objects, found that one "
+            f"or more of the following values had mismatches: {common_attrs}"
+        )
+        for attr in common_attrs:
+            if getattr(self, f"_{attr}") == getattr(other, f"_{attr}"):
+                continue  # The parameters are similar, do nothing :)
+            raise ValueError(errormsg)  # Uh oh, flight conditions differed!
+
+        # Find instantiation arguments of self and other, combine them
+        new_kwargs = {
+            "altitude": getattr(self, "altitude"), "TAS": getattr(self, "TAS"),
+            **{x: getattr(self, x) for x in accessed_self},
+            **{x: getattr(other, x) for x in accessed_other}
+        }
+
+        # Find performance parameters of self and other, combine them
         to_combine = "CL,CDi,CD0,CD,CY,Cl,Cm,Cn,Cni,x_cp".split(",")
-        dict_self = {attr: getattr(self, attr) for attr in to_combine}
-        dict_other = {attr: getattr(other, attr) for attr in to_combine}
-        dict_new = {
-            attr: dict_self[attr]
-            if ~np.isnan(dict_self[attr]) else dict_other[attr]
+        result_self = {attr: getattr(self, attr) for attr in to_combine}
+        result_other = {attr: getattr(other, attr) for attr in to_combine}
+        result_new = {
+            attr: result_self[attr]
+            if ~np.isnan(result_self[attr]) else result_other[attr]
             for attr in to_combine
         }
 
         # Assign new performance parameters to new object
-        new_soln = type(self)(
-            wingsections=self.wingsections,
-            altitude=self._altitude, TAS=self._TAS,
-            alpha=self._alpha, beta=self._beta,
-            geometric=self._geometric, atmosphere=self._atmosphere
-        )
-        for (k, v) in dict_new.items():
+        new_class = type(self).__bases__[0]
+        new_soln = new_class(wingsections=self.wingsections, **new_kwargs)
+        for (k, v) in result_new.items():
             if ~np.isnan(v):
                 setattr(new_soln, f"_{k}", v)
 
         return new_soln
 
-    def __add__(self, other):
-        """Addition, additively combines the performance of self and other"""
-        return
-
     @property
-    def wingsections(self) -> tuple:
+    def wingsections(self):
         """The wing sections that comprise this wing performance prediction."""
         return self._wingsections
+
+    @property
+    def altitude(self) -> Quantity:
+        """Altitude of the solution."""
+        self._accessed["altitude"] = True
+        return self._altitude
+
+    @property
+    def TAS(self) -> Quantity:
+        """True airspeed of the solution."""
+        self._accessed["TAS"] = True
+        return self._TAS
+
+    @property
+    def alpha(self) -> float:
+        """Angle of attack of the solution."""
+        self._accessed["alpha"] = True
+        return self._alpha
+
+    @property
+    def beta(self) -> float:
+        """Angle of sideslip of the solution."""
+        self._accessed["beta"] = True
+        return self._beta
+
+    @property
+    def geometric(self) -> bool:
+        """Whether the altitude argument is geometric or geopotential."""
+        self._accessed["geometric"] = True
+        return self._geometric
+
+    @property
+    def atmosphere(self):
+        """Angle of sideslip of the solution."""
+        self._accessed["atmosphere"] = True
+        return self._atmosphere
 
     @property
     def CL(self) -> float:
@@ -255,7 +301,7 @@ class MixedBLDrag(WingSolution):
         super().__init__(wingsections, altitude, TAS, **kwargs)
 
         # Recast as necessary
-        TAS = Quantity(TAS, "m s^{-1}")
+        TAS = Quantity(self.TAS, "m s^{-1}")
         Ks = co.MATERIAL.roughness_Ks.paint_matte_smooth if Ks is None else Ks
         Ks = np.mean(Ks)
         self._CDf_CD0 = 0.85  # Assume 85% of profile drag is friction
@@ -274,18 +320,16 @@ class MixedBLDrag(WingSolution):
 
         # Step 1) Find viscosity of air
         fltconditions = dict([
-            ("altitude", altitude),
-            ("geometric", kwargs.get("geometric", False))
-        ])
-        mu_visc = self._atmosphere.mu_visc(**fltconditions)
+            ("altitude", self.altitude), ("geometric", self.geometric)])
+        mu_visc = self.atmosphere.mu_visc(**fltconditions)
 
         # Step 2) Compute Reynolds number
-        rho = self._atmosphere.rho(**fltconditions)
+        rho = self.atmosphere.rho(**fltconditions)
         chords = Quantity([sec.chord.x for sec in sections], "m")
         Re = rho * TAS * chords / mu_visc
 
         # Step 3) Cutoff Reynolds number due to surface roughness effects
-        Mach = TAS / self._atmosphere.c_sound(**fltconditions)
+        Mach = TAS / self.atmosphere.c_sound(**fltconditions)
         if Mach <= 0.7:
             Re_cutoff = 38.21 * (chords / Ks).x ** 1.053
         else:
@@ -371,7 +415,7 @@ class PrandtlLLT(WingSolution):
 
         # Library limitations
         self._CY = 0  # This is an assumption, I'm not actually sure...
-        if (beta := self._beta) != 0:
+        if (beta := self.beta) != 0:
             raise ValueError(f"Sorry, non-zero beta is unsupported ({beta=})")
 
         # Cosine distribution of wing sections (skip first and last section)
@@ -383,7 +427,7 @@ class PrandtlLLT(WingSolution):
         # Station: aerodynamic parameters
         alpha_zl, Clalpha = [], []
         for i, sec in enumerate(sections):
-            aoa = self._alpha + sec.twist  # Effective angle of attack
+            aoa = self.alpha + sec.twist  # Effective angle of attack
             soln_thinaero = ThinAerofoil(aerofoil=sec.aerofoil, alpha=aoa)
             alpha_zl.append(soln_thinaero.alpha_zl - sec.twist)  # Eff. zerolift
             Clalpha.append(soln_thinaero.Clalpha)
@@ -396,7 +440,7 @@ class PrandtlLLT(WingSolution):
             term1 = 4 * wingsections.b.x / Clalpha[j] / chord[j]
             term2 = (n + 1) / np.sin(theta0[j])
             matA[j] += np.sin((n + 1) * theta0[j]) * (term1 + term2)
-        matB = (self._alpha - alpha_zl)[:, None]
+        matB = (self.alpha - alpha_zl)[:, None]
         matX = np.linalg.solve(matA, matB)[:, 0]  # <-- This is the slow step!!!
 
         # Comute induced drag
@@ -427,13 +471,13 @@ class HorseshoeVortex(WingSolution):
 
         # Problem setup
         # ... create rotation matrix for angle of attack and of sideslip
-        cos_alpha, sin_alpha = np.cos(-(alpha := self._alpha)), np.sin(-alpha)
+        cos_alpha, sin_alpha = np.cos(-(alpha := self.alpha)), np.sin(-alpha)
         rot_alpha = np.array([
             [cos_alpha, 0, sin_alpha],
             [0, 1, 0],  # About the Y-axis
             [-sin_alpha, 0, cos_alpha]
         ])
-        cos_beta, sin_beta = np.cos(self._beta), np.sin(self._beta)
+        cos_beta, sin_beta = np.cos(self.beta), np.sin(self.beta)
         rot_beta = np.array([
             [cos_beta, -sin_beta, 0],
             [sin_beta, cos_beta, 0],
@@ -551,7 +595,7 @@ class HorseshoeVortex(WingSolution):
                 n[i] = rot_dihedral @ (rot_twist @ n[i])
                 vc[i] = (va[i] + vb[i]) / 2 + (rot_twist @ cprime[i])
                 # apparently, the below step is controversial???
-                vinf[i] = rot_twist @ vinf[i]  # Twist semi-infinite vortices
+                # vinf[i] = rot_twist @ vinf[i]  # Twist semi-infinite vortices
 
         # Now if necessary (wing mirrored), copy starboard geometry to port side
         else:
