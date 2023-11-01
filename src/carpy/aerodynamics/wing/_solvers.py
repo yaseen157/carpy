@@ -101,7 +101,12 @@ class WingSolution(object):
         """Logical OR, fills missing parameters of self with other"""
         # Verify objects are of the same type, and it makes sense to logical OR
         errormsg = f"Union only applies if both objects are of {type(self)=}"
-        assert type(self).__bases__ == type(other).__bases__, errormsg
+        if type(other).__bases__[0] is WingSolution:
+            pass  # Both self and other are children of the WingSolution class
+        elif type(other) is WingSolution:
+            pass  # Self is a child of WingSolution, other *is* a WingSolution
+        else:
+            raise TypeError(errormsg)
 
         # Verify it's okay to add the predictions together:
         # ... are the solutions for common lift bodies?
@@ -134,7 +139,7 @@ class WingSolution(object):
 
         # Find instantiation arguments of self and other, combine them
         new_kwargs = {
-            "altitude": getattr(self, "altitude"), "TAS": getattr(self, "TAS"),
+            "altitude": np.nan, "TAS": np.nan,  # <-- defaults
             **{x: getattr(self, x) for x in accessed_self},
             **{x: getattr(other, x) for x in accessed_other}
         }
@@ -150,8 +155,7 @@ class WingSolution(object):
         }
 
         # Assign new performance parameters to new object
-        new_class = type(self).__bases__[0]
-        new_soln = new_class(wingsections=self.wingsections, **new_kwargs)
+        new_soln = WingSolution(wingsections=self.wingsections, **new_kwargs)
         for (k, v) in result_new.items():
             if ~np.isnan(v):
                 setattr(new_soln, f"_{k}", v)
