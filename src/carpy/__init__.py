@@ -8,9 +8,8 @@ information, examples, and tutorials on usage.
 carpy is distributed under the GNU GPLv3 License. A full copy of the license
 should be present alongside the source code on GitHub.
 """
-# The version number of the "entire" package is specified here (for now).
-# In future, the idea would be this is tied to the git release (somehow).
-__version__ = "0.0.4"
+# The version number of the "entire" package is specified here
+__version__ = "0.0.5"
 
 # ============================================================================ #
 # -------------------------------- LICENSING --------------------------------- #
