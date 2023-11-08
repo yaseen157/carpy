@@ -5,7 +5,7 @@ import numpy as np
 
 from carpy.aerodynamics.aerofoil import NewAerofoil
 from carpy.aerodynamics.wing import (
-    WingSections, PrandtlLLT, HorseshoeVortex, MixedBLDrag)
+    WingSections, PrandtlLLT, HorseshoeVortex, MixedBLDrag, ZeroWave)
 from carpy.utility import Quantity
 
 
@@ -144,6 +144,21 @@ class Aerodynamics(unittest.TestCase):
 
         return
 
+    def test_zerowavedrag(self):
+        """Test that the zero wave drag placeholder... gives zero drag."""
+        aerofoil = NewAerofoil.from_method.NACA("0012")
+
+        mysections = WingSections(b=10)
+        mysections[0] = aerofoil
+        mysections[1] = aerofoil
+
+        soln = ZeroWave(mysections, altitude=0, TAS=100)
+
+        # Expected wave drag
+        self.assertEqual(soln.CDw, 0.0)
+
+        return
+
 
 class Combinatorics(unittest.TestCase):
     """Test that interactions between Wing Solutions make sense"""
@@ -158,9 +173,10 @@ class Combinatorics(unittest.TestCase):
         }
         soln0 = MixedBLDrag(**basekwargs)
         soln1 = PrandtlLLT(**basekwargs)
+        soln2 = ZeroWave(**basekwargs)
 
-        union_solution = soln0 | soln1
+        union_solution = soln0 | soln1 | soln2
 
-        self.assertEqual(union_solution.CD, soln0.CD0 + soln1.CDi)
+        self.assertEqual(union_solution.CD, soln0.CD0 + soln1.CDi + soln2.CDw)
 
         return

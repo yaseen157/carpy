@@ -8,7 +8,7 @@ from carpy.environment import LIBREF_ATM
 from carpy.utility import (
     Hint, Quantity, call_count, cast2numpy, constants as co, moving_average)
 
-__all__ = ["MixedBLDrag", "PrandtlLLT", "HorseshoeVortex"]
+__all__ = ["MixedBLDrag", "PrandtlLLT", "HorseshoeVortex", "ZeroWave"]
 __author__ = "Yaseen Reza"
 
 
@@ -60,8 +60,9 @@ class WingSolution(object):
     solvers should aim to fill for a given angle of attack.
     """
     _CL: float = NotImplemented
-    _CDi: float = NotImplemented
     _CD0: float = NotImplemented
+    _CDi: float = NotImplemented
+    _CDw: float = NotImplemented
     _CD: float = NotImplemented
     _CY: float = NotImplemented
     _Cl: float = NotImplemented
@@ -87,14 +88,15 @@ class WingSolution(object):
 
     def __str__(self):
         returnstr = f"{self._wingsections} performance:\n"
-        # I know it looks funny but the 7F format means these all line up fine
-        returnstr += ("-" * len(returnstr)) + "\n"
-        returnstr += "\n".join([
-            f"| CD = {self.CD:7F} | CY  = {self.CY:7F}  | CL  = {self.CL:7F} |",
-            f"|           `-->  CD0 = {self.CD0:7F}  + CDi = {self.CDi:7F} |",
-            f"| Cl = {self.Cl:7F} | Cm  = {self.Cm:7F}  | Cn  = {self.Cn:7F} |",
-            f"|                                   Cni = {self.Cni:7F} |"
-        ]).replace("NAN", "NAN ")
+        # I know the formatting below looks funky, but I promise, it works
+        # Also, the ': .6F' specifier keeps a space for the sign of a -ve number
+        returnstr += (
+            f"""{"-" * (len(returnstr) + 4)}
+ CD  = {self.CD: .6F}    CY  = {self.CY: .6F}    CL  = {self.CL: .6F}
+ CD0 = {self.CD0: .6F}    CDi = {self.CDi: .6F}    CDw = {self.CDw: .6F}
+ Cl  = {self.Cl: .6F}    Cm  = {self.Cm: .6F}    Cn  = {self.Cn: .6F}
+ Cli = {np.nan: .6F}    Cmi = {np.nan: .6F}    Cni = {self.Cni: .6F}"""
+        ).replace("NAN", "     NAN")
         return returnstr
 
     def __or__(self, other):
@@ -124,7 +126,7 @@ class WingSolution(object):
         # Schrödinger's variable style, when using an interactive debugger. For
         # your own sanity, these parameters are now saved into definite vars.
         accessed_self = self._accessed
-        accessed_other = other._accessed
+        accessed_other = getattr(other, "_accessed")
 
         # If both solutions depend on a parameter, make sure they are similar
         common_attrs = set(accessed_self) & set(accessed_other)
@@ -145,7 +147,7 @@ class WingSolution(object):
         }
 
         # Find performance parameters of self and other, combine them
-        to_combine = "CL,CDi,CD0,CD,CY,Cl,Cm,Cn,Cni,x_cp".split(",")
+        to_combine = "CL,CD0,CDi,CDw,CD,CY,Cl,Cm,Cn,Cni,x_cp".split(",")
         result_self = {attr: getattr(self, attr) for attr in to_combine}
         result_other = {attr: getattr(other, attr) for attr in to_combine}
         result_new = {
@@ -211,13 +213,6 @@ class WingSolution(object):
         return self._CL
 
     @property
-    def CDi(self) -> float:
-        """Induced component of wing's coefficient of drag, CDi."""
-        if self._CDi is NotImplemented:
-            return np.nan
-        return self._CDi
-
-    @property
     def CD0(self) -> float:
         """Profile component of wing's coefficient of drag, CD0."""
         if self._CD0 is NotImplemented:
@@ -225,17 +220,31 @@ class WingSolution(object):
         return self._CD0
 
     @property
+    def CDi(self) -> float:
+        """Induced component of wing's coefficient of drag, CDi."""
+        if self._CDi is NotImplemented:
+            return np.nan
+        return self._CDi
+
+    @property
+    def CDw(self) -> float:
+        """Wave component of wing's coefficient of drag, CDw."""
+        if self._CDw is NotImplemented:
+            return np.nan
+        return self._CDw
+
+    @property
     def CD(self) -> float:
         """Wing coefficient of drag (profile + induced), CD."""
         if self._CD is NotImplemented:
-            return self.CD0 + self.CDi
+            return self.CD0 + self.CDi + self.CDw
         elif np.isclose(self._CD, self.CD0 + self.CDi):
             return self._CD
         else:
             errormsg = (
                 f"Total wing drag coefficient CD is not equal to the sum of "
-                f"component profile and induced drags! ({self._CD} != "
-                f"{self.CD0=} + {self.CDi})"
+                f"component profile, induced, and wave drags! ({self._CD} != "
+                f"{self.CD0=} + {self.CDi} + {self.CDw=})"
             )
             raise ValueError(errormsg)
 
@@ -434,7 +443,7 @@ class PrandtlLLT(WingSolution):
             aoa = self.alpha + sec.twist  # Effective angle of attack
             soln_thinaero = ThinAerofoil(aerofoil=sec.aerofoil, alpha=aoa)
             alpha_zl.append(soln_thinaero.alpha_zl - sec.twist)  # Eff. zerolift
-            Clalpha.append(soln_thinaero.Clalpha)
+            Clalpha.append(soln_thinaero.CLalpha)
 
         chord, alpha_zl, Clalpha = map(cast2numpy, (chord, alpha_zl, Clalpha))
 
@@ -654,6 +663,16 @@ class HorseshoeVortex(WingSolution):
         # self._CY = self._sectionCY.sum()  # Unsure if direction is correct...
         self._CL = self._sectionCL.sum()
 
+        return
+
+
+class ZeroWave(WingSolution):
+    """A ZeroWave object is only exists to declare that wave drag is nil."""
+
+    def __init__(self, wingsections, altitude: Hint.num, TAS: Hint.num,
+                 **kwargs):
+        super().__init__(wingsections, altitude, TAS, **kwargs)
+        self._CDw = 0.0
         return
 
 # class Cantilever1DStatic(WingSolution):

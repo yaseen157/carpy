@@ -28,7 +28,7 @@ class ThinAerofoilTheory(unittest.TestCase):
         """Thin aerofoil theory suggests ideal lift slope of 2 pi."""
         flatplate = NewAerofoil.from_method.NACA("0001")
         solution = ThinAerofoil(aerofoil=flatplate, alpha=0)
-        Clalpha = solution.Clalpha
+        Clalpha = solution.CLalpha
         self.assertAlmostEqual(Clalpha, 2 * 3.1415926535, places=5)
         return
 

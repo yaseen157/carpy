@@ -16,9 +16,9 @@ class AerofoilSolution(object):
     """
     Template object, of which solvers should aim to produce all attributes of.
     """
-    _Cd: float
-    _Cl: float
-    _Clalpha: float
+    _CD: float
+    _CL: float
+    _CLalpha: float
     _Cm: Hint.func
     _Cm_ac: float
     _x_ac: float
@@ -26,29 +26,31 @@ class AerofoilSolution(object):
     _alpha_zl: float
 
     def __str__(self):
-        params = ["Cd", "Cl", "Clalpha", "Cm_ac", "x_ac", "x_cp", "alpha_zl"]
+        params = ["CD", "CL", "CLalpha", "Cm_ac", "x_ac", "x_cp", "alpha_zl"]
 
-        return_string = f"{type(self).__name__}\n"
+        return_string = f"{type(self).__name__}:\n"
+        return_string += "-" * len(return_string)
         for param in params:
             if hasattr(self, f"_{param}"):
-                return_string += f">\t{param:<8} = {getattr(self, param)}\n"
+                # The ': ' specifier keeps a space for the sign of a -ve number
+                return_string += f"\n {param:<8} = {getattr(self, param): 6F}"
 
         return return_string
 
     @property
-    def Cd(self) -> float:
+    def CD(self) -> float:
         """Sectional pressure drag coefficient."""
-        return self._Cd
+        return self._CD
 
     @property
-    def Cl(self) -> float:
+    def CL(self) -> float:
         """Sectional lift coefficient."""
-        return self._Cl
+        return self._CL
 
     @property
-    def Clalpha(self) -> float:
+    def CLalpha(self) -> float:
         """Sectional lift-curve slope."""
-        return self._Clalpha
+        return self._CLalpha
 
     @property
     def Cm(self) -> Hint.func:
@@ -157,18 +159,18 @@ class ThinAerofoil(AerofoilSolution):
         return
 
     @property
-    def _Cd(self) -> float:
+    def _CD(self) -> float:
         """The sectional drag coefficient."""
-        return 0
+        return 0.0
 
     @property
-    def _Cl(self) -> float:
+    def _CL(self) -> float:
         """The sectional lift coefficient."""
-        cl = float(self._Clalpha * (self._A0 + self._f_An(1) / 2))
+        cl = float(self._CLalpha * (self._A0 + self._f_An(1) / 2))
         return cl
 
     @property
-    def _Clalpha(self) -> float:
+    def _CLalpha(self) -> float:
         """The sectional lift-curve slope."""
         a0 = 2 * np.pi
         return a0
@@ -177,7 +179,7 @@ class ThinAerofoil(AerofoilSolution):
         # Recast as necessary
         x = cast2numpy(x)
 
-        Cm = self._Cm_ac - (x - 0.25) * self._Cl
+        Cm = self._Cm_ac - (x - 0.25) * self._CL
 
         return Cm
 
@@ -197,7 +199,7 @@ class ThinAerofoil(AerofoilSolution):
     def _x_cp(self) -> float:
         """The chordwise position of the centre of pressure."""
         A1, A2 = self._f_An([1, 2])
-        xc_cp = 0.25 * (1 + np.pi / self._Cl * (A2 - A1))
+        xc_cp = 0.25 * (1 + np.pi / self._CL * (A2 - A1))
 
         if xc_cp < 0:
             return np.nan
