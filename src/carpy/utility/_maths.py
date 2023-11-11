@@ -127,7 +127,7 @@ def point_diff(y: Hint.num, x: Hint.num = None) -> np.ndarray:
 
     Returns:
         The averaged differentials of the array, mapped back to the same shape
-        as (,and the original location prescribed by) the inputs.
+            and same x-ordinates of the original input arrays.
 
     """
     # Recast as necessary

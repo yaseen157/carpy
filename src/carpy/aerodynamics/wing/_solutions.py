@@ -6,7 +6,7 @@ import numpy as np
 from carpy.aerodynamics.aerofoil import ThinAerofoil
 from carpy.environment import LIBREF_ATM
 from carpy.utility import (
-    Hint, Quantity, call_count, cast2numpy, constants as co, moving_average)
+    Hint, Quantity, cast2numpy, constants as co, moving_average)
 
 __all__ = ["MixedBLDrag", "PrandtlLLT", "HorseshoeVortex", "ZeroWave"]
 __author__ = "Yaseen Reza"
@@ -119,7 +119,7 @@ class WingSolution(object):
         # Use symmetric difference of wingsections sets
         memoryset_self = set([hex(id(x)) for x in self.wingsections])
         memoryset_other = set([hex(id(x)) for x in other.wingsections])
-        assert len(memoryset_self ^ memoryset_other) is 0, errormsg
+        assert len(memoryset_self ^ memoryset_other) == 0, errormsg
 
         # ... do the solutions have compatible flight conditions?
         # Observing the following private attributes can change their value,

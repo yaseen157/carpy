@@ -9,10 +9,10 @@ from sectionproperties.analysis.section import Section
 from sectionproperties.pre.geometry import Geometry
 
 from carpy.utility import Hint, cast2numpy, isNone, point_curvature, point_diff
-from ._generators import (
+from ._profiles_generators import (
     NACA4DigitSeries, NACA4DigitModifiedSeries,
     NACA5DigitSeries, NACA5DigitModifiedSeries,
-    NACA16Series
+    NACA16Series, ThinParabolic
 )
 
 __all__ = ["NewAerofoil", "Aerofoil"]
@@ -33,7 +33,7 @@ def parse_datfile(coordinates) -> tuple[np.ndarray, np.ndarray]:
     Args:
         coordinates: Raw Selig format, raw Lednicer format, tuple of arrays,
             list of arrays, or an array describing aerofoil geometry. The data
-            must be two dimensional, with one axis of size two.
+            must be two-dimensional, with one axis of size two.
 
     Returns:
         tuple: Two 2D arrays, describing points in upper and lower surfaces of
@@ -198,7 +198,7 @@ class ProceduralProfiles(object):
     """A collection of procedural aerofoil profile generators."""
 
     @staticmethod
-    def NACA(code: str, N=100):
+    def NACA(code: str, N: int = None):
         """
         Create a NACA 4-digit, 4-digit modified, 5-digit, 5-digit modified,
         or 16 series aerofoil.
@@ -224,6 +224,9 @@ class ProceduralProfiles(object):
             >>>     ProceduralProfiles.NACA(code=v, N=60).show()
 
         """
+        # Recast as necessary
+        N = 100 if N is None else int(N)
+
         naca_classes = [
             NACA4DigitSeries, NACA4DigitModifiedSeries,
             NACA5DigitSeries, NACA5DigitModifiedSeries,
@@ -240,6 +243,27 @@ class ProceduralProfiles(object):
                 f"series: {[x.__name__ for x in naca_classes]}"
             )
             raise ValueError(errormsg)
+
+    @staticmethod
+    def ThinParabolic(epsilon, N=None):
+        """
+        Produce a zero-thickness aerofoil with parabolic camber.
+
+        Args:
+            epsilon: Argument of camber. Zero here would produce an uncambered
+                aerofoil.
+            N: The number of control points on each of upper and lower surfaces.
+                Optional, defaults to 100 points on each surface (N=100).
+
+        Returns:
+            An Aerofoil object.
+
+        """
+        # Recast as necessary
+        N = 100 if N is None else int(N)
+
+        aerofoil = Aerofoil(points=ThinParabolic(epsilon=epsilon).nd_xy(N=N))
+        return aerofoil
 
 
 # ============================================================================ #
@@ -309,7 +333,7 @@ class Aerofoil(object):
             del upper_points, lower_points
 
         self._points = points  # This is a counter-clockwise sequence from TE
-        self._section = None  # Empty, until its time to compute it via property
+        self._section = None  # Empty until it's time to compute it via property
 
         # Determine the coordinates representing the leading edge from curvature
         self._curvature = abs(point_curvature(*points.T))  # Unsigned curvature

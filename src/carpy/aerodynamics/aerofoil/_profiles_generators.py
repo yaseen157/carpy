@@ -591,7 +591,7 @@ class NACA6Series(BaseNACA):
 
         # The next case throws an error because it does not make physical sense.
         # If the aerofoil must maintain uniform loading, and then decrease to
-        # zero loading by point b - it doesn't make sense for a to be >= b.
+        # zero loading by point b - it doesn't make sense for 'a' to be >= 'b'.
         elif a >= b:
             errormsg = (
                 f"Extent of uniform loading '{a=}' cannot be greater than or "
@@ -680,3 +680,18 @@ class NACA16Series(BaseNACA):
         self._parsed.LEri = 4
         self._parsed.t_max_x = 0.5
         return
+
+
+class ThinParabolic(BaseProfile):
+    def __init__(self, epsilon: Hint.num):
+        self._epsilon = epsilon
+        return
+
+    def _f_nd_yz(self, x):
+        """Private camber line function."""
+        yz = 4 * self._epsilon * x * (1 - x)
+        return yz
+
+    def _f_nd_yt(self, x):
+        """Private thickness distribution function."""
+        return np.ones_like(x) * 1e-3

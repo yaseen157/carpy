@@ -18,7 +18,7 @@ import numpy as np
 import scipy.integrate as sint
 
 from carpy.utility import Hint, cast2numpy
-from ._solvers import AerofoilSolution
+from ._solutions import AerofoilSolution
 
 __all__ = ["InviscidPanelMethod"]
 __author__ = "Yaseen Reza"
@@ -477,15 +477,15 @@ class PanelSolution(object):
 class InviscidPanelMethod(PanelSolution, AerofoilSolution):
     """A method for deriving the pressure distribution on an aerofoil."""
 
-    def __init__(self, aerofoil, alpha: Hint.num, N: int = None):
+    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
         """
         Args:
             aerofoil: Aerofoil object.
             alpha: Angle of attack.
-            N: Number of discretised points in the aerofoil's surface.
+            Npanels: Number of discretised points in the aerofoil's surface.
         """
         # Make super class call
-        super().__init__(aerofoil, alpha, N)
+        super().__init__(aerofoil, alpha, Npanels)
 
         # !!! Without wake panels, Cl and Cd cannot be trusted apparently
         # https://www.symscape.com/blog/why_use_panel_method

@@ -47,9 +47,7 @@ class SimpleWaveFlow(unittest.TestCase):
             labelbottom=False
         )
         ax.set_ylabel("$\mu$ [degrees]")
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
+        ax.spines[["top", "right", "bottom"]].set_visible(False)  # Hide borders
 
         # Grid control
         major_ticks = np.arange(0, 1.1, 0.1)

@@ -20,15 +20,29 @@ class AerofoilSolution(object):
     _CL: float
     _CLalpha: float
     _Cm: Hint.func
+    _Cm_0: float
     _Cm_ac: float
     _x_ac: float
     _x_cp: float
     _alpha_zl: float
 
+    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
+        """
+        Args:
+            aerofoil: Aerofoil object.
+            alpha: Angle of attack.
+            Npanels: Number of panels to use. Optional, defaults to 80.
+        """
+        # Recast as necessary
+        self._aerofoil = aerofoil
+        self._alpha = alpha
+        self._Npanels = 80 if Npanels is None else int(Npanels)
+        return
+
     def __str__(self):
         params = ["CD", "CL", "CLalpha", "Cm_ac", "x_ac", "x_cp", "alpha_zl"]
 
-        return_string = f"{type(self).__name__}:\n"
+        return_string = f"{self._aerofoil}:\n"
         return_string += "-" * len(return_string)
         for param in params:
             if hasattr(self, f"_{param}"):
@@ -58,8 +72,13 @@ class AerofoilSolution(object):
         return self._Cm
 
     @property
+    def Cm_0(self) -> float:
+        """Sectional moment coefficient, taken about the leading edge."""
+        return self._Cm_0
+
+    @property
     def Cm_ac(self) -> float:
-        """Sectional moment coefficient, at the aerofoil aerodynamic centre."""
+        """Sectional moment coefficient, taken about the aerodynamic centre."""
         return self._Cm_ac
 
     @property
@@ -100,19 +119,22 @@ class ThinAerofoil(AerofoilSolution):
         -   Fundamentals of Aerodynamics 6th Ed. Chapter 4, John D. Anderson Jr.
     """
 
-    def __init__(self, aerofoil, alpha: Hint.num, N: int = None):
+    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
         """
         Args:
             aerofoil: Aerofoil object.
             alpha: Angle of attack.
-            N: Number of discretised points in the aerofoil's camber line.
+            Npanels: Number of panels to use in solution. Optional, defaults to 80.
         """
-        # Recast as necessary
-        N = 100 if N is None else int(N)
+        # Super class call
+        super().__init__(aerofoil, alpha, Npanels)
+
+        Npoints = self._Npanels + 1
+        panelsize = 1 / self._Npanels
 
         # Fundamental equation of thin aerofoil theory, fourier cosine expansion
-        xs = (1 - np.cos((theta := np.linspace(0, np.pi, N)))) / 2
-        zs = np.interp(xs, *aerofoil._camber_points(step_target=0.05).T)
+        xs = (1 - np.cos((theta := np.linspace(0, np.pi, Npoints)))) / 2
+        zs = np.interp(xs, *aerofoil._camber_points(step_target=panelsize).T)
         dz_dx = point_diff(y=zs, x=xs)
 
         def f_A0(alpha: np.ndarray) -> np.ndarray:
@@ -209,10 +231,11 @@ class ThinAerofoil(AerofoilSolution):
     @property
     def _alpha_zl(self) -> float:
         """The angle of attack that produces zero lift."""
+        panelsize = 1 / self._Npanels
         # Find points describing camber, and redistribute this in cosine spacing
-        xcamber, ycamber = self._aerofoil._camber_points(step_target=0.05).T
+        xcamb, ycamb = self._aerofoil._camber_points(step_target=panelsize).T
         xs = (1 - np.cos((theta := np.linspace(0, np.pi, 100)))) / 2
-        dz_dx = np.interp(xs, xcamber, point_diff(y=ycamber, x=xcamber))
+        dz_dx = np.interp(xs, xcamb, point_diff(y=ycamb, x=xcamb))
 
         alpha_zl = (1 / np.pi) * simpson(dz_dx * (2 * xs), theta)
         return alpha_zl
