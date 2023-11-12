@@ -176,8 +176,12 @@ class Combinatorics(unittest.TestCase):
     """Test that interactions between Wing Solutions make sense"""
 
     def test_union(self):
-        """Can methods combine?"""
-        mysections = SampleWings.SUHPALazarus()
+        """Test if methods can combine their performance estimates."""
+        try:
+            mysections = SampleWings.SUHPALazarus()
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
 
         aoa = np.radians(3)
         basekwargs = {

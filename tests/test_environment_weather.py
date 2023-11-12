@@ -9,6 +9,10 @@ class METARtoolkit(unittest.TestCase):
 
     def test_fetching(self):
         """Test if we can fetch METAR data."""
-        metars_egll = METARtools.fetch("EGLL")
+        try:
+            metars_egll = METARtools.fetch("EGLL")
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download weather data")
+            return
         self.assertTrue(isinstance(metars_egll[0], str))
         return

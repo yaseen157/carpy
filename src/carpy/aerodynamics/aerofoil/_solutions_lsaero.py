@@ -19,110 +19,212 @@ __author__ = "Yaseen Reza"
 # Support Functions and Classes
 # ---------------------------------------------------------------------------- #
 
-def VOR2D(Gammaj, x, z, xj, zj) -> tuple:
+class PotentialFlow(object):
     """
-    Computes the velocity components (u, w) at (x, z) due to a discrete vortex
-    element of circulation strength Gammaj, located at (xj, zj).
-
-    Args:
-        Gammaj: Circulation strength Gamma of the vortex element.
-        x: Location of a point to compute the velocity at.
-        z: Location of a point to compute the velocity at.
-        xj: Location of the vortex element.
-        zj: Location of the vortex element.
-
-    Returns:
-        Induced velocities (u, w) at point (x, z).
-
+    A collection of methods for computing the induced velocities of various
+    potential flow elements (in 2D).
     """
-    rj_sq = (x - xj) ** 2 + (z - zj) ** 2
 
-    factor = Gammaj / 2 / np.pi / rj_sq
+    @staticmethod
+    def vortex_D(Gammaj, x, z, xj, zj) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a discrete
+        vortex element of circulation strength Gammaj, located at (xj, zj).
 
-    u = factor * (z - zj)
-    w = factor * (xj - x)
+        Args:
+            Gammaj: Circulation strength Gamma of the vortex element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj: Location of the vortex element.
+            zj: Location of the vortex element.
 
-    return u, w
+        Returns:
+            Induced velocities (u, w) at point (x, z).
 
+        """
+        rj_sq = (x - xj) ** 2 + (z - zj) ** 2
 
-def SORC2D(sigmaj, x, z, xj, zj) -> tuple:
-    """
-    Computes the velocity components (u, w) at (x, z) due to a discrete source
-    element of circulation strength sigmaj, located at (xj, zj).
+        factor = Gammaj / 2 / np.pi / rj_sq
 
-    Args:
-        sigmaj: Source strength sigma of the source element.
-        x: Location of a point to compute the velocity at.
-        z: Location of a point to compute the velocity at.
-        xj: Location of the source element.
-        zj: Location of the source element.
+        u = factor * (z - zj)
+        w = factor * (xj - x)
 
-    Returns:
-        Induced velocities (u, w) at point (x, z).
+        return u, w
 
-    """
-    rj_sq = (x - xj) ** 2 + (z - zj) ** 2
+    @staticmethod
+    def source_D(sigmaj, x, z, xj, zj) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a discrete
+        source element of circulation strength sigmaj, located at (xj, zj).
 
-    factor = sigmaj / 2 / np.pi / rj_sq
+        Args:
+            sigmaj: Source strength sigma of the source element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj: Location of the source element.
+            zj: Location of the source element.
 
-    u = factor * (x - xj)
-    w = factor * (z - zj)
+        Returns:
+            Induced velocities (u, w) at point (x, z).
 
-    return u, w
+        """
+        rj_sq = (x - xj) ** 2 + (z - zj) ** 2
 
+        factor = sigmaj / 2 / np.pi / rj_sq
 
-def SORC2DC(sigmaj, x, z, xj0, zj0, xj1, zj1) -> tuple:
-    """
-    Computes the velocity components (u, w) at (x, z) due to a panel source
-    element of constant circulation strength sigmaj, with end points of the
-    panel located by (xj0, zj0) and (xj1, zj1).
+        u = factor * (x - xj)
+        w = factor * (z - zj)
 
-    Args:
-        sigmaj: Source strength sigma of the source element.
-        x: Location of a point to compute the velocity at.
-        z: Location of a point to compute the velocity at.
-        xj0: Location of endpoint 0 of a source panel.
-        zj0: Location of endpoint 0 of a source panel.
-        xj1: Location of endpoint 1 of a source panel.
-        zj1: Location of endpoint 1 of a source panel.
+        return u, w
 
-    Returns:
-        Induced velocities (u, w) at point (x, z).
+    @staticmethod
+    def source_C(sigmaj, x, z, xj0, zj0, xj1, zj1) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a panel source
+        element of constant circulation strength sigmaj, with end points of the
+        panel located by (xj0, zj0) and (xj1, zj1).
 
-    Notes:
-        The location of the panel endpoints are expected to be given in
-            counter-clockwise order (from the trailing edge of the aerofoil).
+        Args:
+            sigmaj: Source strength sigma of the source element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj0: Location of endpoint 0 of a source panel.
+            zj0: Location of endpoint 0 of a source panel.
+            xj1: Location of endpoint 1 of a source panel.
+            zj1: Location of endpoint 1 of a source panel.
 
-    """
-    # Locate coordinates
-    xz = np.vstack([x.flat, z.flat])
-    xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
+        Returns:
+            Induced velocities (u, w) at point (x, z).
 
-    # Find the angle of the panel's coordinate system w.r.t global system
-    # panel orientation angle, as defined by Katz and Plotkin
-    alpha = float(np.pi - np.arctan2(*np.diff(xz_panel)[::-1]))
-    rot_panel2global = np.array([
-        [np.cos(alpha), np.sin(alpha)], [-np.sin(alpha), np.cos(alpha)]])
-    rot_global2panel = np.linalg.inv(rot_panel2global)
+        """
+        # Locate coordinates
+        xz = np.vstack([x.flat, z.flat])
+        xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
 
-    # Locate coordinates in the panel reference system
-    origin = xz_panel[:, 1][:, None]  # place origin at (xj1, zj1)
-    xz_p = rot_global2panel @ (xz - origin)
-    xz_p_panel = rot_global2panel @ (xz_panel - origin)
+        # Find the angle of the panel's coordinate system w.r.t global system
+        # panel orientation angle, as defined by Katz and Plotkin
+        alpha = float(np.pi - np.arctan2(*np.diff(xz_panel)[::-1]))
+        rot_panel2global = np.array([
+            [np.cos(alpha), np.sin(alpha)], [-np.sin(alpha), np.cos(alpha)]])
+        rot_global2panel = np.linalg.inv(rot_panel2global)
 
-    # Compute induced velocities using the panel reference system
-    factor = sigmaj / 2 / np.pi
-    r1_sq = (xz_p[0] - xz_p_panel[0][1]) ** 2 + xz_p[1] ** 2
-    r2_sq = (xz_p[0] - xz_p_panel[0][0]) ** 2 + xz_p[1] ** 2
-    u_p = 0.5 * factor * np.log(r1_sq / r2_sq)
-    theta1 = np.arctan2(xz_p[1], (xz_p[0] - xz_p_panel[0][1]))
-    theta2 = np.arctan2(xz_p[1], (xz_p[0] - xz_p_panel[0][0]))
-    w_p = factor * (theta2 - theta1)
+        # Locate coordinates in the panel reference system
+        origin = xz_panel[:, 1][:, None]  # place origin at (xj1, zj1)
+        xz_p = rot_global2panel @ (xz - origin)
+        xz_p_panel = rot_global2panel @ (xz_panel - origin)
 
-    # Transform induced velocities back into the global frame
-    u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+        # Compute induced velocities using the panel reference system
+        factor = sigmaj / 2 / np.pi
+        r1_sq = (xz_p[0] - xz_p_panel[0][1]) ** 2 + xz_p[1] ** 2
+        r2_sq = (xz_p[0] - xz_p_panel[0][0]) ** 2 + xz_p[1] ** 2
+        u_p = 0.5 * factor * np.log(r1_sq / r2_sq)
+        theta1 = np.arctan2(xz_p[1], (xz_p[0] - xz_p_panel[0][1]))
+        theta2 = np.arctan2(xz_p[1], (xz_p[0] - xz_p_panel[0][0]))
+        w_p = factor * (theta2 - theta1)
 
-    return u, w
+        # Transform induced velocities back into the global frame
+        u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+
+        return u, w
+
+    @staticmethod
+    def doublet_C(muj, x, z, xj0, zj0, xj1, zj1) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a panel doublet
+        element of constant strength muj, with end points of the
+        panel located by (xj0, zj0) and (xj1, zj1).
+
+        Args:
+            muj: Doublet strength mu of the doublet element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj0: Location of endpoint 0 of a source panel.
+            zj0: Location of endpoint 0 of a source panel.
+            xj1: Location of endpoint 1 of a source panel.
+            zj1: Location of endpoint 1 of a source panel.
+
+        Returns:
+            Induced velocities (u, w) at point (x, z).
+
+        """
+        # Locate coordinates
+        xz = np.vstack([x.flat, z.flat])
+        xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
+
+        # Find the angle of the panel's coordinate system w.r.t global system
+        # panel orientation angle, as defined by Katz and Plotkin
+        alpha = float(np.pi - np.arctan2(*np.diff(xz_panel)[::-1]))
+        rot_panel2global = np.array([
+            [np.cos(alpha), np.sin(alpha)], [-np.sin(alpha), np.cos(alpha)]])
+        rot_global2panel = np.linalg.inv(rot_panel2global)
+
+        # Locate coordinates in the panel reference system
+        origin = xz_panel[:, 1][:, None]  # place origin at (xj1, zj1)
+        xz_p = rot_global2panel @ (xz - origin)
+        xz_p_panel = rot_global2panel @ (xz_panel - origin)
+
+        # Compute induced velocities using the panel reference system
+        factor = muj / 2 / np.pi
+        r1_sq = (xz_p[0] - xz_p_panel[0][1]) ** 2 + xz_p[1] ** 2
+        r2_sq = (xz_p[0] - xz_p_panel[0][0]) ** 2 + xz_p[1] ** 2
+        u_p = factor * xz_p[1] * (1 / r1_sq - 1 / r2_sq)
+        term1 = (xz_p[0] - xz_p_panel[0][1]) / r1_sq
+        term2 = (xz_p[0] - xz_p_panel[0][0]) / r2_sq
+        w_p = factor * -1 * (term1 - term2)
+
+        # Transform induced velocities back into the global frame
+        u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+
+        return u, w
+
+    @staticmethod
+    def vortex_C(gammaj, x, z, xj0, zj0, xj1, zj1) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a panel vortex
+        element of constant strength gammaj, with end points of the
+        panel located by (xj0, zj0) and (xj1, zj1).
+
+        Args:
+            muj: Vortex strength gamma of the vortex element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj0: Location of endpoint 0 of a source panel.
+            zj0: Location of endpoint 0 of a source panel.
+            xj1: Location of endpoint 1 of a source panel.
+            zj1: Location of endpoint 1 of a source panel.
+
+        Returns:
+            Induced velocities (u, w) at point (x, z).
+
+        """
+        # Locate coordinates
+        xz = np.vstack([x.flat, z.flat])
+        xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
+
+        # Find the angle of the panel's coordinate system w.r.t global system
+        # panel orientation angle, as defined by Katz and Plotkin
+        alpha = float(np.pi - np.arctan2(*np.diff(xz_panel)[::-1]))
+        rot_panel2global = np.array([
+            [np.cos(alpha), np.sin(alpha)], [-np.sin(alpha), np.cos(alpha)]])
+        rot_global2panel = np.linalg.inv(rot_panel2global)
+
+        # Locate coordinates in the panel reference system
+        origin = xz_panel[:, 1][:, None]  # place origin at (xj1, zj1)
+        xz_p = rot_global2panel @ (xz - origin)
+        xz_p_panel = rot_global2panel @ (xz_panel - origin)
+
+        # Compute induced velocities using the panel reference system
+        factor = gammaj / 2 / np.pi
+        dx1, dx2 = xz_p[0] - xz_p_panel[0][1], xz_p[0] - xz_p_panel[0][0]
+        dz1, dz2 = xz_p[1] - xz_p_panel[1][1], xz_p[1] - xz_p_panel[1][0]
+        u_p = factor * (np.arctan2(dz2, dx2) - np.arctan2(dz1, dx1))
+        w_p = factor * -0.5 * np.log(
+            (dx1 ** 2 + dz1 ** 2) / (dx2 ** 2 + dz2 ** 2))
+
+        # Transform induced velocities back into the global frame
+        u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+
+        return u, w
 
 
 # ============================================================================ #
@@ -164,7 +266,7 @@ class DiscreteVortexMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
-                velocity_uw = VOR2D(
+                velocity_uw = PotentialFlow.vortex_D(
                     Gammaj=1.0,
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
@@ -243,7 +345,7 @@ class DiscreteSourceMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
-                velocity_uw = SORC2D(
+                velocity_uw = PotentialFlow.source_D(
                     sigmaj=1.0,
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
@@ -260,7 +362,10 @@ class DiscreteSourceMethod(AerofoilSolution):
         # Resolve velocities tangent to the panels
         Qtis = np.zeros_like(xis)
         for i in range(Qtis.size):  # Loop over collocation points
-            u, w = np.sum(SORC2D(sigmas, xis[i], zis[i], xjs, zjs), axis=1)
+            u, w = np.sum(
+                PotentialFlow.source_D(sigmas, xis[i], zis[i], xjs, zjs),
+                axis=1
+            )
             Qtis[i] = np.dot((u, w) + Q, panel_ts[:, i])
 
         self._xjs = xjs
@@ -306,7 +411,7 @@ class ConstantSourceMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
-                velocity_uw = SORC2DC(
+                velocity_uw = PotentialFlow.source_C(
                     sigmaj=1.0,
                     x=xis[i], z=zis[i],
                     xj0=xj0s[j], zj0=zj0s[j],

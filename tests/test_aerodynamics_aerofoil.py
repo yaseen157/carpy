@@ -5,7 +5,7 @@ import numpy as np
 
 from carpy.aerodynamics.aerofoil import (
     NewAerofoil, ThinAerofoil, DiscreteVortexMethod)
-from carpy.aerodynamics.aerofoil._solutions_lsaero import VOR2D, SORC2D, SORC2DC
+from carpy.aerodynamics.aerofoil._solutions_lsaero import PotentialFlow
 from carpy.utility import GetPath
 
 
@@ -59,7 +59,8 @@ class ThinAerofoilTheory(unittest.TestCase):
         return
 
 
-class LowSpeedAero2D(unittest.TestCase):
+class PotentialFlowElements(unittest.TestCase):
+    """Test elements of potential flow (in 2D)."""
 
     def test_discretevortex(self):
         """Check that the flowfield around a vortex makes sense."""
@@ -70,7 +71,9 @@ class LowSpeedAero2D(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, Gamma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = VOR2D(Gammaj=Gamma, x=xgrid, z=zgrid, xj=0, zj=0)
+            U, W = PotentialFlow.vortex_D(
+                Gammaj=Gamma, x=xgrid, z=zgrid, xj=0, zj=0
+            )
             V = (U ** 2 + W ** 2) ** 0.5
             Uhat = U / V  # Normalised U velocities (x-direction)
             What = W / V  # Normalised W velocities (z-direction)
@@ -113,7 +116,9 @@ class LowSpeedAero2D(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, sigma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = SORC2D(sigmaj=sigma, x=xgrid, z=zgrid, xj=0, zj=0)
+            U, W = PotentialFlow.source_D(
+                sigmaj=sigma, x=xgrid, z=zgrid, xj=0, zj=0
+            )
             V = (U ** 2 + W ** 2) ** 0.5
             Uhat = U / V  # Normalised U velocities (x-direction)
             What = W / V  # Normalised W velocities (z-direction)
@@ -155,11 +160,13 @@ class LowSpeedAero2D(unittest.TestCase):
         X, Z = np.meshgrid(x, z)
 
         # Define source panel
-        panel = {"xj0": 0.5, "xj1": -0.5, "zj0": 0, "zj1": 0}
+        panel = {"xj0": 1.5, "xj1": -1.5, "zj0": 0, "zj1": 0}
 
         def compute_plotting_params(xgrid, zgrid, sigma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = SORC2DC(sigmaj=sigma, x=xgrid, z=zgrid, **panel)
+            U, W = PotentialFlow.source_C(
+                sigmaj=sigma, x=xgrid, z=zgrid, **panel
+            )
             V = (U ** 2 + W ** 2) ** 0.5
             Uhat = U / V  # Normalised U velocities (x-direction)
             What = W / V  # Normalised W velocities (z-direction)
@@ -196,9 +203,121 @@ class LowSpeedAero2D(unittest.TestCase):
 
         figpath = GetPath.localpackage("out/PotentialFlow2D_ConstantSource.png")
         plt.savefig(figpath)
-
         return
 
+    def test_constantdoublet(self):
+        """Check that the flowfield around a doublet makes sense."""
+        # Define grid
+        x = np.linspace(-2, 2, 20)
+        z = x.copy()
+        X, Z = np.meshgrid(x, z)
+
+        # Define source panel
+        panel = {"xj0": 1.5, "xj1": -1.5, "zj0": 0, "zj1": 0}
+
+        def compute_plotting_params(xgrid, zgrid, mu):
+            """Get direction vectors Uhat and What, and velocity magnitude."""
+            U, W = PotentialFlow.doublet_C(
+                muj=mu, x=xgrid, z=zgrid, **panel
+            )
+            V = (U ** 2 + W ** 2) ** 0.5
+            Uhat = U / V  # Normalised U velocities (x-direction)
+            What = W / V  # Normalised W velocities (z-direction)
+            return Uhat, What, V
+
+        data_sorc = compute_plotting_params(X, Z, mu=1)
+        data_sink = compute_plotting_params(X, Z, mu=-1)
+        data = [data_sorc, data_sink]
+        colour = ["blue", "orange"]
+
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3.3), dpi=140)
+        fig.suptitle("Constant Strength Doublet Panel in 2D", size="x-large")
+
+        for i, ax in enumerate(axs.flat):
+            ax.quiver(X, Z, *data[i], scale=20, headwidth=6)
+            ax.streamplot(X, Z, *data[i][0:2], density=0.5, color=colour[i])
+            ax.plot(
+                [panel["xj0"], panel["xj1"]],
+                [panel["zj0"], panel["zj1"]],
+                c="k", lw=2
+            )
+            ax.spines[["top", "right", "bottom", "left"]].set_visible(False)
+            ax.tick_params(
+                axis='both',  # changes apply to the both x and y axes
+                bottom=False,  # ticks along the bottom edge are off
+                left=False,  # ticks along the left edge are off
+                labelbottom=False,  # displayed values are off
+                labelleft=False
+            )
+            ax.set_aspect(1)
+        else:
+            # axs[0].set_title("<=\n<=\n<=", rotation=90, size="medium")
+            # axs[0].set_xlabel("<=\n<=\n<=", rotation=90, size="medium")
+            # axs[1].set_title("=>\n=>\n=>", rotation=90, size="medium")
+            # axs[1].set_xlabel("=>\n=>\n=>", rotation=90, size="medium")
+            axs[0].set_title("Downwash")
+            axs[1].set_title("Upwash")
+
+        figpath = GetPath.localpackage(
+            "out/PotentialFlow2D_ConstantDoublet.png")
+        plt.savefig(figpath)
+        return
+
+    def test_constantvortex(self):
+        """Check that the flowfield around a vortex makes sense."""
+        # Define grid
+        x = np.linspace(-2, 2, 20)
+        z = x.copy()
+        X, Z = np.meshgrid(x, z)
+
+        # Define source panel
+        panel = {"xj0": 1.5, "xj1": -1.5, "zj0": 0, "zj1": 0}
+
+        def compute_plotting_params(xgrid, zgrid, gamma):
+            """Get direction vectors Uhat and What, and velocity magnitude."""
+            U, W = PotentialFlow.vortex_C(
+                gammaj=gamma, x=xgrid, z=zgrid, **panel
+            )
+            V = (U ** 2 + W ** 2) ** 0.5
+            Uhat = U / V  # Normalised U velocities (x-direction)
+            What = W / V  # Normalised W velocities (z-direction)
+            return Uhat, What, V
+
+        data_sorc = compute_plotting_params(X, Z, gamma=1)
+        data_sink = compute_plotting_params(X, Z, gamma=-1)
+        data = [data_sorc, data_sink]
+        colour = ["blue", "orange"]
+
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3.3), dpi=140)
+        fig.suptitle("Constant Strength Vortex Panel in 2D", size="x-large")
+
+        for i, ax in enumerate(axs.flat):
+            ax.quiver(X, Z, *data[i], scale=20, headwidth=6)
+            ax.streamplot(X, Z, *data[i][0:2], density=0.5, color=colour[i])
+            ax.plot(
+                [panel["xj0"], panel["xj1"]],
+                [panel["zj0"], panel["zj1"]],
+                c="k", lw=2
+            )
+            ax.spines[["top", "right", "bottom", "left"]].set_visible(False)
+            ax.tick_params(
+                axis='both',  # changes apply to the both x and y axes
+                bottom=False,  # ticks along the bottom edge are off
+                left=False,  # ticks along the left edge are off
+                labelbottom=False,  # displayed values are off
+                labelleft=False
+            )
+            ax.set_aspect(1)
+        else:
+            axs[0].set_title("Clockwise")
+            axs[1].set_title("Anti-clockwise")
+
+        figpath = GetPath.localpackage("out/PotentialFlow2D_ConstantVortex.png")
+        plt.savefig(figpath)
+        return
+
+
+class LowSpeedAero(unittest.TestCase):
     def test_discretevortexmethod_flatplate(self):
         """Test Discrete Vortex Method with flat plate results."""
         aoa = np.radians(10)
@@ -209,7 +328,7 @@ class LowSpeedAero2D(unittest.TestCase):
 
         # Zero lift? Zero drag!
         self.assertEqual(soln0.CL, 0.0)
-        self.assertEqual(soln1.CD, 0.0)
+        self.assertEqual(soln0.CD, 0.0)
 
         # Lift slope of 2 pi according to thin aerofoil theory
         self.assertAlmostEqual(soln1.CL, aoa * (2 * np.pi), places=1)  # poor?
