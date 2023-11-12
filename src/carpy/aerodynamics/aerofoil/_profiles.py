@@ -70,19 +70,24 @@ def parse_datfile(coordinates) -> tuple[np.ndarray, np.ndarray]:
         errormsg = f"Unsupported input type: {type(coordinates)}"
         raise NotImplementedError(errormsg)
 
-    # Sanity check: Coordinates should be 2D with array shape (n, 2)
+    # Sanity check: Coordinates should be 2D with array shape (2, n)
     for i, array in enumerate(coordinates):
         if (dims := array.ndim) != 2:
             raise ValueError(f"Coordinate array should be 2D (got {dims})")
         if array.shape[0] == 2:
+            coordinates[i] = array
+        else:
             coordinates[i] = array.T
 
     # All non-dimensional coordinate descriptions pass through (0, 0)
     # if Selig style (continuous surface)
     if (n_arrays := len(coordinates)) == 1:
-        zeroes_idx = np.where(~coordinates[0].any(axis=1))[0][0]
-        coordinates = \
-            [coordinates[0][:zeroes_idx + 1][::-1], coordinates[0][zeroes_idx:]]
+        # Look column-wise for any value != 0, then  invert selection to find 0s
+        i_0s = int(np.where(~coordinates[0].any(axis=0))[0])
+        coordinates = [
+            coordinates[0][:, :i_0s + 1][:, :-1],  # Order surface from LE to TE
+            coordinates[0][:, i_0s:]  # Order surface from LE to TE
+        ]
     # if Lednicer style
     elif n_arrays == 2:
         pass
@@ -95,7 +100,7 @@ def parse_datfile(coordinates) -> tuple[np.ndarray, np.ndarray]:
 
     # The upper surface's ordinates average greater than lower surface's...
     surface_u, surface_l = coordinates
-    if np.mean(surface_u[:, 1]) < np.mean(surface_l[:, 1]):
+    if np.mean(surface_u[1, :]) < np.mean(surface_l[1, :]):
         surface_u, surface_l = surface_l, surface_u  # ..., swap if they weren't
 
     return surface_u, surface_l
@@ -508,6 +513,16 @@ class Aerofoil(object):
         return thickness
 
     @property
+    def points(self) -> np.ndarray:
+        """Aerofoil points in an array of shape (n, 2)."""
+        return self._points
+
+    @property
+    def coords(self) -> np.ndarray:
+        """Aerofoil coordinates in an array of shape (2, n)."""
+        return self._points.T
+
+    @property
     def section(self) -> Section:
         """Section properties, for geometric analysis of the aerofoil."""
         # If section has been generated previously, reuse it
@@ -541,7 +556,7 @@ class Aerofoil(object):
         from matplotlib import pyplot as plt
 
         fig, ax = plt.subplots(1, dpi=140)
-        ax.plot(*self._points.T, c="k")
+        ax.plot(*self.coords, c="k")
         camber_points = self._camber_points(step_target=0.05, fast=True)
         ax.plot(*camber_points.T, c="orange")
 

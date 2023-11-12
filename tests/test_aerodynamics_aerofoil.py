@@ -3,8 +3,9 @@ import unittest
 from matplotlib import pyplot as plt
 import numpy as np
 
-from carpy.aerodynamics.aerofoil import NewAerofoil, ThinAerofoil
-from carpy.aerodynamics.aerofoil._solutions_lsaero import VOR2D, SORC2D
+from carpy.aerodynamics.aerofoil import (
+    NewAerofoil, ThinAerofoil, DiscreteVortexMethod)
+from carpy.aerodynamics.aerofoil._solutions_lsaero import VOR2D, SORC2D, SORC2DC
 from carpy.utility import GetPath
 
 
@@ -25,6 +26,26 @@ class Profiles(unittest.TestCase):
         n16_912_3 = NewAerofoil.from_method.NACA("16-912,a=0.3")
         return
 
+    def test_readLednicer_online(self):
+        """Check we can read Lednicer format online files correctly."""
+        url = "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=n0012-il"
+        try:
+            n0012 = NewAerofoil.from_url(url)
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
+        return
+
+    def test_readSelig_online(self):
+        """Check we can read Selig format online files correctly."""
+        url = "http://airfoiltools.com/airfoil/seligdatfile?airfoil=n0012-il"
+        try:
+            n0012 = NewAerofoil.from_url(url)
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
+        return
+
 
 class ThinAerofoilTheory(unittest.TestCase):
     """Methods to test thin aerofoil theory."""
@@ -38,51 +59,7 @@ class ThinAerofoilTheory(unittest.TestCase):
         return
 
 
-class LowSpeedAero(unittest.TestCase):
-
-    def test_discretesource(self):
-        """Check that the flowfield around a source makes sense."""
-        # Define grid
-        x = np.linspace(-2, 2, 20)
-        z = x.copy()
-        X, Z = np.meshgrid(x, z)
-
-        def compute_plotting_params(xgrid, zgrid, sigma):
-            """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = SORC2D(sigmaj=sigma, x=xgrid, z=zgrid, xj=0, zj=0)
-            V = (U ** 2 + W ** 2) ** 0.5
-            Uhat = U / V  # Normalised U velocities (x-direction)
-            What = W / V  # Normalised W velocities (z-direction)
-            return Uhat, What, V
-
-        data_cw = compute_plotting_params(X, Z, sigma=1)
-        data_ccw = compute_plotting_params(X, Z, sigma=-1)
-        data = [data_cw, data_ccw]
-        colour = ["blue", "orange"]
-
-        fig, axs = plt.subplots(1, 2, figsize=(6, 3.3), dpi=140)
-        fig.suptitle("Discrete Source Element in 2D", size="x-large")
-
-        for i, ax in enumerate(axs.flat):
-            ax.quiver(X, Z, *data[i], scale=20, headwidth=6)
-            ax.streamplot(X, Z, *data[i][0:2], density=0.5, color=colour[i])
-            ax.spines[["top", "right", "bottom", "left"]].set_visible(False)
-            ax.tick_params(
-                axis='both',  # changes apply to the both x and y axes
-                bottom=False,  # ticks along the bottom edge are off
-                left=False,  # ticks along the left edge are off
-                labelbottom=False,  # displayed values are off
-                labelleft=False
-            )
-            ax.set_aspect(1)
-        else:
-            axs[0].set_title("Source")
-            axs[1].set_title("Sink")
-
-        figpath = GetPath.localpackage("out/PotentialFlow2D_DiscreteSource.png")
-        plt.savefig(figpath)
-
-        return
+class LowSpeedAero2D(unittest.TestCase):
 
     def test_discretevortex(self):
         """Check that the flowfield around a vortex makes sense."""
@@ -125,7 +102,128 @@ class LowSpeedAero(unittest.TestCase):
 
         figpath = GetPath.localpackage("out/PotentialFlow2D_DiscreteVortex.png")
         plt.savefig(figpath)
+        return
 
+    def test_discretesource(self):
+        """Check that the flowfield around a source makes sense."""
+        # Define grid
+        x = np.linspace(-2, 2, 20)
+        z = x.copy()
+        X, Z = np.meshgrid(x, z)
+
+        def compute_plotting_params(xgrid, zgrid, sigma):
+            """Get direction vectors Uhat and What, and velocity magnitude."""
+            U, W = SORC2D(sigmaj=sigma, x=xgrid, z=zgrid, xj=0, zj=0)
+            V = (U ** 2 + W ** 2) ** 0.5
+            Uhat = U / V  # Normalised U velocities (x-direction)
+            What = W / V  # Normalised W velocities (z-direction)
+            return Uhat, What, V
+
+        data_sorc = compute_plotting_params(X, Z, sigma=1)
+        data_sink = compute_plotting_params(X, Z, sigma=-1)
+        data = [data_sorc, data_sink]
+        colour = ["blue", "orange"]
+
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3.3), dpi=140)
+        fig.suptitle("Discrete Source Element in 2D", size="x-large")
+
+        for i, ax in enumerate(axs.flat):
+            ax.quiver(X, Z, *data[i], scale=20, headwidth=6)
+            ax.streamplot(X, Z, *data[i][0:2], density=0.5, color=colour[i])
+            ax.spines[["top", "right", "bottom", "left"]].set_visible(False)
+            ax.tick_params(
+                axis='both',  # changes apply to the both x and y axes
+                bottom=False,  # ticks along the bottom edge are off
+                left=False,  # ticks along the left edge are off
+                labelbottom=False,  # displayed values are off
+                labelleft=False
+            )
+            ax.set_aspect(1)
+        else:
+            axs[0].set_title("Source")
+            axs[1].set_title("Sink")
+
+        figpath = GetPath.localpackage("out/PotentialFlow2D_DiscreteSource.png")
+        plt.savefig(figpath)
+        return
+
+    def test_constantsource(self):
+        """Check that the flowfield around a source makes sense."""
+        # Define grid
+        x = np.linspace(-2, 2, 20)
+        z = x.copy()
+        X, Z = np.meshgrid(x, z)
+
+        # Define source panel
+        panel = {"xj0": 0.5, "xj1": -0.5, "zj0": 0, "zj1": 0}
+
+        def compute_plotting_params(xgrid, zgrid, sigma):
+            """Get direction vectors Uhat and What, and velocity magnitude."""
+            U, W = SORC2DC(sigmaj=sigma, x=xgrid, z=zgrid, **panel)
+            V = (U ** 2 + W ** 2) ** 0.5
+            Uhat = U / V  # Normalised U velocities (x-direction)
+            What = W / V  # Normalised W velocities (z-direction)
+            return Uhat, What, V
+
+        data_sorc = compute_plotting_params(X, Z, sigma=1)
+        data_sink = compute_plotting_params(X, Z, sigma=-1)
+        data = [data_sorc, data_sink]
+        colour = ["blue", "orange"]
+
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3.3), dpi=140)
+        fig.suptitle("Constant Strength Source Panel in 2D", size="x-large")
+
+        for i, ax in enumerate(axs.flat):
+            ax.quiver(X, Z, *data[i], scale=20, headwidth=6)
+            ax.streamplot(X, Z, *data[i][0:2], density=0.5, color=colour[i])
+            ax.plot(
+                [panel["xj0"], panel["xj1"]],
+                [panel["zj0"], panel["zj1"]],
+                c="k", lw=2
+            )
+            ax.spines[["top", "right", "bottom", "left"]].set_visible(False)
+            ax.tick_params(
+                axis='both',  # changes apply to the both x and y axes
+                bottom=False,  # ticks along the bottom edge are off
+                left=False,  # ticks along the left edge are off
+                labelbottom=False,  # displayed values are off
+                labelleft=False
+            )
+            ax.set_aspect(1)
+        else:
+            axs[0].set_title("Source")
+            axs[1].set_title("Sink")
+
+        figpath = GetPath.localpackage("out/PotentialFlow2D_ConstantSource.png")
+        plt.savefig(figpath)
+
+        return
+
+    def test_discretevortexmethod_flatplate(self):
+        """Test Discrete Vortex Method with flat plate results."""
+        aoa = np.radians(10)
+
+        aerofoil = NewAerofoil.from_method.ThinParabolic(epsilon=0)
+        soln0 = DiscreteVortexMethod(aerofoil, alpha=0)
+        soln1 = DiscreteVortexMethod(aerofoil, alpha=aoa)
+
+        # Zero lift? Zero drag!
+        self.assertEqual(soln0.CL, 0.0)
+        self.assertEqual(soln1.CD, 0.0)
+
+        # Lift slope of 2 pi according to thin aerofoil theory
+        self.assertAlmostEqual(soln1.CL, aoa * (2 * np.pi), places=1)  # poor?
+
+        return
+
+    def test_discretevortexmethod_paraboliccamber(self):
+        """Test Discrete Vortex Method with parabolic camber aerofoil."""
+        aerofoil = NewAerofoil.from_method.ThinParabolic(epsilon=0.04)
+        soln = DiscreteVortexMethod(aerofoil, alpha=0)
+
+        # Thin cambered aerofoil theory, CD is 0 for angle of attack of 0
+        self.assertGreater(soln.CL, 0)
+        self.assertEqual(soln.CD, 0)
         return
 
 

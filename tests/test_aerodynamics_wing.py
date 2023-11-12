@@ -89,7 +89,11 @@ class Aerodynamics(unittest.TestCase):
 
     def test_prandtlllt(self):
         """Check that the prandtl LLT solver runs."""
-        mysections = SampleWings.SUHPALazarus()
+        try:
+            mysections = SampleWings.SUHPALazarus()
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
 
         aoa = np.radians(3)
         basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 10.0}
@@ -98,7 +102,11 @@ class Aerodynamics(unittest.TestCase):
 
     def test_horseshoevortex(self):
         """Check that the horseshoe vortex solver runs."""
-        mysections = SampleWings.SUHPALazarus()
+        try:
+            mysections = SampleWings.SUHPALazarus()
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
 
         aoa = np.radians(3)
         basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 10.0}
@@ -127,7 +135,11 @@ class Aerodynamics(unittest.TestCase):
         # This isn't really the Gudmundsson aerofoil selection either
         url = ("http://airfoiltools.com/airfoil/lednicerdatfile"
                "?airfoil=naca652415-il")
-        aerofoil = NewAerofoil.from_url(url)
+        try:
+            aerofoil = NewAerofoil.from_url(url)
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
 
         mysections = WingSections(b=Quantity(38.3, "ft"))
         mysections[0] = aerofoil

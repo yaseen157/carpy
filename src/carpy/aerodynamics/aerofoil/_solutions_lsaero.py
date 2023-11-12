@@ -5,12 +5,15 @@ References:
         Katz, J. and Plotkin, A., "Low-Speed Aerodynamics: From Wing Theory to
             Panel Methods", McGraw-Hill inc., 1991, pp.302-369.
 """
+import warnings
+
 import numpy as np
 from scipy.integrate import simpson
 
-from carpy.utility import Hint
+from carpy.utility import Hint, moving_average
 from ._solutions import AerofoilSolution
 
+__all__ = ["DiscreteVortexMethod"]
 __author__ = "Yaseen Reza"
 
 
@@ -18,8 +21,7 @@ __author__ = "Yaseen Reza"
 # Support Functions and Classes
 # ---------------------------------------------------------------------------- #
 
-def VOR2D(Gammaj: Hint.num, x: Hint.num, z: Hint.num, xj: Hint.num,
-          zj: Hint.num) -> tuple:
+def VOR2D(Gammaj, x, z, xj, zj) -> tuple:
     """
     Computes the velocity components (u, w) at (x, z) due to a discrete vortex
     element of circulation strength Gammaj, located at (xj, zj).
@@ -32,7 +34,7 @@ def VOR2D(Gammaj: Hint.num, x: Hint.num, z: Hint.num, xj: Hint.num,
         zj: Location of the vortex element.
 
     Returns:
-        Velocities (u, w) at point (x, z).
+        Induced velocities (u, w) at point (x, z).
 
     """
     rj_sq = (x - xj) ** 2 + (z - zj) ** 2
@@ -45,8 +47,7 @@ def VOR2D(Gammaj: Hint.num, x: Hint.num, z: Hint.num, xj: Hint.num,
     return u, w
 
 
-def SORC2D(sigmaj: Hint.num, x: Hint.num, z: Hint.num, xj: Hint.num,
-           zj: Hint.num) -> tuple:
+def SORC2D(sigmaj, x, z, xj, zj) -> tuple:
     """
     Computes the velocity components (u, w) at (x, z) due to a discrete source
     element of circulation strength sigmaj, located at (xj, zj).
@@ -59,7 +60,7 @@ def SORC2D(sigmaj: Hint.num, x: Hint.num, z: Hint.num, xj: Hint.num,
         zj: Location of the source element.
 
     Returns:
-        Velocities (u, w) at point (x, z).
+        Induced velocities (u, w) at point (x, z).
 
     """
     rj_sq = (x - xj) ** 2 + (z - zj) ** 2
@@ -72,13 +73,67 @@ def SORC2D(sigmaj: Hint.num, x: Hint.num, z: Hint.num, xj: Hint.num,
     return u, w
 
 
+def SORC2DC(sigmaj, x, z, xj0, zj0, xj1, zj1) -> tuple:
+    """
+    Computes the velocity components (u, w) at (x, z) due to a panel source
+    element of constant circulation strength sigmaj, with end points of the
+    panel located by (xj0, zj0) and (xj1, zj1).
+
+    Args:
+        sigmaj: Source strength sigma of the source element.
+        x: Location of a point to compute the velocity at.
+        z: Location of a point to compute the velocity at.
+        xj0: Location of endpoint 0 of a source panel.
+        zj0: Location of endpoint 0 of a source panel.
+        xj1: Location of endpoint 1 of a source panel.
+        zj1: Location of endpoint 1 of a source panel.
+
+    Returns:
+        Induced velocities (u, w) at point (x, z).
+
+    Notes:
+        The location of the panel endpoints are expected to be given in
+            counter-clockwise order (from the trailing edge of the aerofoil).
+
+    """
+    # Locate coordinates
+    xz = np.vstack([x.flat, z.flat])
+    xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
+
+    # Find the angle of the panel's coordinate system w.r.t global system
+    # panel orientation angle, as defined by Katz and Plotkin
+    alpha = float(np.pi - np.arctan2(*np.diff(xz_panel)[::-1]))
+    rot_panel2global = np.array([
+        [np.cos(alpha), np.sin(alpha)], [-np.sin(alpha), np.cos(alpha)]])
+    rot_global2panel = np.linalg.inv(rot_panel2global)
+
+    # Locate coordinates in the panel reference system
+    origin = xz_panel[:, 1][:, None]  # place origin at (xj1, zj1)
+    xz_p = rot_global2panel @ (xz - origin)
+    xz_p_panel = rot_global2panel @ (xz_panel - origin)
+
+    # Compute induced velocities using the panel reference system
+    factor = sigmaj / 2 / np.pi
+    r1_sq = (xz_p[0] - xz_p_panel[0][1]) ** 2 + xz_p[1] ** 2
+    r2_sq = (xz_p[0] - xz_p_panel[0][0]) ** 2 + xz_p[1] ** 2
+    u_p = 0.5 * factor * np.log(r1_sq / r2_sq)
+    theta1 = np.arctan2(xz_p[1], (xz_p[0] - xz_p_panel[0][1]))
+    theta2 = np.arctan2(xz_p[1], (xz_p[0] - xz_p_panel[0][0]))
+    w_p = factor * (theta2 - theta1)
+
+    # Transform induced velocities back into the global frame
+    u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+
+    return u, w
+
+
 # ============================================================================ #
 # Public (solution) classes
 # ---------------------------------------------------------------------------- #
 
 class DiscreteVortexMethod(AerofoilSolution):
     """
-    For thin cambered aerofoil problems.
+    Numerical solution for thin cambered aerofoil problems.
     """
 
     def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
@@ -91,8 +146,8 @@ class DiscreteVortexMethod(AerofoilSolution):
 
         # Compute panel normals
         deta_dx = np.diff(ycamb) / np.diff(xcamb)
-        panel_ns = (np.vstack([-deta_dx, np.ones(self._Npanels)]).T
-                    / ((deta_dx[:, None] ** 2 + 1) ** 0.5))
+        panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
+        panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
 
         # Locate vortices
         xjs = xcamb[:-1] + panel_dx * (1 / 4)
@@ -104,7 +159,7 @@ class DiscreteVortexMethod(AerofoilSolution):
 
         # Construct RHS
         Q = np.array([np.cos(alpha), np.sin(alpha)])
-        RHS = np.sum(-Q * panel_ns, axis=1)
+        RHS = np.dot(-Q, panel_ns)
 
         # Spawn an influence coefficient array (each row == one collocation pt.)
         A = np.zeros((self._Npanels, self._Npanels))
@@ -116,7 +171,7 @@ class DiscreteVortexMethod(AerofoilSolution):
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
                 )
-                A[i, j] = (velocity_uw * panel_ns[i]).sum()
+                A[i, j] = np.dot(velocity_uw, panel_ns[:, i])
 
         # Solve for point vortex strengths
         Gammas = np.linalg.solve(A, RHS)
@@ -152,7 +207,7 @@ class DiscreteVortexMethod(AerofoilSolution):
 
 class DiscreteSourceMethod(AerofoilSolution):
     """
-    For thin symmetric aerofoil problems.
+    Numerical solution for symmetric aerofoil problems.
     """
 
     def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
@@ -162,13 +217,13 @@ class DiscreteSourceMethod(AerofoilSolution):
         # Obtain aerofoil surface coordinates
         i_le = np.argmax(self._aerofoil._curvature)
         xupper = np.linspace(0, 1, self._Npanels + 1)
-        yupper = np.interp(xupper, *self._aerofoil._points[:i_le][::-1].T)
+        yupper = np.interp(xupper, *self._aerofoil.points[:i_le][::-1].T)
 
         # Compute panel normals and tangents
         deta_dx = np.diff(yupper) / np.diff(xupper)
-        panel_ns = (np.vstack([-deta_dx, np.ones(self._Npanels)]).T
-                    / ((deta_dx[:, None] ** 2 + 1) ** 0.5))
-        panel_ts = (np.array([[0, 1], [-1, 0]]) @ panel_ns.T).T  # rotate norm
+        panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
+        panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
+        panel_ts = np.array([[0, 1], [-1, 0]]) @ panel_ns  # rotate norm
 
         # Locate sources
         panel_dx = 1 / self._Npanels
@@ -177,11 +232,13 @@ class DiscreteSourceMethod(AerofoilSolution):
 
         # Locate collocation points
         xis = xjs.copy()
+        xis[0] -= panel_dx * (2 / 5)  # Translate first collocation towards LE
+        xis[-1] += panel_dx * (2 / 5)  # Translate last collocation towards TE
         zis = np.interp(xis, xupper, yupper)
 
         # Construct RHS
         Q = np.array([np.cos(alpha), np.sin(alpha)])
-        RHS = np.sum(-Q * panel_ns, axis=1)
+        RHS = np.dot(-Q, panel_ns)
 
         # Spawn an influence coefficient array (each row == one collocation pt.)
         A = np.zeros((self._Npanels, self._Npanels))
@@ -193,15 +250,77 @@ class DiscreteSourceMethod(AerofoilSolution):
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
                 )
-                A[i, j] = (velocity_uw * panel_ns[i]).sum()
+                A[i, j] = np.dot(velocity_uw, panel_ns[:, i])
 
         # Solve for point source strengths
         sigmas = np.linalg.solve(A, RHS)
 
+        if ~np.isclose(sigmas.sum(), 0.0, atol=1e-3):
+            warnmsg = f"DO NOT TRUST results from {type(self).__name__}!!!"
+            warnings.warn(message=warnmsg, category=RuntimeWarning)
+
         # Resolve velocities tangent to the panels
-        Qtis = np.zeros_like(panel_ts)
-        for i in range(xis.size):  # Loop over collocation points
+        Qtis = np.zeros_like(xis)
+        for i in range(Qtis.size):  # Loop over collocation points
             u, w = np.sum(SORC2D(sigmas, xis[i], zis[i], xjs, zjs), axis=1)
-            Qtis[i] = ((u, w) + Q) * panel_ts[i]
+            Qtis[i] = np.dot((u, w) + Q, panel_ts[:, i])
+
+        self._xjs = xjs
+        self._Cp = 1 - Qtis  # / Qs=1.0
+
+        return
+
+
+class ConstantSourceMethod(AerofoilSolution):
+    """
+    Numerical solution for symmetric aerofoil problems.
+    """
+
+    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
+        # Super class call
+        super().__init__(aerofoil, alpha, Npanels)
+
+        # Obtain aerofoil surface coordinates
+        i_le = np.argmax(self._aerofoil._curvature)
+        xupper = 0.5 * (1 - np.cos(np.linspace(0, np.pi, self._Npanels + 1)))
+        yupper = np.interp(xupper, *self._aerofoil.points[:i_le][::-1].T)
+
+        # Compute panel normals and tangents
+        deta_dx = np.diff(yupper) / np.diff(xupper)
+        panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
+        panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
+        panel_ts = np.array([[0, 1], [-1, 0]]) @ panel_ns  # rotate norm
+
+        # Locate sources
+        xj0s, xj1s = xupper[::-1][:-1], xupper[::-1][1:]
+        zj0s, zj1s = np.zeros((2, self._Npanels))
+
+        # Locate collocation points
+        xis = moving_average(x=xupper, w=2)
+        zis = np.interp(xis, xupper, yupper)
+
+        # Construct RHS
+        Q = np.array([np.cos(alpha), np.sin(alpha)])
+        RHS = np.dot(-Q, panel_ns)
+
+        # Spawn an influence coefficient array (each row == one collocation pt.)
+        A = np.zeros((self._Npanels, self._Npanels))
+
+        for i in range(self._Npanels):  # Loop over collocation points
+            for j in range(self._Npanels):  # Loop over vortex points
+                velocity_uw = SORC2DC(
+                    sigmaj=1.0,
+                    x=xis[i], z=zis[i],
+                    xj0=xj0s[j], zj0=zj0s[j],
+                    xj1=xj1s[j], zj1=zj1s[j]
+                )
+                A[i, j] = np.dot(velocity_uw, panel_ns[:, i])
+
+        # Solve for point source strengths
+        sigmas = np.linalg.solve(A, RHS)
+
+        if ~np.isclose(sigmas.sum(), 0.0, atol=1e-3):
+            warnmsg = f"DO NOT TRUST results from {type(self).__name__}!!!"
+            warnings.warn(message=warnmsg, category=RuntimeWarning)
 
         return

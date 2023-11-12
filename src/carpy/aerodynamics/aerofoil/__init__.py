@@ -2,3 +2,4 @@
 from ._profiles import *
 from ._solutions import *
 from ._solutions_ipanel import *
+from ._solutions_lsaero import *
