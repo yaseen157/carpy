@@ -124,9 +124,9 @@ class PotentialFlowElements(unittest.TestCase):
             What = W / V  # Normalised W velocities (z-direction)
             return Uhat, What, V
 
-        data_sorc = compute_plotting_params(X, Z, mu=1)
-        data_sink = compute_plotting_params(X, Z, mu=-1)
-        data = [data_sorc, data_sink]
+        data_l = compute_plotting_params(X, Z, mu=1)
+        data_r = compute_plotting_params(X, Z, mu=-1)
+        data = [data_l, data_r]
         colour = ["blue", "orange"]
 
         fig, axs = plt.subplots(1, 2, figsize=(6, 3.3), dpi=140)
