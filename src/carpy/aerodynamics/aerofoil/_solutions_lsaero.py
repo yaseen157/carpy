@@ -84,8 +84,8 @@ class PotentialFlow2D(object):
 
         # Apply rotation
         rot_matrix = np.array([
-            [np.cos(beta), -np.sin(beta)],
-            [np.sin(beta), np.cos(beta)]
+            [np.cos(beta), np.sin(beta)],
+            [-np.sin(beta), np.cos(beta)]
         ])
         u, w = (rot_matrix @ np.vstack([u.flat, w.flat])).reshape((2, *u.shape))
 

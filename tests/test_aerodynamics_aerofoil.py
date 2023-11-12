@@ -117,7 +117,7 @@ class PotentialFlowElements(unittest.TestCase):
         def compute_plotting_params(xgrid, zgrid, mu):
             """Get direction vectors Uhat and What, and velocity magnitude."""
             U, W = PotentialFlow2D.doublet_D(
-                muj=mu, x=xgrid, z=zgrid, xj=0, zj=0, beta=0
+                muj=mu, x=xgrid, z=zgrid, xj=0, zj=0, beta=None
             )
             V = (U ** 2 + W ** 2) ** 0.5
             Uhat = U / V  # Normalised U velocities (x-direction)
