@@ -8,7 +8,7 @@ References:
 import numpy as np
 from scipy.integrate import simpson
 
-from carpy.utility import Hint, moving_average
+from carpy.utility import Hint, cast2numpy, moving_average
 from ._solutions import AerofoilSolution
 
 __all__ = ["PotentialFlow2D", "DiscreteVortexMethod"]
@@ -24,32 +24,6 @@ class PotentialFlow2D(object):
     A collection of methods for computing the induced velocities of various
     potential flow elements (in 2D).
     """
-
-    @staticmethod
-    def vortex_D(Gammaj, x, z, xj, zj) -> tuple:
-        """
-        Computes the velocity components (u, w) at (x, z) due to a discrete
-        vortex element of circulation strength Gammaj, located at (xj, zj).
-
-        Args:
-            Gammaj: Circulation strength Gamma of the vortex element.
-            x: Location of a point to compute the velocity at.
-            z: Location of a point to compute the velocity at.
-            xj: Location of the vortex element.
-            zj: Location of the vortex element.
-
-        Returns:
-            Induced velocities (u, w) at point (x, z).
-
-        """
-        rj_sq = (x - xj) ** 2 + (z - zj) ** 2
-
-        factor = Gammaj / 2 / np.pi / rj_sq
-
-        u = factor * (z - zj)
-        w = factor * (xj - x)
-
-        return u, w
 
     @staticmethod
     def source_D(sigmaj, x, z, xj, zj) -> tuple:
@@ -78,6 +52,72 @@ class PotentialFlow2D(object):
         return u, w
 
     @staticmethod
+    def doublet_D(muj, x, z, xj, zj, beta=None) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a discrete
+        doublet element of circulation strength muj, located at (xj, zj).
+
+        Args:
+            muj: Strength mu of the doublet element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj: Location of the doublet element.
+            zj: Location of the doublet element.
+            beta: Orientation of element. Optional, defaults to 0.
+
+        Returns:
+            Induced velocities (u, w) at point (x, z).
+
+        """
+        # Recast as necessary
+        x = cast2numpy(x)
+        z = cast2numpy(z)
+        beta = 0.0 if beta is None else beta
+
+        dx, dz = x - xj, z - zj
+        rj_sq = dx ** 2 + dz ** 2
+
+        factor = muj / 2 / np.pi / (rj_sq ** 2)
+
+        u = factor * -1 * (dx ** 2 - dz ** 2)
+        w = factor * -2 * dx * dz
+
+        # Apply rotation
+        rot_matrix = np.array([
+            [np.cos(beta), -np.sin(beta)],
+            [np.sin(beta), np.cos(beta)]
+        ])
+        u, w = (rot_matrix @ np.vstack([u.flat, w.flat])).reshape((2, *u.shape))
+
+        return u, w
+
+    @staticmethod
+    def vortex_D(Gammaj, x, z, xj, zj) -> tuple:
+        """
+        Computes the velocity components (u, w) at (x, z) due to a discrete
+        vortex element of circulation strength Gammaj, located at (xj, zj).
+
+        Args:
+            Gammaj: Circulation strength Gamma of the vortex element.
+            x: Location of a point to compute the velocity at.
+            z: Location of a point to compute the velocity at.
+            xj: Location of the vortex element.
+            zj: Location of the vortex element.
+
+        Returns:
+            Induced velocities (u, w) at point (x, z).
+
+        """
+        rj_sq = (x - xj) ** 2 + (z - zj) ** 2
+
+        factor = Gammaj / 2 / np.pi / rj_sq
+
+        u = factor * (z - zj)
+        w = factor * (xj - x)
+
+        return u, w
+
+    @staticmethod
     def source_C(sigmaj, x, z, xj0, zj0, xj1, zj1) -> tuple:
         """
         Computes the velocity components (u, w) at (x, z) due to a panel source
@@ -97,6 +137,10 @@ class PotentialFlow2D(object):
             Induced velocities (u, w) at point (x, z).
 
         """
+        # Recast as necessary
+        x = cast2numpy(x)
+        z = cast2numpy(z)
+
         # Locate coordinates
         xz = np.vstack([x.flat, z.flat])
         xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
@@ -135,7 +179,7 @@ class PotentialFlow2D(object):
         panel located by (xj0, zj0) and (xj1, zj1).
 
         Args:
-            muj: Doublet strength mu of the doublet element.
+            muj: Strength mu of the doublet element.
             x: Location of a point to compute the velocity at.
             z: Location of a point to compute the velocity at.
             xj0: Location of endpoint 0 of a source panel.
@@ -147,6 +191,10 @@ class PotentialFlow2D(object):
             Induced velocities (u, w) at point (x, z).
 
         """
+        # Recast as necessary
+        x = cast2numpy(x)
+        z = cast2numpy(z)
+
         # Locate coordinates
         xz = np.vstack([x.flat, z.flat])
         xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
@@ -197,6 +245,10 @@ class PotentialFlow2D(object):
             Induced velocities (u, w) at point (x, z).
 
         """
+        # Recast as necessary
+        x = cast2numpy(x)
+        z = cast2numpy(z)
+
         # Locate coordinates
         xz = np.vstack([x.flat, z.flat])
         xz_panel = np.vstack([np.hstack([xj0, xj1]), np.hstack([zj0, zj1])])
