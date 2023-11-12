@@ -5,8 +5,6 @@ References:
         Katz, J. and Plotkin, A., "Low-Speed Aerodynamics: From Wing Theory to
             Panel Methods", McGraw-Hill inc., 1991, pp.302-369.
 """
-import warnings
-
 import numpy as np
 from scipy.integrate import simpson
 
@@ -256,8 +254,8 @@ class DiscreteSourceMethod(AerofoilSolution):
         sigmas = np.linalg.solve(A, RHS)
 
         if ~np.isclose(sigmas.sum(), 0.0, atol=1e-3):
-            warnmsg = f"DO NOT TRUST results from {type(self).__name__}!!!"
-            warnings.warn(message=warnmsg, category=RuntimeWarning)
+            errormsg = f"sigmas.sum() != 0, bad result (got {sigmas.sum()=})"
+            raise RuntimeError(errormsg)
 
         # Resolve velocities tangent to the panels
         Qtis = np.zeros_like(xis)
@@ -289,7 +287,7 @@ class ConstantSourceMethod(AerofoilSolution):
         deta_dx = np.diff(yupper) / np.diff(xupper)
         panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
         panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
-        panel_ts = np.array([[0, 1], [-1, 0]]) @ panel_ns  # rotate norm
+        # panel_ts = np.array([[0, 1], [-1, 0]]) @ panel_ns  # rotate norm
 
         # Locate sources
         xj0s, xj1s = xupper[::-1][:-1], xupper[::-1][1:]
@@ -320,7 +318,7 @@ class ConstantSourceMethod(AerofoilSolution):
         sigmas = np.linalg.solve(A, RHS)
 
         if ~np.isclose(sigmas.sum(), 0.0, atol=1e-3):
-            warnmsg = f"DO NOT TRUST results from {type(self).__name__}!!!"
-            warnings.warn(message=warnmsg, category=RuntimeWarning)
+            errormsg = f"sigmas.sum() != 0, bad result (got {sigmas.sum()=})"
+            raise RuntimeError(errormsg)
 
         return
