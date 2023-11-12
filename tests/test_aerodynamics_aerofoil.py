@@ -4,8 +4,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 from carpy.aerodynamics.aerofoil import (
-    NewAerofoil, ThinAerofoil, DiscreteVortexMethod)
-from carpy.aerodynamics.aerofoil._solutions_lsaero import PotentialFlow
+    NewAerofoil, ThinAerofoil, PotentialFlow2D, DiscreteVortexMethod)
 from carpy.utility import GetPath
 
 
@@ -71,7 +70,7 @@ class PotentialFlowElements(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, Gamma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = PotentialFlow.vortex_D(
+            U, W = PotentialFlow2D.vortex_D(
                 Gammaj=Gamma, x=xgrid, z=zgrid, xj=0, zj=0
             )
             V = (U ** 2 + W ** 2) ** 0.5
@@ -116,7 +115,7 @@ class PotentialFlowElements(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, sigma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = PotentialFlow.source_D(
+            U, W = PotentialFlow2D.source_D(
                 sigmaj=sigma, x=xgrid, z=zgrid, xj=0, zj=0
             )
             V = (U ** 2 + W ** 2) ** 0.5
@@ -164,7 +163,7 @@ class PotentialFlowElements(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, sigma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = PotentialFlow.source_C(
+            U, W = PotentialFlow2D.source_C(
                 sigmaj=sigma, x=xgrid, z=zgrid, **panel
             )
             V = (U ** 2 + W ** 2) ** 0.5
@@ -217,7 +216,7 @@ class PotentialFlowElements(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, mu):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = PotentialFlow.doublet_C(
+            U, W = PotentialFlow2D.doublet_C(
                 muj=mu, x=xgrid, z=zgrid, **panel
             )
             V = (U ** 2 + W ** 2) ** 0.5
@@ -275,7 +274,7 @@ class PotentialFlowElements(unittest.TestCase):
 
         def compute_plotting_params(xgrid, zgrid, gamma):
             """Get direction vectors Uhat and What, and velocity magnitude."""
-            U, W = PotentialFlow.vortex_C(
+            U, W = PotentialFlow2D.vortex_C(
                 gammaj=gamma, x=xgrid, z=zgrid, **panel
             )
             V = (U ** 2 + W ** 2) ** 0.5

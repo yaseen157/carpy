@@ -11,7 +11,7 @@ from scipy.integrate import simpson
 from carpy.utility import Hint, moving_average
 from ._solutions import AerofoilSolution
 
-__all__ = ["DiscreteVortexMethod"]
+__all__ = ["PotentialFlow2D", "DiscreteVortexMethod"]
 __author__ = "Yaseen Reza"
 
 
@@ -19,7 +19,7 @@ __author__ = "Yaseen Reza"
 # Support Functions and Classes
 # ---------------------------------------------------------------------------- #
 
-class PotentialFlow(object):
+class PotentialFlow2D(object):
     """
     A collection of methods for computing the induced velocities of various
     potential flow elements (in 2D).
@@ -266,7 +266,7 @@ class DiscreteVortexMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
-                velocity_uw = PotentialFlow.vortex_D(
+                velocity_uw = PotentialFlow2D.vortex_D(
                     Gammaj=1.0,
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
@@ -345,7 +345,7 @@ class DiscreteSourceMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
-                velocity_uw = PotentialFlow.source_D(
+                velocity_uw = PotentialFlow2D.source_D(
                     sigmaj=1.0,
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
@@ -363,7 +363,7 @@ class DiscreteSourceMethod(AerofoilSolution):
         Qtis = np.zeros_like(xis)
         for i in range(Qtis.size):  # Loop over collocation points
             u, w = np.sum(
-                PotentialFlow.source_D(sigmas, xis[i], zis[i], xjs, zjs),
+                PotentialFlow2D.source_D(sigmas, xis[i], zis[i], xjs, zjs),
                 axis=1
             )
             Qtis[i] = np.dot((u, w) + Q, panel_ts[:, i])
@@ -411,7 +411,7 @@ class ConstantSourceMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
-                velocity_uw = PotentialFlow.source_C(
+                velocity_uw = PotentialFlow2D.source_C(
                     sigmaj=1.0,
                     x=xis[i], z=zis[i],
                     xj0=xj0s[j], zj0=zj0s[j],
