@@ -48,7 +48,7 @@ class PotentialFlow2D(object):
 
         u = factor * (x - xj)
         w = factor * (z - zj)
-        if isinstance(u, np.ndarray):
+        if isinstance(u, np.ndarray) and u.size == 1:
             u = u[0]
             w = w[0]
 
@@ -120,7 +120,7 @@ class PotentialFlow2D(object):
 
         u = factor * (z - zj)
         w = factor * (xj - x)
-        if isinstance(u, np.ndarray):
+        if isinstance(u, np.ndarray) and u.size == 1:
             u = u[0]
             w = w[0]
 
