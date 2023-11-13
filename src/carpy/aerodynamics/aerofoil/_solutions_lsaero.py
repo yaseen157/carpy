@@ -48,6 +48,9 @@ class PotentialFlow2D(object):
 
         u = factor * (x - xj)
         w = factor * (z - zj)
+        if isinstance(u, np.ndarray):
+            u = u[0]
+            w = w[0]
 
         return u, w
 
@@ -88,6 +91,9 @@ class PotentialFlow2D(object):
             [-np.sin(beta), np.cos(beta)]
         ])
         u, w = (rot_matrix @ np.vstack([u.flat, w.flat])).reshape((2, *u.shape))
+        if u.size == 1:
+            u = u[0]
+            w = w[0]
 
         return u, w
 
@@ -114,6 +120,9 @@ class PotentialFlow2D(object):
 
         u = factor * (z - zj)
         w = factor * (xj - x)
+        if isinstance(u, np.ndarray):
+            u = u[0]
+            w = w[0]
 
         return u, w
 
@@ -168,6 +177,9 @@ class PotentialFlow2D(object):
 
         # Transform induced velocities back into the global frame
         u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+        if u.size == 1:
+            u = u[0]
+            w = w[0]
 
         return u, w
 
@@ -222,6 +234,9 @@ class PotentialFlow2D(object):
 
         # Transform induced velocities back into the global frame
         u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+        if u.size == 1:
+            u = u[0]
+            w = w[0]
 
         return u, w
 
@@ -233,7 +248,7 @@ class PotentialFlow2D(object):
         panel located by (xj0, zj0) and (xj1, zj1).
 
         Args:
-            muj: Vortex strength gamma of the vortex element.
+            gammaj: Vortex strength gamma of the vortex element.
             x: Location of a point to compute the velocity at.
             z: Location of a point to compute the velocity at.
             xj0: Location of endpoint 0 of a source panel.
@@ -275,6 +290,9 @@ class PotentialFlow2D(object):
 
         # Transform induced velocities back into the global frame
         u, w = (rot_panel2global @ np.vstack([u_p, w_p])).reshape((2, *x.shape))
+        if u.size == 1:
+            u = u[0]
+            w = w[0]
 
         return u, w
 
@@ -323,7 +341,7 @@ class DiscreteVortexMethod(AerofoilSolution):
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
                 )
-                A[i, j] = np.dot(velocity_uw, panel_ns[:, i])
+                A[i, j] = (velocity_uw * panel_ns[:, i]).sum(axis=0)
 
         # Solve for point vortex strengths
         Gammas = np.linalg.solve(A, RHS)
@@ -402,7 +420,7 @@ class DiscreteSourceMethod(AerofoilSolution):
                     x=xis[i], z=zis[i],
                     xj=xjs[j], zj=zjs[j]
                 )
-                A[i, j] = np.dot(velocity_uw, panel_ns[:, i])
+                A[i, j] = (velocity_uw * panel_ns[:, i]).sum(axis=0)
 
         # Solve for point source strengths
         sigmas = np.linalg.solve(A, RHS)
@@ -463,13 +481,18 @@ class ConstantSourceMethod(AerofoilSolution):
 
         for i in range(self._Npanels):  # Loop over collocation points
             for j in range(self._Npanels):  # Loop over vortex points
+
+                # if i == j:  # Exclude self-influence, enforce flow tangency
+                #     A[i, j] = 0.5  # Strength / 2 = freestream velocity
+                #     continue
+
                 velocity_uw = PotentialFlow2D.source_C(
                     sigmaj=1.0,
                     x=xis[i], z=zis[i],
                     xj0=xj0s[j], zj0=zj0s[j],
                     xj1=xj1s[j], zj1=zj1s[j]
                 )
-                A[i, j] = np.dot(velocity_uw, panel_ns[:, i])
+                A[i, j] = (velocity_uw * panel_ns[:, i]).sum(axis=0)
 
         # Solve for point source strengths
         sigmas = np.linalg.solve(A, RHS)
