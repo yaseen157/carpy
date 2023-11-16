@@ -161,7 +161,7 @@ class Graph(object):
 
         Returns:
             The node object that was assigned to the graph. It's recommended
-            that you pass this node object to the 'new_link' method..
+            that you pass this node object to the 'new_link' method.
 
         """
         new_node = self.Node(obj)

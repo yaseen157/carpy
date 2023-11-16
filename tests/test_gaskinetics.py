@@ -62,8 +62,10 @@ class SimpleWaveFlow(unittest.TestCase):
         ax.grid(which='minor', alpha=0.2)
         ax.grid(which='major', alpha=0.5)
 
-        plt.savefig(GetPath.localpackage("out/ESDU S.00.03.08 Fig1a.png"))
+        figpath = GetPath.localpackage("out/ESDU S.00.03.08 Fig1a.png")
+        plt.savefig(figpath)
 
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
     def test_S00_03_08_fig1b(self):
@@ -97,5 +99,7 @@ class SimpleWaveFlow(unittest.TestCase):
         ax.contour(xs, mesh_omega, mesh_gamma, levels=gammas_contour)
         #
         # plt.show()
+
+        self.skipTest(reason="This test is not ready yet.")
 
         return

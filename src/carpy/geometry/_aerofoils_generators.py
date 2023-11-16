@@ -692,6 +692,7 @@ class ThinParabolic(BaseProfile):
         yz = 4 * self._epsilon * x * (1 - x)
         return yz
 
-    def _f_nd_yt(self, x):
+    @staticmethod
+    def _f_nd_yt(x):
         """Private thickness distribution function."""
         return np.ones_like(x) * 1e-3

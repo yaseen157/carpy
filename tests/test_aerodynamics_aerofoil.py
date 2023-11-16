@@ -68,6 +68,8 @@ class PotentialFlowElements(unittest.TestCase):
 
         figpath = GetPath.localpackage("out/PotentialFlow2D_DiscreteSource.png")
         plt.savefig(figpath)
+
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
     def test_discretedoublet(self):
@@ -118,6 +120,8 @@ class PotentialFlowElements(unittest.TestCase):
         figpath = GetPath.localpackage(
             "out/PotentialFlow2D_DiscreteDoublet.png")
         plt.savefig(figpath)
+
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
     def test_discretevortex(self):
@@ -164,6 +168,8 @@ class PotentialFlowElements(unittest.TestCase):
 
         figpath = GetPath.localpackage("out/PotentialFlow2D_DiscreteVortex.png")
         plt.savefig(figpath)
+
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
     def test_constantsource(self):
@@ -217,6 +223,8 @@ class PotentialFlowElements(unittest.TestCase):
 
         figpath = GetPath.localpackage("out/PotentialFlow2D_ConstantSource.png")
         plt.savefig(figpath)
+
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
     def test_constantdoublet(self):
@@ -275,6 +283,8 @@ class PotentialFlowElements(unittest.TestCase):
         figpath = GetPath.localpackage(
             "out/PotentialFlow2D_ConstantDoublet.png")
         plt.savefig(figpath)
+
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
     def test_constantvortex(self):
@@ -328,6 +338,8 @@ class PotentialFlowElements(unittest.TestCase):
 
         figpath = GetPath.localpackage("out/PotentialFlow2D_ConstantVortex.png")
         plt.savefig(figpath)
+
+        self.skipTest(reason=f"Produced file: {figpath}")
         return
 
 

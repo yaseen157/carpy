@@ -27,7 +27,7 @@ General principles
 
 3. Attribute/function/method names. Parameters relating to thermodynamic
    equation of state (such as 'p' for pressure, 'T' for temperature, 'gamma' for
-   ratio of specific heats) may be left in their short-hand symbolic form - so
+   ratio of specific heats) may be left in their shorthand symbolic form - so
    long as the attribute/function/method is clearly documented and indicates the
    nature of the property. While helpful, it is not necessary to document the
    units of the return value as this can be handled by the `Quantity` objects.
@@ -38,19 +38,19 @@ General principles
    the item in a broader context). The References heading may be used to further
    indicate relevant or related scientific literature.
 
-6. Beyond the simple example in each docstring, a more extensive case study,
+5. Beyond the simple example in each docstring, a more extensive case study,
    with detailed, step-by-step explanations, should be included in a Jupyter
    notebook and placed in carpy/docs/source. Subdirectories at this location
    allow for the categorisation of notebooks into those targetting CARPy
    **dev**(elopment), **user**( manuals), and (technical )**theory**.
 
-7. Every new function/method needs a test, the more extensive the better. The
+6. Every new function/method needs a test, the more extensive the better. The
    test should be based on public domain data. Please include a reference to the
    data, going back as close to its original source as you can get. If your new
    code/test has new dependencies, remember to add these to
    the `requirements.txt` file at the top level of this directory structure.
 
-8. If your code requires a unit conversion not provided by the `Quantity`
+7. If your code requires a unit conversion not provided by the `Quantity`
    objects, please add missing conversions to the 'quantities.xlsx' worksheet
    (along with appropriate dimensions as all the other units have). Look to
    other units in the spreadsheet for guidance on how to make a new entry - if a
@@ -59,7 +59,7 @@ General principles
    converisons. Make sure to include an appropriate test for this exceptional
    case.
 
-9. Don't Repeat Yourself - never write the same code in multiple different
+8. Don't Repeat Yourself - never write the same code in multiple different
    places. "Every piece of knowledge must have a single, unambiguous,
    authoritative representation within a system." (Hunt and Thomas)
 

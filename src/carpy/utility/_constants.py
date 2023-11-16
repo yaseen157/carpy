@@ -177,7 +177,7 @@ class Physical(object):
 
     @property
     def sigma_e(self) -> Quantity:
-        """Thomson cross section"""
+        """Thomson cross-section"""
         return (8 * np.pi / 3) * self.r_e ** 2
 
     @property
@@ -356,7 +356,7 @@ class StandardSealevel(object):
     @property
     def X(self) -> dict:
         """
-        Dry clean air composition at sea level.
+        Dry, clean air composition at sea level.
 
         Because Ozone (O3), Sulphur dioxide (SO2), Nitrogen dioxide (NO2) and
         Iodine (I2) quantities can vary from time to time or place to place,
@@ -423,7 +423,7 @@ class AA21K(object):
     @property
     def GM_E(self) -> dict:
         """
-        Gravitational parameter of Earth, a.k.a geocentric gravitational
+        Gravitational parameter of Earth, a.k.a. geocentric gravitational
         constant.
 
         Returns:

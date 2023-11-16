@@ -29,7 +29,7 @@ def load_ourairports(filename: str, /):
         https://ourairports.com/help/data-dictionary.html
 
     Notes:
-        Data is offline (imaged), and so may not be up to date!.
+        Data is offline (imaged), and so may not be up-to-date!.
 
     """
     # Load the actual data
@@ -91,7 +91,7 @@ def idx0(func):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            """Function wrapper, giving the 1st element in a pd.series obj."""
+            """Function wrapper giving 1st element in a pandas series obj."""
             result = func(*args, **kwargs)
             if isinstance(result, pd.Series):
                 return result.iloc[0]
@@ -164,7 +164,7 @@ class Runway(object):
     def length(self) -> Quantity:
         """
         Length of the full runway surface (including displaced thresholds,
-        overrun areas, etc).
+        overrun areas, etc.).
         """
         # Convert ourairports data (in feet) to Quantity objects
         return Quantity(idx0(self._df["length_ft"]), "ft")

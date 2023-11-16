@@ -18,7 +18,7 @@ def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
         xp: Sorted list of x-values to draw interpolated input from.
         fp: List of return values to draw interpolated outputs from.
             bounded: Boolean, selects whether output is bounded by 'fp' values.
-        bounded: If true, output is limited by fp limits. Otherwise extrapolate.
+        bounded: If true, limit output by fp limits. Otherwise, extrapolate.
 
     Returns:
         np.ndarray: The linearly-interpolated values.
@@ -36,8 +36,8 @@ def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
     out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
 
     for i in range(len(dfp)):
-        slice = (xp[i] <= x) & (x <= xp[i + 1])
-        out[slice] = (x[slice] - xp[i]) * (dfp[i] / dxp[i]) + fp[i]
+        myslice = (xp[i] <= x) & (x <= xp[i + 1])
+        out[myslice] = (x[myslice] - xp[i]) * (dfp[i] / dxp[i]) + fp[i]
 
     sliceL, sliceR = x < xp[0], x > xp[-1]
     if bounded is True:
@@ -60,7 +60,7 @@ def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
         xp: Sorted list of x-values to draw interpolated input from.
         fp: List of return values to draw interpolated outputs from.
             bounded: Boolean, selects whether output is bounded by 'fp' values.
-        bounded: If true, output is limited by fp limits. Otherwise extrapolate.
+        bounded: If true, limit output by fp limits. Otherwise, extrapolate.
 
     Returns:
         np.ndarray: The exponentially-interpolated values.
@@ -80,8 +80,8 @@ def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
     out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
 
     for i in range(len(log_dfp)):
-        slice = (xp[i] <= x) & (x <= xp[i + 1])
-        out[slice] = a[i] * np.exp(b[i] * x[slice])
+        myslice = (xp[i] <= x) & (x <= xp[i + 1])
+        out[myslice] = a[i] * np.exp(b[i] * x[myslice])
 
     sliceL, sliceR = x < xp[0], x > xp[-1]
     if bounded is True:

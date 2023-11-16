@@ -174,7 +174,7 @@ class DiscreteIndex(dict):
 
         vals2rtn = list()
         for key in keys2get:
-            # If the key exists or is out of bounds, take closest matching key
+            # If key exists or is out of bounds, take the closest matching key
             if key in keys:
                 vals2rtn.append(super().__getitem__(key))
             elif key > max(keys):
@@ -242,7 +242,7 @@ class ContinuousIndex(object):
 # ---------------------------------------------------------------------------- #
 
 # Each station numbering type will have a different set of unique properties
-# for example, fuselage geometry are always oriented with the x axis,
+# for example, fuselage geometry are always oriented with the x-axis,
 # buttock with y, etc.
 # Fuselage: StationsLinear  # FS
 # ButtockLine: StationsLinear  # BL

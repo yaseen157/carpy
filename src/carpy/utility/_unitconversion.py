@@ -33,7 +33,7 @@ dfs = load_quantities_dfs()
 # Unit Comprehension
 # ---------------------------------------------------------------------------- #
 
-# Patterns need to be sorted longest element to shortest element for regex
+# Patterns need to be sorted from longest to shortest element for regex
 # This pattern collects all the possible prefixes carpy will recognise and parse
 pattern_prefixes = "|".join([
     f"(?:{sym})" for sym in sorted(dfs["prefixes"]["Symbol"], key=len)[::-1]])
@@ -62,7 +62,7 @@ class Dimensions(object):
         Args:
             units: A space delimited string designating the units to instantiate
                 this object with. If the unit symbol is ambiguous, the unit
-                should be followed by '.<unit-system>' i.e. .SI, .metric, .USC,
+                should be followed by '.<unit-system>' i.e.: .SI, .metric, .USC,
                 or .imperial tags.
         """
         self._unitstring = "" if units is None else units
@@ -648,7 +648,7 @@ class Quantity(np.ndarray):
         Args:
             units: A space delimited string designating the units to instantiate
                 this object with. If the unit symbol is ambiguous, the unit
-                should be followed by '.<unit-system>' i.e. .SI, .metric, .USC,
+                should be followed by '.<unit-system>' i.e.: .SI, .metric, .USC,
                 or .imperial tags.
 
         Returns:

@@ -59,6 +59,7 @@ class Profiles(unittest.TestCase):
         # 16-series
         n16_012 = NewAerofoil.from_method.NACA("16-012")
         n16_912_3 = NewAerofoil.from_method.NACA("16-912,a=0.3")
+        self.skipTest(reason="There is no test for NACA geometry generation.")
         return
 
     def test_readLednicer_online(self):

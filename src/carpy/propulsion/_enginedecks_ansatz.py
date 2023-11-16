@@ -255,8 +255,8 @@ class BasicPropeller(object):
                 # Compute lapse
                 Tlapse = eta_prop * Plapse / V
                 # Because the above computation is messy and unpredictable as
-                # V tends to zero, the Tlapse result for anything V > 0 is
-                # extremely small. To fix this, normalise the thrust lapse with
+                # V tends to zero, the Tlapse result for anything V > 0 is tiny.
+                # To fix this, normalise the thrust lapse with
                 # something close to sea level static, instead of actual static:
                 # ... introducing, Quasi-static result for lapse correction
                 quasistatickwargs = dict([
@@ -424,7 +424,7 @@ class MattinglyBasicTurbomachine(object):
     def __init__(self, TR: Hint.num = None):
         """
         Args:
-            TR: Throttle ratio, a.k.a theta break of the engine.
+            TR: Throttle ratio, a.k.a. theta break of the engine.
         """
         self.TR = 1.05 if TR is None else TR
         return
@@ -437,7 +437,7 @@ class MattinglyBasicTurbomachine(object):
         simultaneously.
 
         Returns:
-            The throttle ratio, a.k.a theta break (theta0 break).
+            The throttle ratio, a.k.a. theta break (theta0 break).
 
         """
         return self._TR
@@ -887,7 +887,8 @@ class ElectricMotor(BasicEngineDeck):
         # BSFC for an engine not burning off any fuel is... zero.
         return np.zeros_like(Mach)  # Make same shape as at least 1 arg.
 
-    def _f_Plapse(self, Mach: np.ndarray, altitude: np.ndarray,
+    @staticmethod
+    def _f_Plapse(Mach: np.ndarray, altitude: np.ndarray,
                   geometric: bool, atmosphere) -> np.ndarray:
         # Compute lapse
         Plapse = np.ones_like(Mach)  # Make same shape as at least 1 arg.
