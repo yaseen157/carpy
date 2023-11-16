@@ -3,8 +3,8 @@ import unittest
 from matplotlib import pyplot as plt
 import numpy as np
 
-from carpy.aerodynamics import (
-    ThinAerofoil, PotentialFlow2D, DiscreteVortexMethod)
+from carpy.aerodynamics import ThinAerofoil2D, PotentialFlow2D
+from carpy.aerodynamics.aerofoil._solutions_lsaero import DiscreteVortexMethod
 from carpy.geometry import NewAerofoil
 from carpy.utility import GetPath
 
@@ -15,7 +15,7 @@ class ThinAerofoilTheory(unittest.TestCase):
     def test_liftcurveslope(self):
         """Thin aerofoil theory suggests ideal lift slope of 2 pi."""
         flatplate = NewAerofoil.from_method.NACA("0001")
-        solution = ThinAerofoil(aerofoil=flatplate, alpha=0)
+        solution = ThinAerofoil2D(aerofoil=flatplate, alpha=0)
         Clalpha = solution.CLalpha
         self.assertAlmostEqual(Clalpha, 2 * 3.1415926535, places=5)
         return

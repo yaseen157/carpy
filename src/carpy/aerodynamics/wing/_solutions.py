@@ -3,7 +3,7 @@ import warnings
 
 import numpy as np
 
-from carpy.aerodynamics.aerofoil import ThinAerofoil
+from carpy.aerodynamics.aerofoil import ThinAerofoil2D
 from carpy.environment import LIBREF_ATM
 from carpy.utility import (
     Hint, Quantity, cast2numpy, constants as co, moving_average)
@@ -441,7 +441,7 @@ class PrandtlLLT(WingSolution):
         alpha_zl, Clalpha = [], []
         for i, sec in enumerate(sections):
             aoa = self.alpha + sec.twist  # Effective angle of attack
-            soln_thinaero = ThinAerofoil(aerofoil=sec.aerofoil, alpha=aoa)
+            soln_thinaero = ThinAerofoil2D(aerofoil=sec.aerofoil, alpha=aoa)
             alpha_zl.append(soln_thinaero.alpha_zl - sec.twist)  # Eff. zerolift
             Clalpha.append(soln_thinaero.CLalpha)
 
@@ -532,7 +532,7 @@ class HorseshoeVortex(WingSolution):
         dy = bprime / N
         for i in range(N):
 
-            solution = ThinAerofoil(
+            solution = ThinAerofoil2D(
                 aerofoil=sections[i].aerofoil,
                 alpha=alpha + sections[i].twist  # Effective AoA
             )

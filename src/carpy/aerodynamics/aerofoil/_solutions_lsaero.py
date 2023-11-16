@@ -11,7 +11,7 @@ from scipy.integrate import simpson
 from carpy.utility import Hint, cast2numpy, moving_average
 from ._solutions import AerofoilSolution
 
-__all__ = ["PotentialFlow2D", "DiscreteVortexMethod"]
+__all__ = ["PotentialFlow2D"]
 __author__ = "Yaseen Reza"
 
 

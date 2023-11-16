@@ -4,7 +4,7 @@ from scipy.integrate import simpson
 
 from carpy.utility import Hint, cast2numpy, point_diff
 
-__all__ = ["ThinAerofoil"]
+__all__ = ["ThinAerofoil2D"]
 __author__ = "Yaseen Reza"
 
 
@@ -101,7 +101,7 @@ class AerofoilSolution(object):
 # Public classes
 # ---------------------------------------------------------------------------- #
 
-class ThinAerofoil(AerofoilSolution):
+class ThinAerofoil2D(AerofoilSolution):
     """
     Thin and cambered aerofoil theory.
 
