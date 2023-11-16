@@ -1,0 +1,10 @@
+I'm not happy with this module. The atom side works, although is messy. The
+molecular bonding side doesn't really work all that well.
+
+Atmospheres depends on this module for the gas model.
+
+Rather than work chemistry out from the ground up, I should lean on a library
+or a defined set of gases, instead of trying to come up with code that can
+procedurally come up with properties from basic principles of atomic bonding.
+
+Or maybe do atomic bonding, but really well this time (copium inhaleeee).

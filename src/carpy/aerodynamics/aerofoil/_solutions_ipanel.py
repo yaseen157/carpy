@@ -20,7 +20,7 @@ import scipy.integrate as sint
 from carpy.utility import Hint, cast2numpy
 from ._solutions import AerofoilSolution
 
-__all__ = ["InviscidPanelMethod"]
+__all__ = ["InviscidPanel2D"]
 __author__ = "Yaseen Reza"
 
 
@@ -474,7 +474,7 @@ class PanelSolution(object):
         return
 
 
-class InviscidPanelMethod(PanelSolution, AerofoilSolution):
+class InviscidPanel2D(PanelSolution, AerofoilSolution):
     """A method for deriving the pressure distribution on an aerofoil."""
 
     def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):

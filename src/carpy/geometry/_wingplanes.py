@@ -7,9 +7,9 @@ import pandas as pd
 from scipy.integrate import simpson
 from scipy.interpolate import griddata
 
-from carpy.aerodynamics.aerofoil import Aerofoil
-from carpy.structures import DiscreteIndex
 from carpy.utility import Hint, Quantity, cast2numpy, collapse_array, isNone
+from ._aerofoils import Aerofoil
+from ._indexing import DiscreteIndex
 
 __all__ = ["WingSection", "WingSections"]
 __author__ = "Yaseen Reza"
@@ -620,7 +620,7 @@ class WingPlane(object):
 
         Returns:
             Rolling moment coefficient.
-        
+
         Notes:
             +ve indicates rolling to the right.
 
@@ -768,106 +768,3 @@ class NewWingPlane(object):
         )
 
         return mywingplane
-
-# class WingPlane(object):
-#     """
-#     Class for modelling wing planes.
-#     """
-#
-#     def __init__(self, span: Hint.num, mirror: bool = None):
-#         """
-#         Args:
-#             span: The full span of the wing, as determined from planform view.
-#             mirror: Whether or not to mirror the wing's stations about the
-#                 centreline.
-#         """
-#         self._b = span
-#         self._mirror = True if mirror is None else mirror
-#         self._spar = None
-#
-#         return
-#
-#     @property
-#     def parametric_spar(self) -> Hint.func:
-#         """
-#         A parameterised definition of the wingspar's (composite) geometry and
-#         material selection(s). Accepts arguments for the maximal 'height' and
-#         'width' of a spar section.
-#
-#         Returns:
-#             Spar section object, with geometric properties pre-computed.
-#
-#         """
-#         if self._spar is None:
-#             raise NotImplementedError("Spar definitions has not yet been given")
-#         return self._spar
-#
-#     @parametric_spar.setter
-#     def parametric_spar(self, value):
-#         if not callable(value):
-#             errormsg = (
-#                 f"section_spar.setter is expecting to be given 'function(y)', "
-#                 f"actually got section_spar = {value} (invalid {type(value)=})"
-#             )
-#             raise TypeError(errormsg)
-#         self._spar = value
-#         return
-#
-#     @parametric_spar.deleter
-#     def parametric_spar(self):
-#         self._spar = None
-#         return
-
-# if __name__ == "__main__":
-#     from sectionproperties.pre.library import steel_sections, primitive_sections
-#     from sectionproperties.pre.pre import Material
-#     from sectionproperties.analysis.section import Section
-#
-#     steel = Material(
-#         name='Steel', elastic_modulus=200e9, poissons_ratio=0.3,
-#         density=7.85e3, yield_strength=500e6, color='grey'
-#     )
-#     timber = Material(
-#         name='Timber', elastic_modulus=8e9, poissons_ratio=0.35,
-#         density=6.5e2, yield_strength=20e6, color='burlywood'
-#     )
-#
-#
-#     def sections(height: float, width: float):
-#         """
-#
-#         Args:
-#             height: Maximum allowable height of the spar.
-#             width: Maximum allowable width of the spar.
-#
-#         Returns:
-#
-#         """
-#         # Compute parameterised dimensions
-#         core_y = height - (2 * width)
-#         tube_od = width
-#         tube_wt = 1e-3
-#
-#         # STEP 1: Create component section geometries (and attach materials)
-#         rod_kwargs = {"d": tube_od, "t": tube_wt, "n": 100, "material": steel}
-#         core_kwargs = {"b": rod_kwargs["d"], "d": core_y, "material": timber}
-#         rod = steel_sections.circular_hollow_section(**rod_kwargs)
-#         core = primitive_sections.rectangular_section(**core_kwargs)
-#
-#         # STEP 2: Create a compound geometry, and convert into a section object
-#         section_geometry = (
-#                 rod.shift_section(0, (core_y + rod_kwargs["d"]) / 2)
-#                 + core.shift_section(-rod_kwargs["d"] / 2, -core_y / 2)
-#                 + rod.shift_section(0, -(core_y + rod_kwargs["d"]) / 2)
-#         )
-#         section_geometry.create_mesh(mesh_sizes=[1e-3])
-#         section = Section(section_geometry)
-#
-#         # STEP 3: Calculate the geometric properties of the section
-#         section.calculate_geometric_properties()
-#
-#         return section
-#
-#
-#     section = sections(height=0.1, width=12e-3)
-#     section.plot_mesh()

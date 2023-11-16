@@ -3,9 +3,9 @@ import unittest
 
 import numpy as np
 
-from carpy.aerodynamics.aerofoil import NewAerofoil
-from carpy.aerodynamics.wing import (
-    WingSections, PrandtlLLT, HorseshoeVortex, MixedBLDrag, ZeroWave)
+from carpy.geometry import NewAerofoil, WingSections
+from carpy.aerodynamics import (
+    PrandtlLLT, HorseshoeVortex, MixedBLDrag, ZeroWave)
 from carpy.utility import Quantity
 
 

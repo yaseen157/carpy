@@ -3,47 +3,10 @@ import unittest
 from matplotlib import pyplot as plt
 import numpy as np
 
-from carpy.aerodynamics.aerofoil import (
-    NewAerofoil, ThinAerofoil, PotentialFlow2D, DiscreteVortexMethod)
+from carpy.aerodynamics import (
+    ThinAerofoil, PotentialFlow2D, DiscreteVortexMethod)
+from carpy.geometry import NewAerofoil
 from carpy.utility import GetPath
-
-
-class Profiles(unittest.TestCase):
-    """Methods to test aerofoil section generation and file parsing."""
-
-    def test_generateNACA(self):
-        # Four digit series
-        n0012 = NewAerofoil.from_method.NACA("0012")
-        n2412 = NewAerofoil.from_method.NACA("2412")
-        n2412_63 = NewAerofoil.from_method.NACA("2412-63")
-        # Five digit series
-        n23012 = NewAerofoil.from_method.NACA("23012")
-        n23012_45 = NewAerofoil.from_method.NACA("23012-45")
-        n44112 = NewAerofoil.from_method.NACA("44112")
-        # 16-series
-        n16_012 = NewAerofoil.from_method.NACA("16-012")
-        n16_912_3 = NewAerofoil.from_method.NACA("16-912,a=0.3")
-        return
-
-    def test_readLednicer_online(self):
-        """Check we can read Lednicer format online files correctly."""
-        url = "http://airfoiltools.com/airfoil/lednicerdatfile?airfoil=n0012-il"
-        try:
-            n0012 = NewAerofoil.from_url(url)
-        except ConnectionError:
-            self.skipTest(reason="Couldn't download aerofoil geometry")
-            return
-        return
-
-    def test_readSelig_online(self):
-        """Check we can read Selig format online files correctly."""
-        url = "http://airfoiltools.com/airfoil/seligdatfile?airfoil=n0012-il"
-        try:
-            n0012 = NewAerofoil.from_url(url)
-        except ConnectionError:
-            self.skipTest(reason="Couldn't download aerofoil geometry")
-            return
-        return
 
 
 class ThinAerofoilTheory(unittest.TestCase):

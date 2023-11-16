@@ -1,3 +1,5 @@
+"""Code to create aerofoil geometry objects."""
+
 """Methods relating to aerofoil profile generation and performance."""
 from functools import cache
 import re
@@ -9,7 +11,7 @@ from sectionproperties.analysis.section import Section
 from sectionproperties.pre.geometry import Geometry
 
 from carpy.utility import Hint, cast2numpy, isNone, point_curvature, point_diff
-from ._profiles_generators import (
+from ._aerofoils_generators import (
     NACA4DigitSeries, NACA4DigitModifiedSeries,
     NACA5DigitSeries, NACA5DigitModifiedSeries,
     NACA16Series, ThinParabolic
