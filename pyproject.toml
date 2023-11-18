@@ -7,9 +7,9 @@ name = "carpy"
 description = """Consolidated aircraft recipes in Python."""
 readme = "README.md"
 requires-python = ">=3.9.5"
-license = {file = "LICENSE.md"}
-authors =[
-    { name="Yaseen Reza", email="yaseen605@gmail.com" }
+license = { file = "LICENSE.md" }
+authors = [
+    { name = "Yaseen Reza", email = "yaseen605@gmail.com" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -31,6 +31,7 @@ dependencies = [
     "sectionproperties",
     "scipy",
     "setuptools>=67.0.0",
+    "sympy",
 ]
 dynamic = ["version"]
 
@@ -45,7 +46,7 @@ documentation = "https://pypi.org/project/carpy/"
 pythonpath = ["src"]
 
 [tool.setuptools.dynamic]
-version = {attr = "carpy.__version__"}
+version = { attr = "carpy.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

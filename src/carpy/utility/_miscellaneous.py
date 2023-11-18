@@ -45,7 +45,7 @@ def cast2numpy(scalar_or_vector: Hint.any, /, dtype=None) -> np.ndarray:
         (set, frozenset): lambda x: np.array([xi for xi in x]),
         (dict,): lambda x: {k: cast2numpy(v) for k, v in x.items()},
         (map, filter): lambda x: np.array(list(x)),
-        (np.ndarray,): lambda x: x if x.shape != () else np.array([x]),
+        (np.ndarray,): lambda x: x if x.shape != () else x[None],  # +1 dim.
         (pd.Series,): lambda x: np.array(x)
     }
     # Look for and try to apply a transform

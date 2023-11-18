@@ -660,7 +660,7 @@ class HorseshoeVortex(WingSolution):
 
         # Make assignments
         self._CDi = self._sectionCDi.sum()
-        # self._CY = self._sectionCY.sum()  # Unsure if direction is correct...
+        self._CY = self._sectionCY.sum()  # Unsure if direction is correct...
         self._CL = self._sectionCL.sum()
 
         return
