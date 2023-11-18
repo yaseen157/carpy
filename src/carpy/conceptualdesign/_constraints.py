@@ -270,7 +270,7 @@ class EnergyConstraint(Constraint):
 
     @property
     def mu(self) -> float:
-        """Coefficient of kinetic friction (applies during take-off), mu."""
+        """Coefficient of rolling friction that applies during takeoff, mu."""
         return self._mu
 
     @mu.setter
