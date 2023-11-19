@@ -38,7 +38,7 @@ Users will find:
 
 - Virtual (design) atmospheres
 - Hassle-free conversions between systems of units
-- `[WorkinProgress]` Constraint Analysis Methods
+- Constraint Analysis Methods
 - `[WorkInProgress]` Propulsion models and Engine Performance Decks
 - *...and much more* `[WorkInProgress]`
 

@@ -23,9 +23,11 @@ _Optionally:_
 _It's recommended that readers are familiar with science oriented libraries:_
 
 - NumPy
+- SymPy
 
 _Optionally:_
 
+- Matplotlib
 - SciPy
 
 ### Level 0: CARPy - basic
@@ -43,6 +45,7 @@ _Optionally:_
 _Readers learn how to interface with basic methods of CARPy's component modules:_
 
 - Atmosphere Models
+- Constraints Analysis
 - Engine Performance Decks
 - Modelling Aerofoil Sections
 - Predicting Wing Lift and Drag

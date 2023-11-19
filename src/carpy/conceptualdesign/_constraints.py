@@ -1,8 +1,6 @@
 """Methods for establishing performance constraints of a vehicle concept."""
-
-# TODO: Work out how to sub. sympy T/W equation with Energy Constraint's values
-
 from typing import Type
+import warnings
 
 import numpy as np
 import sympy as sp
@@ -36,7 +34,42 @@ def broadcast_kwargs(kwargs: dict):
 
 
 # Generic type for subclasses of constraints
-Constraint = type("Constraint", (object,), {})
+class Constraint(object):
+    """Methods for a single constraint."""
+    _eqn: object
+
+    def __call__(self, **kwargs):
+        # Do not allow users to __call__ non-existent constraints
+        if type(self) is Constraint:
+            errormsg = f"__call__ is only supported on children of {Constraint}"
+            raise RuntimeError(errormsg)
+
+        # Find the name of all the constraint attributes of this instance
+        constraint_names = [
+            x for x in dir(type(self))  # Should exist in instance's class
+            if isinstance(getattr(type(self), x), property)  # Is a property
+        ]
+        # Find the values of the constraints that are defined in the instance
+        subs_defined = {k: getattr(self, k) for k in constraint_names}
+        for (k, v) in kwargs.items():
+            if subs_defined[k] is not NotImplemented:  # Constraint is overriden
+                warnmsg = f"{k} in {self} was overriden with {v}"
+                warnings.warn(message=warnmsg, category=RuntimeWarning)
+            subs_defined[k] = v
+
+        # Find the atoms of the governing equation that can be substituted
+        eqn_symbols = tuple(filter(
+            lambda x: isinstance(x, sp.core.symbol.Symbol),
+            getattr(self._eqn, "atoms")()
+        ))
+        symbols_allowed = {k for k in eqn_symbols if k.name in constraint_names}
+        subs = {
+            k: float(subs_defined[k.name]) for k in symbols_allowed
+            if subs_defined[k.name] is not NotImplemented
+        }
+
+        # Make the substitution
+        return getattr(self._eqn, "subs")(subs)
 
 
 class Constraints(object):
@@ -56,16 +89,18 @@ class Constraints(object):
         return self.__add__(other)
 
     @property
-    def constraints(self) -> tuple[Constraint, ...]:
+    def constraints(self) -> tuple[Type[Constraint], ...]:
         """A tuple of vehicle design constraints."""
         return self._constraints
 
     @constraints.setter
     def constraints(self, value):
-        # Make sure we got a constraint, or tuple of constraints
-        if isinstance(value, Constraint):
-            self._constraints = (value,)
-        elif isinstance(value, tuple):
+        # Recast as necessary
+        if not isinstance(value, tuple):
+            value = (value,)
+
+        # Make sure the tuple contains constraints
+        if isinstance(value, tuple):
             # Check that Constraint is the parents of all values in the tuple
             if all([Constraint in x.__bases__ for x in map(type, value)]):
                 self._constraints = value
@@ -79,9 +114,8 @@ class Constraints(object):
 
 
 # ----- Energy constraint -----
-q, W2S = sp.symbols("q,W2S")  # Wing-loading, dynamic pressure
-V, Vdot, Vdot_n, z, zdot = sp.symbols("V,Vdot,Vdot_n,z,zdot")  # pos/vel/acc
-g = sp.symbols("g")  # local acceleration due to gravity
+T2W, W2S, q = sp.symbols("T2W,W2S,q")  # T/W, Wing-loading, dynamic pressure
+V, Vdot, Vdot_n, zdot, g = sp.symbols("V,Vdot,Vdot_n,zdot, g")  # pos/vel/acc
 alpha, epsilon, theta, mu = sp.symbols("alpha,epsilon,theta,mu")  # Greek
 CL, CD = sp.symbols("C_L,C_D")  # Performance coefficients
 
@@ -104,6 +138,7 @@ comp_thrust = sp.sin(alpha + epsilon) * (1 + mu * sp.sin(alpha))
 
 # T/W due to streamwise + streamnormal acceleration
 eqn_T2W += (comp_accel - comp_lift - comp_drag + comp_weight) / comp_thrust
+eqn_T2W = sp.Eq(T2W, eqn_T2W)
 del comp_accel, comp_lift, comp_drag, comp_weight, comp_thrust  # clr. namespace
 
 
@@ -113,32 +148,32 @@ del comp_accel, comp_lift, comp_drag, comp_weight, comp_thrust  # clr. namespace
 class EnergyConstraint(Constraint):
     """Vehicle energy constraint/design point."""
 
-    _q = None
-    _W2S = None
-    _V = None
-    _Vdot = None
-    _Vdot_n = None
-    _z = None
-    _zdot = None
-    _g = None
-    _alpha = None
-    _epsilon = None
-    _theta = None
-    _mu = None
+    _eqn = eqn_T2W  # <- Governing equation
+    _q: Quantity = NotImplemented
+    _W2S: Quantity = NotImplemented
+    _V: Quantity = NotImplemented
+    _Vdot: Quantity = NotImplemented
+    _Vdot_n: Quantity = NotImplemented
+    _zdot: Quantity = NotImplemented
+    _g: Quantity = NotImplemented
+    _alpha: float = NotImplemented
+    _epsilon: float = NotImplemented
+    _theta: float = NotImplemented
+    _mu: float = NotImplemented
 
     def __new__(cls, *, q: Hint.nums = None, W2S: Hint.nums = None,
-                V: Hint.nums = None, Vdot: Hint.nums = None,
-                Vdot_n: Hint.nums = None, z: Hint.nums = None,
+                V: Hint.nums = None,
+                Vdot: Hint.nums = None, Vdot_n: Hint.nums = None,
                 zdot: Hint.nums = None, g: Hint.nums = None,
                 alpha: Hint.nums = None, epsilon: Hint.nums = None,
                 theta: Hint.nums = None, mu: Hint.nums = None):
         # Recast as necessary
         kwargs = dict([  # MUST contain same keys as the sympy governing eqn.!!
             ("q", q), ("W2S", W2S), ("V", V), ("Vdot", Vdot), ("Vdotn", Vdot_n),
-            ("z", z), ("zdot", zdot), ("g", g), ("alpha", alpha),
+            ("zdot", zdot), ("g", g), ("alpha", alpha),
             ("epsilon", epsilon), ("theta", theta), ("mu", mu)
         ])
-        del q, W2S, V, Vdot, Vdot_n, z, zdot, g, alpha, epsilon, theta, mu
+        del q, W2S, V, Vdot, Vdot_n, zdot, g, alpha, epsilon, theta, mu
         kwargs = broadcast_kwargs(kwargs)
 
         # Make as many constraint objects as there are broadcasted arguments
@@ -168,6 +203,11 @@ class EnergyConstraint(Constraint):
         self._q = Quantity(float(value), "Pa")
         return
 
+    @q.deleter
+    def q(self):
+        self._q = NotImplemented
+        return
+
     @property
     def W2S(self) -> Quantity:
         """Wing loading, W/S."""
@@ -176,6 +216,11 @@ class EnergyConstraint(Constraint):
     @W2S.setter
     def W2S(self, value):
         self._W2S = Quantity(float(value), "Pa")
+        return
+
+    @W2S.deleter
+    def W2S(self):
+        self._W2S = NotImplemented
         return
 
     @property
@@ -188,6 +233,11 @@ class EnergyConstraint(Constraint):
         self._V = Quantity(float(value), "m s^{-1}")
         return
 
+    @V.deleter
+    def V(self):
+        self._V = NotImplemented
+        return
+
     @property
     def Vdot(self) -> Quantity:
         """Acceleration along flight trajectory, Vdot."""
@@ -196,6 +246,11 @@ class EnergyConstraint(Constraint):
     @Vdot.setter
     def Vdot(self, value):
         self._Vdot = Quantity(float(value), "m s^{-2}")
+        return
+
+    @Vdot.deleter
+    def Vdot(self):
+        self._Vdot = NotImplemented
         return
 
     @property
@@ -208,24 +263,24 @@ class EnergyConstraint(Constraint):
         self._Vdot_n = Quantity(float(value), "m s^{-2}")
         return
 
-    @property
-    def z(self) -> Quantity:
-        """Geometric altitude, z."""
-        return self._z
-
-    @z.setter
-    def z(self, value):
-        self._z = Quantity(float(value), "m")
+    @Vdot_n.deleter
+    def Vdot_n(self):
+        self._Vdot_n = NotImplemented
         return
 
     @property
     def zdot(self) -> Quantity:
-        """Rate of change of geometric altitude, z."""
+        """Rate of change of geometric altitude, zdot."""
         return self._zdot
 
     @zdot.setter
     def zdot(self, value):
         self._zdot = Quantity(float(value), "m s^{-1}")
+        return
+
+    @zdot.deleter
+    def zdot(self):
+        self._zdot = NotImplemented
         return
 
     @property
@@ -238,6 +293,11 @@ class EnergyConstraint(Constraint):
         self._g = Quantity(float(value), "m s^{-2}")
         return
 
+    @g.deleter
+    def g(self):
+        self._g = NotImplemented
+        return
+
     @property
     def alpha(self) -> float:
         """Angle of attack, alpha."""
@@ -246,6 +306,11 @@ class EnergyConstraint(Constraint):
     @alpha.setter
     def alpha(self, value):
         self._alpha = float(value)
+        return
+
+    @alpha.deleter
+    def alpha(self):
+        self._alpha = NotImplemented
         return
 
     @property
@@ -258,6 +323,11 @@ class EnergyConstraint(Constraint):
         self._epsilon = float(value)
         return
 
+    @epsilon.deleter
+    def epsilon(self):
+        self._epsilon = NotImplemented
+        return
+
     @property
     def theta(self) -> float:
         """Aircraft pitch angle, theta."""
@@ -268,6 +338,11 @@ class EnergyConstraint(Constraint):
         self._theta = float(value)
         return
 
+    @theta.deleter
+    def theta(self):
+        self._theta = NotImplemented
+        return
+
     @property
     def mu(self) -> float:
         """Coefficient of rolling friction that applies during takeoff, mu."""
@@ -276,4 +351,9 @@ class EnergyConstraint(Constraint):
     @mu.setter
     def mu(self, value):
         self._mu = float(value)
+        return
+
+    @mu.deleter
+    def mu(self):
+        self._mu = NotImplemented
         return
