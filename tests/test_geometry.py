@@ -2,7 +2,7 @@
 import unittest
 
 from carpy.geometry import ContinuousIndex, DiscreteIndex
-from carpy.geometry import NewAerofoil
+from carpy.geometry import NewAerofoil, WingSections
 
 
 class IndexTemplates(unittest.TestCase):
@@ -80,6 +80,48 @@ class Profiles(unittest.TestCase):
         except ConnectionError:
             self.skipTest(reason="Couldn't download aerofoil geometry")
             return
+        return
+
+
+class WingGeometry(unittest.TestCase):
+    """Check methods relating to the manipulation of wing geometry."""
+
+    def test_attributes(self):
+        """
+        Test that geometry methods work as intended.
+
+        References:
+            S. Gudmundsson, "General Aviation Aircraft Design: Applied Methods
+            and Procedures", Butterworth-Heinemann, 2014, p. 304.
+
+        """
+
+        n0012 = NewAerofoil.from_method.NACA("0012")
+
+        mysections = WingSections(b=(span := 4))
+        mysections[0] = n0012
+        mysections[100] = n0012
+
+        mysections[0].chord = (c_root := 0.65)
+        mysections[100].chord = (c_tip := 0.24)
+
+        # Wing area is simply determined from trapezoidal area of the wing
+        Sref = span * (c_root + c_tip) / 2
+        self.assertEqual(mysections.Sref, Sref)
+
+        # Wing mean geometric chord is simply the average of root and tip
+        MGC = c_root / 2 * (1 + (taper := c_tip / c_root))
+        self.assertEqual(mysections.MGC, MGC)
+        self.assertEqual(mysections.SMC, MGC)
+
+        # I think Gudmundsson was saying that this approximates MAC???
+        MAC = 2 / 3 * c_root * (1 + taper + taper ** 2) / (1 + taper)
+        self.assertAlmostEqual(mysections.MAC, MAC, places=3)
+
+        # Check aspect ratio
+        AR = span ** 2 / Sref
+        self.assertEqual(mysections.AR, AR)
+
         return
 
 

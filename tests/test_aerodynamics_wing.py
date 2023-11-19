@@ -5,7 +5,7 @@ import numpy as np
 
 from carpy.geometry import NewAerofoil, WingSections
 from carpy.aerodynamics import (
-    PrandtlLLT, HorseshoeVortex, MixedBLDrag, ZeroWave)
+    PrandtlLLT, HorseshoeVortex, MixedBLDrag, RaymerSimple)
 from carpy.utility import Quantity
 
 
@@ -38,50 +38,26 @@ class SampleWings(object):
 
         return mysections
 
+    @classmethod
+    def GudmundssonSR22(cls):
+        """Return an approximation of S. Gudmundsson's Cirrus SR22 planform."""
 
-class Geometry(unittest.TestCase):
-    """Check methods relating to the manipulation of wing geometry."""
+        # Generate aerofoil geometries
+        # This isn't really the Gudmundsson aerofoil selection either
+        aerofoil = NewAerofoil.from_url(
+            "http://airfoiltools.com/airfoil/lednicerdatfile"
+            "?airfoil=naca652415-il")
 
-    def test_attributes(self):
-        """
-        Test that geometry methods work as intended.
+        # Define buttock-line geometry of the wing
+        mysections = WingSections(b=Quantity(38.3, "ft"))
+        mysections[0] = aerofoil
+        mysections[100] = aerofoil
 
-        References:
-            Gudmundsson, S., "General Aviation Aircraft Design: Applied Methods
-            and Procedures", Butterworth-Heinemann, 2014, pp.304.
+        # Introduce wing taper
+        mysections[0].chord = Quantity(4.88, "ft")
+        mysections[100].chord = Quantity(2.59, "ft")
 
-        """
-
-        n0012 = NewAerofoil.from_method.NACA("0012")
-
-        mysections = WingSections(b=(span := 4))
-        mysections[0] = n0012
-        mysections[100] = n0012
-
-        mysections[0].chord = (c_root := 0.65)
-        mysections[100].chord = (c_tip := 0.24)
-
-        # Wing area is simply determined from trapezoidal area of the wing
-        Sref = span * (c_root + c_tip) / 2
-        self.assertEqual(mysections.Sref, Sref)
-
-        # Wing mean geometric chord is simply the average of root and tip
-        MGC = c_root / 2 * (1 + (taper := c_tip / c_root))
-        self.assertEqual(mysections.MGC, MGC)
-        self.assertEqual(mysections.SMC, MGC)
-
-        # I think Gudmundsson was saying that this approximates MAC???
-        MAC = 2 / 3 * c_root * (1 + taper + taper ** 2) / (1 + taper)
-        self.assertAlmostEqual(mysections.MAC, MAC, places=3)
-
-        # Check aspect ratio
-        AR = span ** 2 / Sref
-        self.assertEqual(mysections.AR, AR)
-
-        return
-
-    def test_show(self):
-        return
+        return mysections
 
 
 class Aerodynamics(unittest.TestCase):
@@ -129,46 +105,34 @@ class Aerodynamics(unittest.TestCase):
             to consider the wetted area as being 7% greater than the planform
             area described in the book pages.
 
-        Another point of error
-
         """
-        # This isn't really the Gudmundsson aerofoil selection either
-        url = ("http://airfoiltools.com/airfoil/lednicerdatfile"
-               "?airfoil=naca652415-il")
         try:
-            aerofoil = NewAerofoil.from_url(url)
+            mysections = SampleWings.GudmundssonSR22()
         except ConnectionError:
             self.skipTest(reason="Couldn't download aerofoil geometry")
             return
-
-        mysections = WingSections(b=Quantity(38.3, "ft"))
-        mysections[0] = aerofoil
-        mysections[100] = aerofoil
-
-        mysections[0].chord = Quantity(4.88, "ft")
-        mysections[100].chord = Quantity(2.59, "ft")
 
         basekwargs = {"wingsections": mysections, "altitude": 0}
         soln = MixedBLDrag(**basekwargs, TAS=Quantity(185, "kt"))
 
         # Expected coefficient of skin friction
         self.assertTrue(np.isclose(soln.Cf, 0.001999, atol=1e-4))
-
         return
 
-    def test_zerowavedrag(self):
-        """Test that the zero wave drag placeholder... gives zero drag."""
-        aerofoil = NewAerofoil.from_method.NACA("0012")
+    def test_raymeroswald(self):
+        """
+        Compute a zeroth-order approximation of Oswald efficiency.
+        """
+        try:
+            mysections = SampleWings.GudmundssonSR22()
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
 
-        mysections = WingSections(b=10)
-        mysections[0] = aerofoil
-        mysections[1] = aerofoil
+        basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 0}
+        soln = RaymerSimple(**basekwargs)
 
-        soln = ZeroWave(mysections, altitude=0, TAS=100)
-
-        # Expected wave drag
-        self.assertEqual(soln.CDw, 0.0)
-
+        self.assertAlmostEqual(soln.CD, 0.003100364565247407, places=6)
         return
 
 
@@ -189,10 +153,32 @@ class Combinatorics(unittest.TestCase):
         }
         soln0 = MixedBLDrag(**basekwargs)
         soln1 = PrandtlLLT(**basekwargs)
-        soln2 = ZeroWave(**basekwargs)
 
-        union_solution = soln0 | soln1 | soln2
+        union_solution = soln0 | soln1
 
-        self.assertEqual(union_solution.CD, soln0.CD0 + soln1.CDi + soln2.CDw)
+        # Logical OR
+        self.assertEqual(union_solution.CD, soln0.CD0 + soln1.CDi)
+
+        return
+
+    def test_addition(self):
+        """Test if methods can combine their performance estimates."""
+        try:
+            mysections = SampleWings.SUHPALazarus()
+        except ConnectionError:
+            self.skipTest(reason="Couldn't download aerofoil geometry")
+            return
+
+        aoa = np.radians(3)
+        basekwargs = {
+            "wingsections": mysections, "altitude": 0, "TAS": 10.0, "alpha": aoa
+        }
+        soln0 = MixedBLDrag(**basekwargs)
+        soln1 = PrandtlLLT(**basekwargs)
+
+        addition_solution = soln0 + soln1
+
+        # Addition
+        self.assertEqual(addition_solution.CD, soln0.CD + soln1.CD)
 
         return

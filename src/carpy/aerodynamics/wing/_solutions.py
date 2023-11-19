@@ -6,9 +6,9 @@ import numpy as np
 from carpy.aerodynamics.aerofoil import ThinAerofoil2D
 from carpy.environment import LIBREF_ATM
 from carpy.utility import (
-    Hint, Quantity, cast2numpy, constants as co, moving_average)
+    Hint, Quantity, cast2numpy, constants as co, isNone, moving_average)
 
-__all__ = ["MixedBLDrag", "PrandtlLLT", "HorseshoeVortex", "ZeroWave"]
+__all__ = ["MixedBLDrag", "PrandtlLLT", "HorseshoeVortex", "RaymerSimple"]
 __author__ = "Yaseen Reza"
 
 
@@ -87,11 +87,10 @@ class WingSolution(object):
         return
 
     def __str__(self):
-        returnstr = f"{self._wingsections} performance:\n"
         # I know the formatting below looks funky, but I promise, it works
         # Also, the ': .6F' specifier keeps a space for the sign of a -ve number
-        returnstr += (
-            f"""{"-" * (len(returnstr) + 4)}
+        returnstr = (
+            f"""{self._wingsections} performance:
  CD  = {self.CD: .6F}    CY  = {self.CY: .6F}    CL  = {self.CL: .6F}
  CD0 = {self.CD0: .6F}    CDi = {self.CDi: .6F}    CDw = {self.CDw: .6F}
  Cl  = {self.Cl: .6F}    Cm  = {self.Cm: .6F}    Cn  = {self.Cn: .6F}
@@ -103,23 +102,21 @@ class WingSolution(object):
         """Logical OR, fills missing parameters of self with other"""
         # Verify objects are of the same type, and it makes sense to logical OR
         errormsg = f"Union only applies if both objects are of {type(self)=}"
-        if type(other).__bases__[0] is WingSolution:
+        if WingSolution in type(other).__bases__:
             pass  # Both self and other are children of the WingSolution class
         elif type(other) is WingSolution:
             pass  # Self is a child of WingSolution, other *is* a WingSolution
         else:
             raise TypeError(errormsg)
 
-        # Verify it's okay to add the predictions together:
+        # Verify it's okay to concatenate the predictions:
         # ... are the solutions for common lift bodies?
         errormsg = (
             f"Can only apply union when wingsections attributes are identical "
             f"(actually got {self.wingsections, other.wingsections})"
         )
-        # Use symmetric difference of wingsections sets
-        memoryset_self = set([hex(id(x)) for x in self.wingsections])
-        memoryset_other = set([hex(id(x)) for x in other.wingsections])
-        assert len(memoryset_self ^ memoryset_other) == 0, errormsg
+        if not any(isNone(self.wingsections, other.wingsections)):
+            assert self.wingsections is other.wingsections, errormsg
 
         # ... do the solutions have compatible flight conditions?
         # Observing the following private attributes can change their value,
@@ -147,7 +144,7 @@ class WingSolution(object):
         }
 
         # Find performance parameters of self and other, combine them
-        to_combine = "CL,CD0,CDi,CDw,CD,CY,Cl,Cm,Cn,Cni,x_cp".split(",")
+        to_combine = "CY,CL,CD0,CDi,CDw,Cl,Cm,Cn,Cni,x_cp".split(",")
         result_self = {attr: getattr(self, attr) for attr in to_combine}
         result_other = {attr: getattr(other, attr) for attr in to_combine}
         result_new = {
@@ -163,6 +160,31 @@ class WingSolution(object):
                 setattr(new_soln, f"_{k}", v)
 
         return new_soln
+
+    def __add__(self, other):
+        """Addition, allows drag estimators to combine drag effects."""
+        # Verify it's okay to add the predictions, by first concatenating them
+        errormsg = f"Addition only applies if both objects are of {type(self)=}"
+        try:
+            new_object = self | other
+        except TypeError as e:
+            raise TypeError(errormsg) from e
+
+        # Find performance parameters of self and other, combine them
+        to_combine = "CD0,CDi,CDw,CD".split(",")
+        result_self = {attr: getattr(self, attr) for attr in to_combine}
+        result_other = {attr: getattr(other, attr) for attr in to_combine}
+        result_new = {
+            attr: np.nansum((result_self[attr], result_other[attr]))
+            for attr in to_combine
+        }
+
+        # Assign new performance parameters to new object
+        for (k, v) in result_new.items():
+            if ~np.isnan(v):
+                setattr(new_object, f"_{k}", v)
+
+        return new_object
 
     @property
     def wingsections(self):
@@ -236,10 +258,12 @@ class WingSolution(object):
     @property
     def CD(self) -> float:
         """Wing coefficient of drag (profile + induced), CD."""
+        CD_nansum = np.nansum((self.CD0, self.CDi, self.CDw))
         if self._CD is NotImplemented:
-            return self.CD0 + self.CDi + self.CDw
-        elif np.isclose(self._CD, self.CD0 + self.CDi):
-            return self._CD
+            return CD_nansum
+        elif np.isclose(self._CD, CD_nansum):
+            self._CD = NotImplemented
+            return CD_nansum
         else:
             errormsg = (
                 f"Total wing drag coefficient CD is not equal to the sum of "
@@ -304,12 +328,12 @@ class MixedBLDrag(WingSolution):
     Method for predicting viscous drag due to skin friction effects.
 
     References:
-        Gudmundsson, S., "General Aviation Aircraft Design: Applied Methods and
-            Procedures", Butterworth-Heinemann, 2014, pp.675-685.
+        S. Gudmundsson, "General Aviation Aircraft Design: Applied Methods and
+            Procedures", Butterworth-Heinemann, 2014, pp. 675-685.
     """
 
     def __init__(self, wingsections, altitude: Hint.num, TAS: Hint.num,
-                 Ks: Hint.num = None, **kwargs):
+                 Ks: Hint.num = None, CDf_CD0: Hint.num = None, **kwargs):
         # Super class call
         super().__init__(wingsections, altitude, TAS, **kwargs)
 
@@ -317,7 +341,8 @@ class MixedBLDrag(WingSolution):
         TAS = Quantity(self.TAS, "m s^{-1}")
         Ks = co.MATERIAL.roughness_Ks.paint_matte_smooth if Ks is None else Ks
         Ks = np.mean(Ks)
-        self._CDf_CD0 = 0.85  # Assume 85% of profile drag is friction
+        # Assume 85% of profile drag is from skin friction (15% pressure drag)
+        self._CDf_CD0 = 0.85 if CDf_CD0 is None else CDf_CD0
 
         # Bail early if necessary (why would anyone evaluate zero speed drag?)
         if TAS == 0:
@@ -666,13 +691,58 @@ class HorseshoeVortex(WingSolution):
         return
 
 
-class ZeroWave(WingSolution):
-    """A ZeroWave object is only exists to declare that wave drag is nil."""
+class RaymerSimple(HorseshoeVortex):
+    """
+    Horseshoe Vortex Method, enhanced with a zeroth-order approximation of drag
+    due to flow separation from Raymer.
+
+    Notes:
+        This method should only be used with "normal" aspect ratio wings and
+        not with high-aspect-ratio designs such as with sailplanes. This method
+        uses the Horseshoe Vortex Method to produce an ansatz CL.
+
+    References:
+        D.P. Raymer, "Aircraft Design: A Conceptual Approach", 6th ed., American
+            Institute of Aeronautics and Astronautics, 2018, p. 444.
+
+    """
 
     def __init__(self, wingsections, altitude: Hint.num, TAS: Hint.num,
                  **kwargs):
+        # Super class call
         super().__init__(wingsections, altitude, TAS, **kwargs)
-        self._CDw = 0.0
+
+        # Make sure it's appropriate to apply this method
+        # ... the wing should be mirrored
+        errormsg = f"{type(self).__name__} is only for use with symmetric wings"
+        assert wingsections.mirrored, errormsg
+
+        # ... the sweep of the wing has to be simple
+        errormsg = (
+            f"{type(self).__name__} is designed to work on wings with simple "
+            f"sweep profiles. Do not use for wings with compound/complex sweep"
+        )
+        sweeps = wingsections[:].sweep
+        sweeps = sweeps[0:1] + sweeps[1:-1]  # Ignore last station's sweep
+        assert len(set(sweeps)) == 1, errormsg
+
+        # ... the sweep should be backward
+        errormsg = f"{type(self).__name__} doesn't support forward sweep!"
+        sweep = sweeps[0]
+        assert sweep >= 0.0, errormsg
+
+        # Compute Oswald span efficiency estimate
+        ARfactor = (1 - 0.045 * wingsections.AR ** 0.68)
+        e0_straight = 1.78 * ARfactor - 0.64
+        e0_swept = 4.61 * ARfactor * np.cos(sweep) ** 0.15 - 3.1
+        wt = np.interp(sweep, [0, np.radians(30)], [1, 0])
+        e0_mixed = wt * e0_straight + (1 - wt) * e0_swept
+
+        # Compute induced drag factor k, and then estimate profile drag factor
+        k = self.CDi / (self.CL ** 2)
+        m = 1 / (np.pi * self.wingsections.AR * e0_mixed) - k
+        self._CD0 = m * self.CL ** 2
+
         return
 
 # class Cantilever1DStatic(WingSolution):
