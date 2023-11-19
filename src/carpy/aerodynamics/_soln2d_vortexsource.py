@@ -17,10 +17,11 @@ from functools import cached_property
 import numpy as np
 import scipy.integrate as sint
 
+from carpy.geometry import Aerofoil
 from carpy.utility import Hint, cast2numpy
-from ._solutions import AerofoilSolution
+from ._common import AeroSolution
 
-__all__ = ["InviscidPanel2D"]
+__all__ = ["VortexSource2D"]
 __author__ = "Yaseen Reza"
 
 
@@ -394,26 +395,32 @@ def compute_pressure_coefficient(panels, freestream):
         panel.cp = 1.0 - (panel.vt / freestream.u_inf) ** 2
 
 
-class PanelSolution(object):
+class VortexSource2D(AeroSolution):
     """
     Given an aerofoil object, angle of attack, and number of panels to
     discretise the geometry, compute pressure distribution data.
     """
 
-    def __init__(self, aerofoil, alpha: Hint.num, N: int = None):
-        # Recast as necessary
-        alpha = float(alpha)
-        N = 100 if N is None else N
+    def __init__(self, aerofoil: Aerofoil, Npanels: Hint.num = None, **kwargs):
+        """
+        Args:
+            aerofoil: Aerofoil object.
+            Npanels: Number of discretised points in the aerofoil's surface.
+                Optional, defaults to 100.
 
+        """
         # discretize geoemetry into panels
-        self.panels = define_panels(aerofoil, N=N)
+        self.panels = define_panels(aerofoil, N=Npanels)
+
+        # Super class call
+        super().__init__(aerofoil, N=len(self.panels) + 1, **kwargs)
 
         # Compute source and vortex influence matrices
         A_source = source_contribution_normal(self.panels)
         B_vortex = vortex_contribution_normal(self.panels)
 
         # define freestream conditions
-        self.freestream = Freestream(u_inf=1.0, alpha=alpha)
+        self.freestream = Freestream(u_inf=1.0, alpha=self.alpha)
 
         A = build_singularity_matrix(A_source, B_vortex)
         b = build_freestream_rhs(self.panels, self.freestream)
@@ -443,6 +450,9 @@ class PanelSolution(object):
         # cl = cn * self.freestream.cos_alpha - ct * self.freestream.sin_alpha
         # cd = cn * self.freestream.sin_alpha + ct * self.freestream.cos_alpha
 
+        # Finish up
+        self._user_readable = True
+
         return
 
     def show_Cp(self):
@@ -471,28 +481,4 @@ class PanelSolution(object):
         ax.set_ylim(*ax.get_ylim()[::-1])
         ax.set_title(f'Number of panels: {self.panels.size}', fontsize=16)
         plt.show()
-        return
-
-
-class InviscidPanel2D(PanelSolution, AerofoilSolution):
-    """A method for deriving the pressure distribution on an aerofoil."""
-
-    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
-        """
-        Args:
-            aerofoil: Aerofoil object.
-            alpha: Angle of attack.
-            Npanels: Number of discretised points in the aerofoil's surface.
-        """
-        # Make super class call
-        super().__init__(aerofoil, alpha, Npanels)
-
-        # !!! Without wake panels, Cl and Cd cannot be trusted apparently
-        # https://www.symscape.com/blog/why_use_panel_method
-        # Compute normal and tangent force coefficients, then inviscid cl and cd
-        # cn = sum([-pnl.cp * pnl.length * pnl.sin_beta for pnl in self.panels])
-        # ct = sum([-pnl.cp * pnl.length * pnl.cos_beta for pnl in self.panels])
-        # cl = cn * self.freestream.cos_alpha - ct * self.freestream.sin_alpha
-        # cd = cn * self.freestream.sin_alpha + ct * self.freestream.cos_alpha
-
         return

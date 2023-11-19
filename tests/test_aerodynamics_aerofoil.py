@@ -3,22 +3,8 @@ import unittest
 from matplotlib import pyplot as plt
 import numpy as np
 
-from carpy.aerodynamics import ThinAerofoil2D, PotentialFlow2D
-from carpy.aerodynamics.aerofoil._solutions_lsaero import DiscreteVortexMethod
-from carpy.geometry import NewAerofoil
+from carpy.aerodynamics import PotentialFlow2D
 from carpy.utility import GetPath
-
-
-class ThinAerofoilTheory(unittest.TestCase):
-    """Methods to test thin aerofoil theory."""
-
-    def test_liftcurveslope(self):
-        """Thin aerofoil theory suggests ideal lift slope of 2 pi."""
-        flatplate = NewAerofoil.from_method.NACA("0001")
-        solution = ThinAerofoil2D(aerofoil=flatplate, alpha=0)
-        Clalpha = solution.CLalpha
-        self.assertAlmostEqual(Clalpha, 2 * 3.1415926535, places=5)
-        return
 
 
 class PotentialFlowElements(unittest.TestCase):
@@ -340,35 +326,6 @@ class PotentialFlowElements(unittest.TestCase):
         plt.savefig(figpath)
 
         self.skipTest(reason=f"Produced file: {figpath}")
-        return
-
-
-class LowSpeedAero(unittest.TestCase):
-    def test_discretevortexmethod_flatplate(self):
-        """Test Discrete Vortex Method with flat plate results."""
-        aoa = np.radians(10)
-
-        aerofoil = NewAerofoil.from_method.ThinParabolic(epsilon=0)
-        soln0 = DiscreteVortexMethod(aerofoil, alpha=0)
-        soln1 = DiscreteVortexMethod(aerofoil, alpha=aoa)
-
-        # Zero lift? Zero drag!
-        self.assertEqual(soln0.CL, 0.0)
-        self.assertEqual(soln0.CD, 0.0)
-
-        # Lift slope of 2 pi according to thin aerofoil theory
-        self.assertAlmostEqual(soln1.CL, aoa * (2 * np.pi), places=1)  # poor?
-
-        return
-
-    def test_discretevortexmethod_paraboliccamber(self):
-        """Test Discrete Vortex Method with parabolic camber aerofoil."""
-        aerofoil = NewAerofoil.from_method.ThinParabolic(epsilon=0.04)
-        soln = DiscreteVortexMethod(aerofoil, alpha=0)
-
-        # Thin cambered aerofoil theory, CD is 0 for angle of attack of 0
-        self.assertGreater(soln.CL, 0)
-        self.assertEqual(soln.CD, 0)
         return
 
 

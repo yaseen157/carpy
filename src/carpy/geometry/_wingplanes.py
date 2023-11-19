@@ -1,4 +1,4 @@
-"""Methods for generating and optimising wing planforms."""
+"""Methods for generating and finding properties of wing planforms."""
 from functools import partial
 import warnings
 

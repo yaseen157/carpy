@@ -8,8 +8,9 @@ References:
 import numpy as np
 from scipy.integrate import simpson
 
-from carpy.utility import Hint, cast2numpy, moving_average
-from ._solutions import AerofoilSolution
+from carpy.geometry import Aerofoil
+from carpy.utility import cast2numpy, moving_average
+from ._common import AeroSolution
 
 __all__ = ["PotentialFlow2D"]
 __author__ = "Yaseen Reza"
@@ -301,22 +302,25 @@ class PotentialFlow2D(object):
 # Public (solution) classes
 # ---------------------------------------------------------------------------- #
 
-class DiscreteVortexMethod(AerofoilSolution):
+class DiscreteVortexMethod(AeroSolution):
     """
     Numerical solution for thin cambered aerofoil problems.
     """
 
-    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
+    def __init__(self, aerofoil: Aerofoil, Npanels: int = None, **kwargs):
         # Super class call
-        super().__init__(aerofoil, alpha, Npanels)
+        if Npanels is None:  # Can't add 1 to a None!
+            super().__init__(aerofoil, **kwargs)
+        else:
+            super().__init__(aerofoil, N=Npanels + 1, **kwargs)
 
         # Obtain camber coordinates
-        panel_dx = 1 / self._Npanels
-        xcamb, ycamb = self._aerofoil._camber_points(step_target=panel_dx).T
+        panel_dx = 1 / (Npanels := self._Nctrlpts - 1)
+        xcamb, ycamb = self.sections._camber_points(step_target=panel_dx).T
 
         # Compute panel normals
         deta_dx = np.diff(ycamb) / np.diff(xcamb)
-        panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
+        panel_ns = np.vstack([-deta_dx, np.ones(Npanels)])  # vector > 1
         panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
 
         # Locate vortices
@@ -328,14 +332,14 @@ class DiscreteVortexMethod(AerofoilSolution):
         zis = np.interp(xis, xcamb, ycamb)
 
         # Construct RHS
-        Q = np.array([np.cos(alpha), np.sin(alpha)])
+        Q = np.array([np.cos(self.alpha), np.sin(self.alpha)])
         RHS = np.dot(-Q, panel_ns)
 
         # Spawn an influence coefficient array (each row == one collocation pt.)
-        A = np.zeros((self._Npanels, self._Npanels))
+        A = np.zeros((Npanels, Npanels))
 
-        for i in range(self._Npanels):  # Loop over collocation points
-            for j in range(self._Npanels):  # Loop over vortex points
+        for i in range(Npanels):  # Loop over collocation points
+            for j in range(Npanels):  # Loop over vortex points
                 velocity_uw = PotentialFlow2D.vortex_D(
                     Gammaj=1.0,
                     x=xis[i], z=zis[i],
@@ -372,33 +376,40 @@ class DiscreteVortexMethod(AerofoilSolution):
         self._Cp = dp / (0.5 * rho * V ** 2)
         self._Cm_0 = M0 / (0.5 * rho * V ** 2 * c ** 2)
 
+        # Finish up
+        self._user_readable = True
+
         return
 
 
-class DiscreteSourceMethod(AerofoilSolution):
+class DiscreteSourceMethod(AeroSolution):
     """
     Numerical solution for symmetric aerofoil problems.
     """
 
-    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
+    def __init__(self, aerofoil: Aerofoil, Npanels: int = None, **kwargs):
         # Super class call
-        super().__init__(aerofoil, alpha, Npanels)
+        if Npanels is None:  # Can't add 1 to a None!
+            super().__init__(aerofoil, **kwargs)
+        else:
+            super().__init__(aerofoil, N=Npanels + 1, **kwargs)
 
         # Obtain aerofoil surface coordinates
-        i_le = np.argmax(self._aerofoil._curvature)
-        xupper = np.linspace(0, 1, self._Npanels + 1)
-        yupper = np.interp(xupper, *self._aerofoil.points[:i_le][::-1].T)
+        i_le = np.argmax(self.sections._curvature)
+        xupper = np.linspace(0, 1, self._Nctrlpts)
+        yupper = np.interp(xupper, *self.sections.points[:i_le][::-1].T)
 
         # Compute panel normals and tangents
+        Npanels = self._Nctrlpts - 1
         deta_dx = np.diff(yupper) / np.diff(xupper)
-        panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
+        panel_ns = np.vstack([-deta_dx, np.ones(Npanels)])  # vector > 1
         panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
         panel_ts = np.array([[0, 1], [-1, 0]]) @ panel_ns  # rotate norm
 
         # Locate sources
-        panel_dx = 1 / self._Npanels
+        panel_dx = 1 / Npanels
         xjs = xupper[:-1] + panel_dx * (1 / 2)
-        zjs = np.zeros(self._Npanels)
+        zjs = np.zeros(Npanels)
 
         # Locate collocation points
         xis = xjs.copy()
@@ -407,14 +418,14 @@ class DiscreteSourceMethod(AerofoilSolution):
         zis = np.interp(xis, xupper, yupper)
 
         # Construct RHS
-        Q = np.array([np.cos(alpha), np.sin(alpha)])
+        Q = np.array([np.cos(self.alpha), np.sin(self.alpha)])
         RHS = np.dot(-Q, panel_ns)
 
         # Spawn an influence coefficient array (each row == one collocation pt.)
-        A = np.zeros((self._Npanels, self._Npanels))
+        A = np.zeros((Npanels, Npanels))
 
-        for i in range(self._Npanels):  # Loop over collocation points
-            for j in range(self._Npanels):  # Loop over vortex points
+        for i in range(Npanels):  # Loop over collocation points
+            for j in range(Npanels):  # Loop over vortex points
                 velocity_uw = PotentialFlow2D.source_D(
                     sigmaj=1.0,
                     x=xis[i], z=zis[i],
@@ -441,46 +452,53 @@ class DiscreteSourceMethod(AerofoilSolution):
         self._xjs = xjs
         self._Cp = 1 - Qtis  # / Qs=1.0
 
+        # Finish up
+        self._user_readable = True
+
         return
 
 
-class ConstantSourceMethod(AerofoilSolution):
+class ConstantSourceMethod(AeroSolution):
     """
     Numerical solution for symmetric aerofoil problems.
     """
 
-    def __init__(self, aerofoil, alpha: Hint.num, Npanels: int = None):
+    def __init__(self, aerofoil: Aerofoil, Npanels: int = None, **kwargs):
         # Super class call
-        super().__init__(aerofoil, alpha, Npanels)
+        if Npanels is None:  # Can't add 1 to a None!
+            super().__init__(aerofoil, **kwargs)
+        else:
+            super().__init__(aerofoil, N=Npanels + 1, **kwargs)
 
         # Obtain aerofoil surface coordinates
-        i_le = np.argmax(self._aerofoil._curvature)
-        xupper = 0.5 * (1 - np.cos(np.linspace(0, np.pi, self._Npanels + 1)))
-        yupper = np.interp(xupper, *self._aerofoil.points[:i_le][::-1].T)
+        i_le = np.argmax(self.sections._curvature)
+        xupper = 0.5 * (1 - np.cos(np.linspace(0, np.pi, self._Nctrlpts)))
+        yupper = np.interp(xupper, *self.sections.points[:i_le][::-1].T)
 
         # Compute panel normals and tangents
+        Npanels = self._Nctrlpts - 1
         deta_dx = np.diff(yupper) / np.diff(xupper)
-        panel_ns = np.vstack([-deta_dx, np.ones(self._Npanels)])  # vector > 1
+        panel_ns = np.vstack([-deta_dx, np.ones(Npanels)])  # vector > 1
         panel_ns = panel_ns / np.linalg.norm(panel_ns, axis=0)  # normalised
         # panel_ts = np.array([[0, 1], [-1, 0]]) @ panel_ns  # rotate norm
 
         # Locate sources
         xj0s, xj1s = xupper[::-1][:-1], xupper[::-1][1:]
-        zj0s, zj1s = np.zeros((2, self._Npanels))
+        zj0s, zj1s = np.zeros((2, Npanels))
 
         # Locate collocation points
         xis = moving_average(x=xupper, w=2)
         zis = np.interp(xis, xupper, yupper)
 
         # Construct RHS
-        Q = np.array([np.cos(alpha), np.sin(alpha)])
+        Q = np.array([np.cos(self.alpha), np.sin(self.alpha)])
         RHS = np.dot(-Q, panel_ns)
 
         # Spawn an influence coefficient array (each row == one collocation pt.)
-        A = np.zeros((self._Npanels, self._Npanels))
+        A = np.zeros((Npanels, Npanels))
 
-        for i in range(self._Npanels):  # Loop over collocation points
-            for j in range(self._Npanels):  # Loop over vortex points
+        for i in range(Npanels):  # Loop over collocation points
+            for j in range(Npanels):  # Loop over vortex points
 
                 # if i == j:  # Exclude self-influence, enforce flow tangency
                 #     A[i, j] = 0.5  # Strength / 2 = freestream velocity
@@ -500,5 +518,8 @@ class ConstantSourceMethod(AerofoilSolution):
         if ~np.isclose(sigmas.sum(), 0.0, atol=1e-3):
             errormsg = f"sigmas.sum() != 0, bad result (got {sigmas.sum()=})"
             raise RuntimeError(errormsg)
+
+        # Finish up
+        self._user_readable = True
 
         return

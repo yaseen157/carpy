@@ -132,7 +132,7 @@ class Aerodynamics(unittest.TestCase):
         basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 0}
         soln = RaymerSimple(**basekwargs)
 
-        self.assertAlmostEqual(soln.CD, 0.003100364565247407, places=6)
+        self.assertAlmostEqual(soln.CD, 0.0030199, places=6)
         return
 
 

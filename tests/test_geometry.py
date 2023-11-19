@@ -3,6 +3,7 @@ import unittest
 
 from carpy.geometry import ContinuousIndex, DiscreteIndex
 from carpy.geometry import NewAerofoil, WingSections
+from carpy.geometry import StrandedCable
 
 
 class IndexTemplates(unittest.TestCase):
@@ -95,7 +96,6 @@ class WingGeometry(unittest.TestCase):
             and Procedures", Butterworth-Heinemann, 2014, p. 304.
 
         """
-
         n0012 = NewAerofoil.from_method.NACA("0012")
 
         mysections = WingSections(b=(span := 4))
@@ -122,6 +122,25 @@ class WingGeometry(unittest.TestCase):
         AR = span ** 2 / Sref
         self.assertEqual(mysections.AR, AR)
 
+        return
+
+
+class TestStrandedCable(unittest.TestCase):
+    """Test that the geometry of StrandedCables are computed properly."""
+
+    def test_0strands(self):
+        mycable = StrandedCable(diameter=2e-3, Nstrands=0)
+        self.assertEqual(mycable.d_strand, 0)
+        return
+
+    def test_12strands(self):
+        mycable = StrandedCable(diameter=3.3e-3, Nstrands=12)
+        self.assertAlmostEqual(mycable.d_strand, 0.0006785, places=4)
+        return
+
+    def test_5strands(self):
+        mycable = StrandedCable(diameter=3.7e-3, Nstrands=5)
+        self.assertAlmostEqual(mycable.d_strand, 0.00136971, places=6)
         return
 
 
