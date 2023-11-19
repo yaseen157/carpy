@@ -74,7 +74,7 @@ at the operating system prompt.
 If you already have a version of carpy installed and are simply trying to
 upgrade, use the `--upgrade` flag:
 
-    $ pip install carpy --upgrade
+    $ pip install --upgrade carpy
 
 An alternative approach to installing carpy is to clone the GitHub repository
 using `git`, by typing
