@@ -45,23 +45,8 @@ class HoernerCable(AeroSolution):
         # The drag coefficient tends towards 1.0 at Reynolds e6
         CD0, = np.interp(Re, [1e4, 1e6], [CD0_e4, 1.0])
 
-        # Align the force coefficient with freestream
-        # ... create rotation matrix for angle of attack and of sideslip
-        cos_alpha, sin_alpha = np.cos(-self.alpha), np.sin(-self.alpha)
-        rot_alpha = np.array([
-            [cos_alpha, 0, sin_alpha],
-            [0, 1, 0],  # About the Y-axis
-            [-sin_alpha, 0, cos_alpha]
-        ])
-        cos_beta, sin_beta = np.cos(-self.beta), np.sin(-self.beta)
-        rot_beta = np.array([
-            [cos_beta, -sin_beta, 0],
-            [sin_beta, cos_beta, 0],
-            [0, 0, 1]  # About the Z-axis
-        ])
-        # ... orient with the freestream
-        self._CD0, self._CY, self._CL = \
-            rot_beta @ rot_alpha @ np.array([CD0, 0.0, 0.0])
+        # The cable always produces drag to the freestream
+        self._CD0, self._CY, self._CL = [CD0, 0.0, 0.0]
 
         # Finish up
         self._user_readable = True

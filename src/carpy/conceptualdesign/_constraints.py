@@ -68,6 +68,8 @@ class Constraint(object):
             if subs_defined[k.name] is not NotImplemented
         }
 
+        # TODO: Support broadcasting of array inputs to __call__ :)
+
         # Make the substitution
         return getattr(self._eqn, "subs")(subs)
 
@@ -114,15 +116,15 @@ class Constraints(object):
 
 
 # ----- Energy constraint -----
-T2W, W2S, q = sp.symbols("T2W,W2S,q")  # T/W, Wing-loading, dynamic pressure
+T, W, S, q = sp.symbols("T,W,S,q")  # T/W, Wing-loading, dynamic pressure
 V, Vdot, Vdot_n, zdot, g = sp.symbols("V,Vdot,Vdot_n,zdot, g")  # pos/vel/acc
 alpha, epsilon, theta, mu = sp.symbols("alpha,epsilon,theta,mu")  # Greek
 CL, CD = sp.symbols("C_L,C_D")  # Performance coefficients
 
 # Components of thrust to weight (streamwise)
 comp_accel = Vdot / g
-comp_lift = q / W2S * CL * mu * sp.cos(alpha) ** 2
-comp_drag = q / W2S * CD * (mu / 2 * sp.sin(2 * alpha) - 1)
+comp_lift = q / (W / S) * CL * mu * sp.cos(alpha) ** 2
+comp_drag = q / (W / S) * CD * (mu / 2 * sp.sin(2 * alpha) - 1)
 comp_weight = zdot / V + mu * sp.cos(alpha) * sp.cos(theta)
 comp_thrust = sp.cos(alpha + epsilon) * (
         1 + mu * sp.cos(alpha) * sp.tan(alpha + epsilon))
@@ -131,14 +133,14 @@ eqn_T2W = (comp_accel - comp_lift - comp_drag + comp_weight) / comp_thrust
 
 # Components of thrust to weight (streamnormal)
 comp_accel = Vdot_n / g
-comp_lift = q / W2S * CL * (mu / 2 * sp.sin(2 * alpha) + 1)
-comp_drag = q / W2S * CD * mu * sp.sin(alpha) ** 2
+comp_lift = q / (W / S) * CL * (mu / 2 * sp.sin(2 * alpha) + 1)
+comp_drag = q / (W / S) * CD * mu * sp.sin(alpha) ** 2
 comp_weight = (1 - (zdot / V) ** 2) ** 0.5 + mu * sp.cos(alpha) * sp.cos(theta)
 comp_thrust = sp.sin(alpha + epsilon) * (1 + mu * sp.sin(alpha))
 
 # T/W due to streamwise + streamnormal acceleration
 eqn_T2W += (comp_accel - comp_lift - comp_drag + comp_weight) / comp_thrust
-eqn_T2W = sp.Eq(T2W, eqn_T2W)
+eqn_T2W = sp.Eq(T / W, eqn_T2W)
 del comp_accel, comp_lift, comp_drag, comp_weight, comp_thrust  # clr. namespace
 
 
@@ -149,8 +151,10 @@ class EnergyConstraint(Constraint):
     """Vehicle energy constraint/design point."""
 
     _eqn = eqn_T2W  # <- Governing equation
+    _T: Quantity = NotImplemented
+    _W: Quantity = NotImplemented
+    _S: Quantity = NotImplemented
     _q: Quantity = NotImplemented
-    _W2S: Quantity = NotImplemented
     _V: Quantity = NotImplemented
     _Vdot: Quantity = NotImplemented
     _Vdot_n: Quantity = NotImplemented
@@ -161,19 +165,19 @@ class EnergyConstraint(Constraint):
     _theta: float = NotImplemented
     _mu: float = NotImplemented
 
-    def __new__(cls, *, q: Hint.nums = None, W2S: Hint.nums = None,
-                V: Hint.nums = None,
+    def __new__(cls, *, T: Hint.nums = None, W: Hint.nums = None,
+                S: Hint.nums = None, q: Hint.nums = None, V: Hint.nums = None,
                 Vdot: Hint.nums = None, Vdot_n: Hint.nums = None,
                 zdot: Hint.nums = None, g: Hint.nums = None,
                 alpha: Hint.nums = None, epsilon: Hint.nums = None,
                 theta: Hint.nums = None, mu: Hint.nums = None):
         # Recast as necessary
         kwargs = dict([  # MUST contain same keys as the sympy governing eqn.!!
-            ("q", q), ("W2S", W2S), ("V", V), ("Vdot", Vdot), ("Vdotn", Vdot_n),
-            ("zdot", zdot), ("g", g), ("alpha", alpha),
+            ("T", T), ("W", W), ("S", S), ("q", q), ("V", V), ("Vdot", Vdot),
+            ("Vdotn", Vdot_n), ("zdot", zdot), ("g", g), ("alpha", alpha),
             ("epsilon", epsilon), ("theta", theta), ("mu", mu)
         ])
-        del q, W2S, V, Vdot, Vdot_n, zdot, g, alpha, epsilon, theta, mu
+        del T, W, S, q, V, Vdot, Vdot_n, zdot, g, alpha, epsilon, theta, mu
         kwargs = broadcast_kwargs(kwargs)
 
         # Make as many constraint objects as there are broadcasted arguments
@@ -194,6 +198,51 @@ class EnergyConstraint(Constraint):
         return Constraints(constraints=constraints)
 
     @property
+    def T(self) -> Quantity:
+        """Thrust force, T."""
+        return self._T
+
+    @T.setter
+    def T(self, value):
+        self._T = Quantity(float(value), "N")
+        return
+
+    @T.deleter
+    def T(self):
+        self._T = NotImplemented
+        return
+
+    @property
+    def W(self) -> Quantity:
+        """Weight force, W."""
+        return self._W
+
+    @W.setter
+    def W(self, value):
+        self._W = Quantity(float(value), "N")
+        return
+
+    @W.deleter
+    def W(self):
+        self._W = NotImplemented
+        return
+
+    @property
+    def S(self) -> Quantity:
+        """Reference planform wing area, S."""
+        return self._S
+
+    @S.setter
+    def S(self, value):
+        self._S = Quantity(float(value), "m^{2}")
+        return
+
+    @S.deleter
+    def S(self):
+        self._S = NotImplemented
+        return
+
+    @property
     def q(self) -> Quantity:
         """Dynamic pressure, q."""
         return self._q
@@ -206,21 +255,6 @@ class EnergyConstraint(Constraint):
     @q.deleter
     def q(self):
         self._q = NotImplemented
-        return
-
-    @property
-    def W2S(self) -> Quantity:
-        """Wing loading, W/S."""
-        return self._W2S
-
-    @W2S.setter
-    def W2S(self, value):
-        self._W2S = Quantity(float(value), "Pa")
-        return
-
-    @W2S.deleter
-    def W2S(self):
-        self._W2S = NotImplemented
         return
 
     @property
