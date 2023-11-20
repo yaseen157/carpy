@@ -7,7 +7,7 @@ import sympy as sp
 
 from carpy.utility import Hint, Quantity, cast2numpy
 
-__all__ = ["EnergyConstraint"]
+__all__ = ["ThrustConstraint"]
 __author__ = "Yaseen Reza"
 
 
@@ -115,7 +115,7 @@ class Constraints(object):
         return
 
 
-# ----- Energy constraint -----
+# ----- Thrust constraint -----
 T, W, S, q = sp.symbols("T,W,S,q")  # T/W, Wing-loading, dynamic pressure
 V, Vdot, Vdot_n, zdot, g = sp.symbols("V,Vdot,Vdot_n,zdot, g")  # pos/vel/acc
 alpha, epsilon, theta, mu = sp.symbols("alpha,epsilon,theta,mu")  # Greek
@@ -143,12 +143,30 @@ eqn_T2W += (comp_accel - comp_lift - comp_drag + comp_weight) / comp_thrust
 eqn_T2W = sp.Eq(T / W, eqn_T2W)
 del comp_accel, comp_lift, comp_drag, comp_weight, comp_thrust  # clr. namespace
 
+# ----- Power constraint -----
+P, Wdot, W_f, z, LCV = sp.symbols("P,Wdot,W_f,z,LCV")
+eta_o, etadot_o = sp.symbols("eta_o,etadot_o")
+
+# P/W for steady level flight
+eqn_P2W = (Wdot / W) * (z + (V ** 2 / 2 / g) - (LCV / g) * eta_o)
+# + P/W for manoeuvring flight
+eqn_P2W += zdot + (Vdot / g * V) + (W_f / W * LCV / g) * etadot_o
+
+# P/W governing equation
+eqn_P2W = sp.Eq(P / W, eqn_P2W)
+
+# Clean up, for no particular reason
+del CL, CD, LCV, P, S, T, V, Vdot, Vdot_n, W, Wdot, W_f, g, q, z, zdot
+del alpha, epsilon, mu, theta
+
 
 # ============================================================================ #
 # Public-facing functions and classes
 # ---------------------------------------------------------------------------- #
-class EnergyConstraint(Constraint):
-    """Vehicle energy constraint/design point."""
+class ThrustConstraint(Constraint):
+    """
+    Vehicle energy constraint/design point, for optimising vehicle range.
+    """
 
     _eqn = eqn_T2W  # <- Governing equation
     _T: Quantity = NotImplemented
@@ -184,7 +202,7 @@ class EnergyConstraint(Constraint):
         constraints = []
         for i in range(kwargs["q"].size):
             # Create a new constraint instance based on a parent's __new__
-            inst = super(EnergyConstraint, cls).__new__(cls, *tuple(), **dict())
+            inst = super(ThrustConstraint, cls).__new__(cls, *tuple(), **dict())
             # Store the keyword arguments that would've instantiated this object
             inst.__kwargs__ = dict()
             # Populate attributes with the kwargs passed to this class' __new__
