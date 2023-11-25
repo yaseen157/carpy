@@ -1,13 +1,13 @@
 """Methods for establishing performance constraints of a vehicle concept."""
+from functools import cache
 from typing import Type
-import warnings
 
 import numpy as np
 import sympy as sp
 
-from carpy.utility import Hint, Quantity, cast2numpy
+from carpy.utility import Quantity, cast2numpy
 
-__all__ = ["ThrustConstraint"]
+__all__ = ["Manoeuvre3DTW", "Manoeuvre3DPW"]
 __author__ = "Yaseen Reza"
 
 
@@ -36,42 +36,329 @@ def broadcast_kwargs(kwargs: dict):
 # Generic type for subclasses of constraints
 class Constraint(object):
     """Methods for a single constraint."""
-    _eqn: object
+    _equation: sp.core.relational.Equality
+
+    @classmethod
+    def symbol_map(cls) -> dict[str, sp.core.symbol.Symbol]:
+        """
+        Maps plaintext symbols to the corresponding symbol object in the
+        governing equation.
+        """
+        symbols = cls._equation.free_symbols
+        symbol_mapping = {
+            getattr(symbol, "name").replace("C_", "C"): symbol
+            for symbol in symbols
+        }
+        return symbol_mapping
+
+    def __new__(cls, **kwargs):
+        # Do not allow users to use Constraint class directly
+        if cls is Constraint:
+            errormsg = f"__new__ is only supported on children of {Constraint}"
+            raise RuntimeError(errormsg)
+
+        # Recast as necessary
+        kwargs = {name: kwargs.get(name) for name in cls.symbol_map()}
+        kwargs = broadcast_kwargs(kwargs)
+
+        # Make as many constraint objects as there are broadcasted arguments
+        constraints_objects = []
+        for i in range(kwargs["q"].size):
+            # Create a new constraint instance based on a parent's __new__
+            inst = super(Constraint, cls).__new__(cls, *(), **{})
+            # Store the keyword arguments that would've instantiated this object
+            inst.__kwargs__ = dict()
+            # Populate attributes with the kwargs passed to this class' __new__
+            for (k, v) in kwargs.items():
+                if v.flat[i] is not None:
+                    setattr(inst, k, v.flat[i])  # <- set attributes if not None
+                inst.__kwargs__[k] = v.flat[i]  # <- record the kwargs, always
+            constraints_objects.append(inst)
+
+        # Return a Constraints object to the user
+        return Constraints(constraints_objects)
 
     def __call__(self, **kwargs):
-        # Do not allow users to __call__ non-existent constraints
+        # Do not allow users to use Constraint class directly
         if type(self) is Constraint:
             errormsg = f"__call__ is only supported on children of {Constraint}"
             raise RuntimeError(errormsg)
 
-        # Find the name of all the constraint attributes of this instance
-        constraint_names = [
-            x for x in dir(type(self))  # Should exist in instance's class
-            if isinstance(getattr(type(self), x), property)  # Is a property
-        ]
-        # Find the values of the constraints that are defined in the instance
-        subs_defined = {k: getattr(self, k) for k in constraint_names}
-        for (k, v) in kwargs.items():
-            if subs_defined[k] is not NotImplemented:  # Constraint is overriden
-                warnmsg = f"{k} in {self} was overriden with {v}"
-                warnings.warn(message=warnmsg, category=RuntimeWarning)
-            subs_defined[k] = v
+        # Extract governing equation substitutions from self attributes & kwargs
+        symbol_map = self.symbol_map()
+        substitutions = broadcast_kwargs({
+            k: kwargs.get(k, getattr(self, k))
+            for k, v in self.symbol_map().items()
+        })
 
-        # Find the atoms of the governing equation that can be substituted
-        eqn_symbols = tuple(filter(
-            lambda x: isinstance(x, sp.core.symbol.Symbol),
-            getattr(self._eqn, "atoms")()
-        ))
-        symbols_allowed = {k for k in eqn_symbols if k.name in constraint_names}
-        subs = {
-            k: float(subs_defined[k.name]) for k in symbols_allowed
-            if subs_defined[k.name] is not NotImplemented
-        }
+        # Compute outputs
+        output = np.empty(list(substitutions.values())[0].shape, dtype=object)
+        for i in range(len(output.flat)):
+            subs = {
+                symbol_map[k]: v.flat[i] for (k, v) in substitutions.items()
+                if v.flat[i] is not None
+            }
+            output.flat[i] = self._equation.subs(subs)
 
-        # TODO: Support broadcasting of array inputs to __call__ :)
+        # Squash output if necessary
+        if output.size == 1:
+            return output[0]
+        return output
 
-        # Make the substitution
-        return getattr(self._eqn, "subs")(subs)
+    @property
+    def P(self) -> Quantity:
+        """Propulsive power, P."""
+        return self.__kwargs__.get("P", None)
+
+    @P.setter
+    def P(self, value):
+        self.__kwargs__["P"] = Quantity(float(value), "W")
+        return
+
+    @P.deleter
+    def P(self):
+        del self.__kwargs__["P"]
+        return
+
+    @property
+    def S(self) -> Quantity:
+        """Reference planform wing area, S."""
+        return self.__kwargs__.get("S", None)
+
+    @S.setter
+    def S(self, value):
+        self.__kwargs__["S"] = Quantity(float(value), "m^{2}")
+        return
+
+    @S.deleter
+    def S(self):
+        del self.__kwargs__["S"]
+        return
+
+    @property
+    def T(self) -> Quantity:
+        """Propuslive thrust force, T."""
+        return self.__kwargs__.get("T", None)
+
+    @T.setter
+    def T(self, value):
+        self.__kwargs__["T"] = Quantity(float(value), "N")
+        return
+
+    @T.deleter
+    def T(self):
+        del self.__kwargs__["T"]
+        return
+
+    @property
+    def V(self) -> Quantity:
+        """Velocity parallel to the direction of motion, V."""
+        return self.__kwargs__.get("V", None)
+
+    @V.setter
+    def V(self, value):
+        self.__kwargs__["V"] = Quantity(float(value), "m s^{-1}")
+        return
+
+    @V.deleter
+    def V(self):
+        del self.__kwargs__["V"]
+        return
+
+    @property
+    def Vdot(self) -> Quantity:
+        """Acceleration along flight trajectory, Vdot."""
+        return self.__kwargs__.get("Vdot", None)
+
+    @Vdot.setter
+    def Vdot(self, value):
+        self.__kwargs__["Vdot"] = Quantity(float(value), "m s^{-2}")
+        return
+
+    @Vdot.deleter
+    def Vdot(self):
+        del self.__kwargs__["Vdot"]
+        return
+
+    @property
+    def Vdot_n(self) -> Quantity:
+        """Acceleration resulting in circular motion of vehicle, Vdot_n."""
+        return self.__kwargs__.get("Vdot_n", None)
+
+    @Vdot_n.setter
+    def Vdot_n(self, value):
+        self.__kwargs__["Vdot_n"] = Quantity(float(value), "m s^{-2}")
+        return
+
+    @Vdot_n.deleter
+    def Vdot_n(self):
+        del self.__kwargs__["Vdot_n"]
+        return
+
+    @property
+    def W(self) -> Quantity:
+        """Weight force, W."""
+        return self.__kwargs__.get("W", None)
+
+    @W.setter
+    def W(self, value):
+        self.__kwargs__["W"] = Quantity(float(value), "N")
+        return
+
+    @W.deleter
+    def W(self):
+        del self.__kwargs__["W"]
+        return
+
+    @property
+    def g(self) -> Quantity:
+        """Local acceleration due to gravity, g."""
+        return self.__kwargs__.get("g", None)
+
+    @g.setter
+    def g(self, value):
+        self.__kwargs__["g"] = Quantity(float(value), "m s^{-2}")
+        return
+
+    @g.deleter
+    def g(self):
+        del self.__kwargs__["g"]
+        return
+
+    @property
+    def q(self) -> Quantity:
+        """Dynamic pressure, q."""
+        return self.__kwargs__.get("q", None)
+
+    @q.setter
+    def q(self, value):
+        self.__kwargs__["q"] = Quantity(float(value), "Pa")
+        return
+
+    @q.deleter
+    def q(self):
+        del self.__kwargs__["q"]
+        return
+
+    @property
+    def zdot(self) -> Quantity:
+        """Rate of change of geometric altitude, zdot."""
+        return self.__kwargs__.get("zdot", None)
+
+    @zdot.setter
+    def zdot(self, value):
+        self.__kwargs__["zdot"] = Quantity(float(value), "m s^{-1}")
+        return
+
+    @zdot.deleter
+    def zdot(self):
+        del self.__kwargs__["zdot"]
+        return
+
+    @property
+    def zddot(self) -> Quantity:
+        """Rate of change of geometric climbrate, zddot."""
+        return self.__kwargs__.get("zddot", None)
+
+    @zddot.setter
+    def zddot(self, value):
+        self.__kwargs__["zddot"] = Quantity(float(value), "m s^{-2}")
+        return
+
+    @zddot.deleter
+    def zddot(self):
+        del self.__kwargs__["zddot"]
+        return
+
+    @property
+    def alpha(self) -> float:
+        """Angle of attack, alpha."""
+        return self.__kwargs__.get("alpha", None)
+
+    @alpha.setter
+    def alpha(self, value):
+        self.__kwargs__["alpha"] = float(value)
+        return
+
+    @alpha.deleter
+    def alpha(self):
+        del self.__kwargs__["alpha"]
+        return
+
+    @property
+    def epsilon(self) -> float:
+        """Thrust setting angle, epsilon."""
+        return self.__kwargs__.get("epsilon", None)
+
+    @epsilon.setter
+    def epsilon(self, value):
+        self.__kwargs__["epsilon"] = float(value)
+        return
+
+    @epsilon.deleter
+    def epsilon(self):
+        del self.__kwargs__["epsilon"]
+        return
+
+    @property
+    def theta(self) -> float:
+        """Aircraft pitch angle, theta."""
+        return self.__kwargs__.get("theta", None)
+
+    @theta.setter
+    def theta(self, value):
+        self.__kwargs__["theta"] = float(value)
+        return
+
+    @theta.deleter
+    def theta(self):
+        del self.__kwargs__["theta"]
+        return
+
+    @property
+    def mu(self) -> float:
+        """Coefficient of rolling friction that applies during takeoff, mu."""
+        return self.__kwargs__.get("mu", None)
+
+    @mu.setter
+    def mu(self, value):
+        self.__kwargs__["mu"] = float(value)
+        return
+
+    @mu.deleter
+    def mu(self):
+        del self.__kwargs__["mu"]
+        return
+
+    @property
+    def CL(self) -> float:
+        """Coefficient of Lift, CL."""
+        return self.__kwargs__.get("CL", None)
+
+    @CL.setter
+    def CL(self, value):
+        self.__kwargs__["CL"] = float(value)
+        return
+
+    @CL.deleter
+    def CL(self):
+        del self.__kwargs__["CL"]
+        return
+
+    @property
+    def CD(self) -> float:
+        """Coefficient of Drag, CD."""
+        return self.__kwargs__.get("CD", None)
+
+    @CD.setter
+    def CD(self, value):
+        self.__kwargs__["CD"] = float(value)
+        return
+
+    @CD.deleter
+    def CD(self):
+        del self.__kwargs__["CD"]
+        return
 
 
 class Constraints(object):
@@ -115,297 +402,107 @@ class Constraints(object):
         return
 
 
-# ----- Thrust constraint -----
-T, W, S, q = sp.symbols("T,W,S,q")  # T/W, Wing-loading, dynamic pressure
-V, Vdot, Vdot_n, zdot, g = sp.symbols("V,Vdot,Vdot_n,zdot, g")  # pos/vel/acc
-alpha, epsilon, theta, mu = sp.symbols("alpha,epsilon,theta,mu")  # Greek
-CL, CD = sp.symbols("C_L,C_D")  # Performance coefficients
+class GovEqn(object):
+    """Governing equations for constraints analysis tasks."""
 
-# Components of thrust to weight (streamwise)
-comp_accel = Vdot / g
-comp_lift = q / (W / S) * CL * mu * sp.cos(alpha) ** 2
-comp_drag = q / (W / S) * CD * (mu / 2 * sp.sin(2 * alpha) - 1)
-comp_weight = zdot / V + mu * sp.cos(alpha) * sp.cos(theta)
-comp_thrust = sp.cos(alpha + epsilon) * (
-        1 + mu * sp.cos(alpha) * sp.tan(alpha + epsilon))
-# T/W due to streamwise acceleration
-eqn_T2W = (comp_accel - comp_lift - comp_drag + comp_weight) / comp_thrust
+    @staticmethod
+    @cache
+    def TW_3D_ManoeuvringFlight() -> sp.core.relational.Equality:
+        """
+        Thrust-to-Weight constraint in 3D for Manoeuvring Flight.
 
-# Components of thrust to weight (streamnormal)
-comp_accel = Vdot_n / g
-comp_lift = q / (W / S) * CL * (mu / 2 * sp.sin(2 * alpha) + 1)
-comp_drag = q / (W / S) * CD * mu * sp.sin(alpha) ** 2
-comp_weight = (1 - (zdot / V) ** 2) ** 0.5 + mu * sp.cos(alpha) * sp.cos(theta)
-comp_thrust = sp.sin(alpha + epsilon) * (1 + mu * sp.sin(alpha))
+        Returns:
+            A SymPy "equality" relational object.
 
-# T/W due to streamwise + streamnormal acceleration
-eqn_T2W += (comp_accel - comp_lift - comp_drag + comp_weight) / comp_thrust
-eqn_T2W = sp.Eq(T / W, eqn_T2W)
-del comp_accel, comp_lift, comp_drag, comp_weight, comp_thrust  # clr. namespace
+        """
+        # In-plane
+        T, W, S, q, Vdot, g, zdot, V = sp.symbols("T,W,S,q,Vdot,g,zdot,V")
+        CD = sp.symbols("C_D")
+        alpha, epsilon = sp.symbols("alpha,epsilon")
+        sin_g = zdot / V
+        eqn_t2w_p = (q / (W / S) * CD + Vdot / g + sin_g) / sp.cos(
+            alpha + epsilon)
 
-# ----- Power constraint -----
-P, Wdot, W_f, z, LCV = sp.symbols("P,Wdot,W_f,z,LCV")
-eta_o, etadot_o = sp.symbols("eta_o,etadot_o")
+        # Normal
+        zddot, Vdot_n = sp.symbols("zddot, Vdot_n")
+        CL = sp.symbols("C_L")
+        cos_g = sp.sqrt(1 - sin_g ** 2)
+        eqn_t2w_n = (sp.sqrt(
+            ((zddot - Vdot * sin_g) / g / cos_g + cos_g) ** 2
+            + (Vdot_n / g) ** 2
+        ) - (q / (W / S) * CL)) / sp.sin(alpha + epsilon)
 
-# P/W for steady level flight
-eqn_P2W = (Wdot / W) * (z + (V ** 2 / 2 / g) - (LCV / g) * eta_o)
-# + P/W for manoeuvring flight
-eqn_P2W += zdot + (Vdot / g * V) + (W_f / W * LCV / g) * etadot_o
+        # Combined
+        eqn_t2w = sp.Eq(T / W, eqn_t2w_p + eqn_t2w_n)
+        return eqn_t2w
 
-# P/W governing equation
-eqn_P2W = sp.Eq(P / W, eqn_P2W)
+    @classmethod
+    def PW_3D_ManoeuvringFlight(cls) -> sp.core.relational.Equality:
+        """
+        Power-to-Weight constraint in 3D for Manoeuvring Flight.
 
-# Clean up, for no particular reason
-del CL, CD, LCV, P, S, T, V, Vdot, Vdot_n, W, Wdot, W_f, g, q, z, zdot
-del alpha, epsilon, mu, theta
+        Returns:
+            A SymPy "equality" relational object.
+
+        """
+        eqn_t2w = cls.TW_3D_ManoeuvringFlight()
+
+        P, V, W = sp.symbols("P,V,W")
+
+        eqn_p2w = sp.Eq(P / W, eqn_t2w.rhs * V)
+
+        return eqn_p2w
+
+    @staticmethod
+    @cache
+    def TW_2D_Takeoff() -> sp.core.relational.Equality:
+        """
+        Thrust-to-Weight constraint in 2D for Takeoff.
+
+        Returns:
+            A SymPy "equality" relational object.
+
+        """
+        # In-plane
+        T, W, Vdot, g, q, S, zdot, V = sp.symbols("T,W,Vdot,g,q,S,zdot,V")
+        CL, CD = sp.symbols("C_L,C_D")
+        alpha, epsilon, theta, mu = sp.symbols("alpha,epsilon,theta,mu")
+        sin_a, cos_a = sp.sin(alpha), sp.cos(alpha)
+        sin_g = zdot / V
+        factor = mu * sp.cos(alpha) + sp.sin(alpha)
+        term1 = CL * (factor * cos_a)
+        term2 = CD * (factor * sin_a - 1)
+        term3 = sin_g + factor * sp.cos(theta)
+        term4 = sp.cos(alpha + epsilon) + factor * sp.sin(epsilon)
+        eqn_t2w_p = (Vdot / g - q / (W / S) * (term1 + term2) + term3) / term4
+
+        # Normal
+        Vdot_n = sp.symbols("Vdot_n")
+        factor = mu * sp.sin(alpha) - sp.cos(alpha)
+        cos_g = sp.sqrt(1 - sin_g ** 2)
+        term1 = CL * (1 + factor * sp.cos(alpha))
+        term2 = CD * factor * sp.sin(alpha)
+        term3 = cos_g + factor * sp.cos(theta)
+        term4 = sp.sin(alpha + epsilon) + factor * sp.sin(epsilon)
+        eqn_t2w_n = (Vdot_n / g - q / (W / S) * (term1 + term2) + term3) / term4
+
+        # Combined
+        eqn_t2w = sp.Eq(T / W, eqn_t2w_p + eqn_t2w_n)
+        return eqn_t2w
 
 
 # ============================================================================ #
 # Public-facing functions and classes
 # ---------------------------------------------------------------------------- #
-class ThrustConstraint(Constraint):
+class Manoeuvre3DTW(Constraint):
     """
-    Vehicle energy constraint/design point, for optimising vehicle range.
+    Vehicle energy constraint/design point, for optimising vehicle thrust.
     """
+    _equation = GovEqn.TW_3D_ManoeuvringFlight()  # <- Governing equation
 
-    _eqn = eqn_T2W  # <- Governing equation
-    _T: Quantity = NotImplemented
-    _W: Quantity = NotImplemented
-    _S: Quantity = NotImplemented
-    _q: Quantity = NotImplemented
-    _V: Quantity = NotImplemented
-    _Vdot: Quantity = NotImplemented
-    _Vdot_n: Quantity = NotImplemented
-    _zdot: Quantity = NotImplemented
-    _g: Quantity = NotImplemented
-    _alpha: float = NotImplemented
-    _epsilon: float = NotImplemented
-    _theta: float = NotImplemented
-    _mu: float = NotImplemented
 
-    def __new__(cls, *, T: Hint.nums = None, W: Hint.nums = None,
-                S: Hint.nums = None, q: Hint.nums = None, V: Hint.nums = None,
-                Vdot: Hint.nums = None, Vdot_n: Hint.nums = None,
-                zdot: Hint.nums = None, g: Hint.nums = None,
-                alpha: Hint.nums = None, epsilon: Hint.nums = None,
-                theta: Hint.nums = None, mu: Hint.nums = None):
-        # Recast as necessary
-        kwargs = dict([  # MUST contain same keys as the sympy governing eqn.!!
-            ("T", T), ("W", W), ("S", S), ("q", q), ("V", V), ("Vdot", Vdot),
-            ("Vdotn", Vdot_n), ("zdot", zdot), ("g", g), ("alpha", alpha),
-            ("epsilon", epsilon), ("theta", theta), ("mu", mu)
-        ])
-        del T, W, S, q, V, Vdot, Vdot_n, zdot, g, alpha, epsilon, theta, mu
-        kwargs = broadcast_kwargs(kwargs)
-
-        # Make as many constraint objects as there are broadcasted arguments
-        constraints = []
-        for i in range(kwargs["q"].size):
-            # Create a new constraint instance based on a parent's __new__
-            inst = super(ThrustConstraint, cls).__new__(cls, *tuple(), **dict())
-            # Store the keyword arguments that would've instantiated this object
-            inst.__kwargs__ = dict()
-            # Populate attributes with the kwargs passed to this class' __new__
-            for (k, v) in kwargs.items():
-                if v.flat[i] is not None:
-                    setattr(inst, k, v.flat[i])  # <- set attributes if not None
-                inst.__kwargs__[k] = v.flat[i]  # <- record the kwargs, always
-            constraints.append(inst)
-
-        # Return a Constraints object to the user
-        return Constraints(constraints=constraints)
-
-    @property
-    def T(self) -> Quantity:
-        """Thrust force, T."""
-        return self._T
-
-    @T.setter
-    def T(self, value):
-        self._T = Quantity(float(value), "N")
-        return
-
-    @T.deleter
-    def T(self):
-        self._T = NotImplemented
-        return
-
-    @property
-    def W(self) -> Quantity:
-        """Weight force, W."""
-        return self._W
-
-    @W.setter
-    def W(self, value):
-        self._W = Quantity(float(value), "N")
-        return
-
-    @W.deleter
-    def W(self):
-        self._W = NotImplemented
-        return
-
-    @property
-    def S(self) -> Quantity:
-        """Reference planform wing area, S."""
-        return self._S
-
-    @S.setter
-    def S(self, value):
-        self._S = Quantity(float(value), "m^{2}")
-        return
-
-    @S.deleter
-    def S(self):
-        self._S = NotImplemented
-        return
-
-    @property
-    def q(self) -> Quantity:
-        """Dynamic pressure, q."""
-        return self._q
-
-    @q.setter
-    def q(self, value):
-        self._q = Quantity(float(value), "Pa")
-        return
-
-    @q.deleter
-    def q(self):
-        self._q = NotImplemented
-        return
-
-    @property
-    def V(self) -> Quantity:
-        """Velocity parallel to the direction of motion, V."""
-        return self._V
-
-    @V.setter
-    def V(self, value):
-        self._V = Quantity(float(value), "m s^{-1}")
-        return
-
-    @V.deleter
-    def V(self):
-        self._V = NotImplemented
-        return
-
-    @property
-    def Vdot(self) -> Quantity:
-        """Acceleration along flight trajectory, Vdot."""
-        return self._Vdot
-
-    @Vdot.setter
-    def Vdot(self, value):
-        self._Vdot = Quantity(float(value), "m s^{-2}")
-        return
-
-    @Vdot.deleter
-    def Vdot(self):
-        self._Vdot = NotImplemented
-        return
-
-    @property
-    def Vdot_n(self) -> Quantity:
-        """Acceleration resulting in circular motion of vehicle, Vdot_n."""
-        return self._Vdot_n
-
-    @Vdot_n.setter
-    def Vdot_n(self, value):
-        self._Vdot_n = Quantity(float(value), "m s^{-2}")
-        return
-
-    @Vdot_n.deleter
-    def Vdot_n(self):
-        self._Vdot_n = NotImplemented
-        return
-
-    @property
-    def zdot(self) -> Quantity:
-        """Rate of change of geometric altitude, zdot."""
-        return self._zdot
-
-    @zdot.setter
-    def zdot(self, value):
-        self._zdot = Quantity(float(value), "m s^{-1}")
-        return
-
-    @zdot.deleter
-    def zdot(self):
-        self._zdot = NotImplemented
-        return
-
-    @property
-    def g(self) -> Quantity:
-        """Local acceleration due to gravity, g."""
-        return self._g
-
-    @g.setter
-    def g(self, value):
-        self._g = Quantity(float(value), "m s^{-2}")
-        return
-
-    @g.deleter
-    def g(self):
-        self._g = NotImplemented
-        return
-
-    @property
-    def alpha(self) -> float:
-        """Angle of attack, alpha."""
-        return self._alpha
-
-    @alpha.setter
-    def alpha(self, value):
-        self._alpha = float(value)
-        return
-
-    @alpha.deleter
-    def alpha(self):
-        self._alpha = NotImplemented
-        return
-
-    @property
-    def epsilon(self) -> float:
-        """Thrust setting angle, epsilon."""
-        return self._epsilon
-
-    @epsilon.setter
-    def epsilon(self, value):
-        self._epsilon = float(value)
-        return
-
-    @epsilon.deleter
-    def epsilon(self):
-        self._epsilon = NotImplemented
-        return
-
-    @property
-    def theta(self) -> float:
-        """Aircraft pitch angle, theta."""
-        return self._theta
-
-    @theta.setter
-    def theta(self, value):
-        self._theta = float(value)
-        return
-
-    @theta.deleter
-    def theta(self):
-        self._theta = NotImplemented
-        return
-
-    @property
-    def mu(self) -> float:
-        """Coefficient of rolling friction that applies during takeoff, mu."""
-        return self._mu
-
-    @mu.setter
-    def mu(self, value):
-        self._mu = float(value)
-        return
-
-    @mu.deleter
-    def mu(self):
-        self._mu = NotImplemented
-        return
+class Manoeuvre3DPW(Constraint):
+    """
+    Vehicle energy constraint/design point, for optimising vehicle power.
+    """
+    _equation = GovEqn.PW_3D_ManoeuvringFlight()  # <- Governing equation

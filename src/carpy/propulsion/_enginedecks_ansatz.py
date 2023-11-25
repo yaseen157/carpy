@@ -989,7 +989,7 @@ class BasicPiston(type("catalogue", (object,), basicdecks)):
 
     def __init__(self):
         errormsg = (
-            "This is a catalogue of atmospheres, and it should not be "
+            "This is a catalogue of piston engines, and it should not be "
             "instantiated directly. Try one of my attributes!"
         )
         raise RuntimeError(errormsg)
@@ -1008,6 +1008,6 @@ class BasicElectric(type("catalogue", (object,), basicdecks)):
 
     def __init__(self):
         errormsg = (
-            "This is a catalogue of atmospheres, and it should not be "
+            "This is a catalogue of electric motors, and it should not be "
             "instantiated directly. Try one of my attributes!"
         )

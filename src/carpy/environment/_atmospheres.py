@@ -333,7 +333,7 @@ class Atmosphere(object):
         Return the acceleration due to gravity.
 
         Args:
-            altitude: The altitude above mean sea level.
+            altitude: The geometric altitude above mean sea level.
             phi: Latitude of the query. Optional, defaults to 45 32' 33" degrees
                 North.
 
