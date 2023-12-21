@@ -1,4 +1,4 @@
-"""Module implementing Mattingly's basic models for thrust correction."""
+"""Basic models for thrust/power correction with Mach number and altitude."""
 import warnings
 
 import numpy as np
@@ -164,7 +164,7 @@ class BasicEngineDeck(object):
             Mach=Mach, altitude=altitude, geometric=geometric,
             atmosphere=atmosphere
         )
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     def TSFC(self, Mach: Hint.nums, altitude: Hint.nums = None,
              geometric: bool = None, atmosphere: object = None) -> Quantity:
@@ -461,14 +461,14 @@ class TurbofanHiBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
     def _f_Tlapse(self, Mach: np.ndarray, altitude: np.ndarray,
                   geometric: bool, atmosphere,
                   TR: Hint.nums = None) -> np.ndarray:
-        # Recast as necessary
-        TR = cast2numpy(self.TR if TR is None else TR)
-
         # Remove Mach numbers >= 0.9 from consideration
-        warnmsg = f"{type(self).__name__} shouldn't be evaluated w/ Mach >= 0.9"
+        warnmsg = f"{type(self).__name__} should not be evaluated at Mach > 0.9"
         if (Mach >= 0.9).any():
             warnings.warn(message=warnmsg, category=RuntimeWarning)
-            Mach[Mach >= 0.9] = np.nan
+        Mach[Mach >= 0.9] = 0.0
+        
+        # Recast as necessary
+        TR = cast2numpy(self.TR if TR is None else TR)
 
         # Non-dimensional static and stagnation quantities
         theta, delta = TPratio(
@@ -485,9 +485,7 @@ class TurbofanHiBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
         slice = theta0 > TR
         Tlapse[slice] -= (delta0 * (3 * (theta0 - TR) / (1.5 + Mach)))[slice]
 
-        Tlapse[Tlapse < 0] = np.nan
-
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     def _f_TSFC(self, Mach: np.ndarray, altitude: np.ndarray,
                 geometric: bool, atmosphere) -> Quantity:
@@ -495,7 +493,7 @@ class TurbofanHiBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
         warnmsg = f"{type(self).__name__} should not be evaluated at Mach > 0.9"
         if (Mach >= 0.9).any():
             warnings.warn(message=warnmsg, category=RuntimeWarning)
-        Mach[Mach >= 0.9] = np.nan
+        Mach[Mach >= 0.9] = 0.0
 
         # Non-dimensional static quantity
         theta, _ = TPratio(
@@ -510,7 +508,7 @@ class TurbofanHiBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class TurbofanLoBPRmixed(BasicEngineDeck, MattinglyBasicTurbomachine):
+class TurbofanLoBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan.
 
@@ -541,9 +539,10 @@ class TurbofanLoBPRmixed(BasicEngineDeck, MattinglyBasicTurbomachine):
         slice = theta0 > TR
         Tlapse[slice] *= (1 - 3.8 * (theta0 - TR) / theta0)[slice]
 
-        Tlapse[Tlapse < 0] = np.nan
+        # Reframe the equation so sea-level static dry thrust is 1.0
+        Tlapse *= 1 / 0.6
 
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -561,7 +560,7 @@ class TurbofanLoBPRmixed(BasicEngineDeck, MattinglyBasicTurbomachine):
         return TSFC
 
 
-class TurbofanLoBPRmixedAB(BasicEngineDeck, MattinglyBasicTurbomachine):
+class TurbofanLoBPRAB(BasicEngineDeck, MattinglyBasicTurbomachine):
     """
     Performance deck for a low bypass ratio, mixed flow turbofan with reheat
     (afterburner) engaged.
@@ -593,9 +592,10 @@ class TurbofanLoBPRmixedAB(BasicEngineDeck, MattinglyBasicTurbomachine):
         slice = theta0 > TR
         Tlapse[slice] *= (1 - 3.5 * (theta0 - TR) / theta0)[slice]
 
-        Tlapse[Tlapse < 0] = np.nan
+        # Reframe the equation so sea-level static dry thrust is 1.0
+        Tlapse *= 1 / 0.6
 
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -645,9 +645,10 @@ class Turbojet(BasicEngineDeck, MattinglyBasicTurbomachine):
         Tlapse[slice] -= \
             (0.8 * delta0 * 24 * (theta0 - TR) / (9 + Mach) / theta0)[slice]
 
-        Tlapse[Tlapse < 0] = np.nan
+        # Reframe the equation so sea-level static dry thrust is 1.0
+        Tlapse *= 1 / 0.8
 
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -696,9 +697,10 @@ class TurbojetAB(BasicEngineDeck, MattinglyBasicTurbomachine):
         slice = theta0 > TR
         Tlapse[slice] -= (delta0 * 1.5 * (theta0 - TR) / theta0)[slice]
 
-        Tlapse[Tlapse < 0] = np.nan
+        # Reframe the equation so sea-level static dry thrust is 1.0
+        Tlapse *= 1 / 0.8
 
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -751,9 +753,7 @@ class Turboprop(BasicEngineDeck, MattinglyBasicTurbomachine):
         Tlapse[slice1] -= \
             (delta0 * 3 * (theta0 - TR) / 8.13 / (Mach - 0.1))[slice1]
 
-        Tlapse[Tlapse < 0] = np.nan
-
-        return Tlapse
+        return np.clip(Tlapse, 0, None)
 
     @staticmethod
     def _f_TSFC(Mach: np.ndarray, altitude: np.ndarray,
@@ -922,8 +922,8 @@ class BasicPropeller(type("catalogue", (object,), basicdecks)):
 # Collect all the basic Mattingly decks
 basicdecks = {
     TurbofanHiBPR.__name__: TurbofanHiBPR,
-    TurbofanLoBPRmixed.__name__: TurbofanLoBPRmixed,
-    TurbofanLoBPRmixedAB.__name__: TurbofanLoBPRmixedAB,
+    TurbofanLoBPR.__name__: TurbofanLoBPR,
+    TurbofanLoBPRAB.__name__: TurbofanLoBPRAB,
     Turbojet.__name__: Turbojet,
     TurbojetAB.__name__: TurbojetAB,
     Turboprop.__name__: Turboprop
@@ -953,8 +953,8 @@ class BasicMattingly(type("catalogue", (object,), basicdecks)):
 # Collect all the basic turbomachine decks
 basicdecks = {
     TurbofanHiBPR.__name__: TurbofanHiBPR,
-    TurbofanLoBPRmixed.__name__: TurbofanLoBPRmixed,
-    TurbofanLoBPRmixedAB.__name__: TurbofanLoBPRmixedAB,
+    TurbofanLoBPR.__name__: TurbofanLoBPR,
+    TurbofanLoBPRAB.__name__: TurbofanLoBPRAB,
     Turbojet.__name__: Turbojet,
     TurbojetAB.__name__: TurbojetAB,
     Turboprop.__name__: Turboprop

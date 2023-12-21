@@ -9,11 +9,11 @@ import numpy as np
 from carpy.geometry import StrandedCable
 from ._common import AeroSolution
 
-__all__ = ["HoernerCable"]
+__all__ = ["HoernerCableDrag"]
 __author__ = "Yaseen Reza"
 
 
-class HoernerCable(AeroSolution):
+class HoernerCableDrag(AeroSolution):
     """
     Hoerner-described method for computing the drag on a stranded cable.
 
@@ -55,4 +55,4 @@ class HoernerCable(AeroSolution):
 
 if __name__ == "__main__":
     mycable = StrandedCable(diameter=3e-3, Nstrands=6)
-    print(HoernerCable(mycable))
+    print(HoernerCableDrag(mycable))

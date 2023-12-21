@@ -76,7 +76,8 @@ class Dimensions(object):
         # Otherwise, break units into components and proceed
         units = self._unitstring.split()
 
-        # Dictionary will collapse repeated units into singular elements
+        # Use a dictionary (called "pairings") to squash any repeated units into
+        # a single item.
         pairings = dict(zip(units, [dict() for _ in units]))
         for i, key in enumerate(units):
 
@@ -93,7 +94,7 @@ class Dimensions(object):
             else:
                 pairings[key]["power"] += 1.0
 
-            # If the unit's system is given, determine it here
+            # If the unit's system is given in the unitstring, find it here
             system = re.findall(r"\.(.+)", unit)
             if system:
                 system, = system  # Unpack findall's list into a string
@@ -108,10 +109,10 @@ class Dimensions(object):
                     raise ValueError(errormsg)
                 pairings[key]["system"] = system
 
-            # Look for prefixes in the unit
+            # Look for prefixes in the unitstring
             df_prefix = dfs["prefixes"]
             pattern = f"^(?:{pattern_prefixes})"
-            prefixes = dict(
+            prefixes = dict(  # Make a dictionary of plausible prefix_id: prefix
                 df_prefix[
                     np.array([
                         x in set([""] + re.findall(pattern, unit))
@@ -124,13 +125,14 @@ class Dimensions(object):
                 pairings[key]["system"] = "Bel"
 
             # Create a dictionary of symbols indexed by the dataframe row number
+            # These are the symbols made allowable by the prefix's system
             df_dims = dfs["dimensions"]
             system = pairings[key].get("system")
             symbols = df_dims["Symbol(s)"]
             if system is not None:
-                symbols = dict(symbols[df_dims["System"] == system])
+                symbols = dict(symbols[df_dims["System"] == system])  # ALL
             else:
-                symbols = dict(symbols[df_dims["System"] != "Bel"])
+                symbols = dict(symbols[df_dims["System"] != "Bel"])  # Not Bel
 
             # Try to pair a prefix with a unit symbol that completes the unit
             products = [
@@ -139,10 +141,10 @@ class Dimensions(object):
                 if unit in [
                     f"{prefixes[prefix_id]}{x}"
                     for x in symbols[symbol_id].split(",")
-                ] and not (  # Fail condition: SI prefix on non-SI unit
+                ] and not (  # Fails if SI prefix used on non-SI unit
                         df_prefix["System"][prefix_id] == "SI"
                         and prefixes[prefix_id] != ""
-                        and df_dims["System"][symbol_id] != "SI"
+                        and df_dims["System"][symbol_id] not in ["SI"]
                 )
             ]
             if len(products) > 1:

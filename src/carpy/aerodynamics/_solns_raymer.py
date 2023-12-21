@@ -45,7 +45,7 @@ class RaymerSimple(HorseshoeVortex):
             f"sweep profiles. Do not use for wings with compound/complex sweep"
         )
         sweeps = wingsections[:].sweep
-        sweeps = sweeps[0:1] + sweeps[1:-1]  # Ignore last station's sweep
+        sweeps = sweeps[0:1] + sweeps[1:-1]  # Find all but last station's sweep
         assert len(set(sweeps)) == 1, errormsg
 
         # ... the sweep should be backward

@@ -1,6 +1,5 @@
 """Module implementing means of accessing and parsing weather reports."""
 import time
-import warnings
 
 from metar.Metar import Metar
 import numpy as np
