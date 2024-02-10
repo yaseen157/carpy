@@ -5,7 +5,7 @@ import numpy as np
 
 from carpy.geometry import NewAerofoil, WingSections
 from carpy.aerodynamics import (
-    PrandtlLLT, HorseshoeVortex, MixedBLDrag, RaymerSimple)
+    PrandtlLLT, HorseshoeVortex, MixedBLDrag, Cavallo)
 from carpy.utility import Quantity
 
 
@@ -130,7 +130,7 @@ class Aerodynamics(unittest.TestCase):
             return
 
         basekwargs = {"wingsections": mysections, "altitude": 0, "TAS": 0}
-        soln = RaymerSimple(**basekwargs)
+        soln = Cavallo(**basekwargs)
 
         self.assertAlmostEqual(soln.CD, 0.0030199, places=6)
         return
@@ -157,7 +157,7 @@ class Combinatorics(unittest.TestCase):
         union_solution = soln0 | soln1
 
         # Logical OR
-        self.assertEqual(union_solution.CD, soln0.CD0 + soln1.CDi)
+        self.assertEqual(union_solution.CD, soln0.CD0 + soln0.CDf + soln1.CDi)
 
         return
 

@@ -10,11 +10,11 @@ import numpy as np
 from carpy.geometry import WingSections
 from ._soln3d_liftingline import HorseshoeVortex
 
-__all__ = ["RaymerSimple"]
+__all__ = ["Cavallo"]
 __author__ = "Yaseen Reza"
 
 
-class RaymerSimple(HorseshoeVortex):
+class Cavallo(HorseshoeVortex):
     """
     Horseshoe Vortex Method, enhanced with a zeroth-order approximation of drag
     due to flow separation from Raymer.

@@ -10,7 +10,7 @@ from carpy.utility import Quantity, cast2numpy
 __all__ = ["Manoeuvre3DTW", "Manoeuvre3DPW"]
 __author__ = "Yaseen Reza"
 
-
+# TODO: Compare constraints to ADRpy and verify derivations
 # ============================================================================ #
 # Support functions and classes
 # ---------------------------------------------------------------------------- #

@@ -13,7 +13,7 @@ __all__ = [
 ]
 __author__ = "Yaseen Reza"
 
-
+# TODO: Revisit TP ratio. We probably need TP0 for Thrust, TP for TSFC???
 # ============================================================================ #
 # Support functions
 # ---------------------------------------------------------------------------- #
@@ -466,7 +466,7 @@ class TurbofanHiBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
         if (Mach >= 0.9).any():
             warnings.warn(message=warnmsg, category=RuntimeWarning)
         Mach[Mach >= 0.9] = 0.0
-        
+
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
@@ -524,6 +524,7 @@ class TurbofanLoBPR(BasicEngineDeck, MattinglyBasicTurbomachine):
         # Recast as necessary
         TR = cast2numpy(self.TR if TR is None else TR)
 
+        # Non-dimensional static and stagnation quantities
         # Non-dimensional static and stagnation quantities
         theta, delta = TPratio(
             altitude=altitude,

@@ -41,8 +41,6 @@ class MixedBLDrag(AeroSolution):
             self._Cf_laminar = np.nan
             self._Cf_turbulent = np.nan
             self._Cf = np.nan
-            self._CDf = np.nan
-            self._CD0 = self._CDf / self.CDf_CD0
             return
 
         # Linearly spaced sections defined in the span
@@ -69,7 +67,7 @@ class MixedBLDrag(AeroSolution):
         # Step 4) Compute skin friction coefficient for fully laminar/turbulent
         self._sectionCf_laminar = 1.328 * Re ** -0.5
         self._sectionCf_turbulent = 0.455 * np.log10(Re) ** -2.58
-        # Compressiblity correction
+        # Compressiblity correction to Schlichting's relation for Cf_turb
         self._sectionCf_turbulent *= (1 + 0.144 * Mach ** 2) ** -0.65
 
         # Step 5) Determine fictitious turbulent boundary layer origin point X0
@@ -115,11 +113,6 @@ class MixedBLDrag(AeroSolution):
     def Cf(self) -> float:
         """Skin friction coefficient, Cf."""
         return self._Cf
-
-    @property
-    def CDf(self) -> float:
-        """Coefficient of friction drag, CDf."""
-        return self._CDf
 
     @property
     def CDf_CD0(self) -> float:

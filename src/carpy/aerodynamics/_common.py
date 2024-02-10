@@ -14,13 +14,15 @@ __author__ = "Yaseen Reza"
 
 class AeroSolution(object):
     """
-    Template object of incompressible lift/drag performance coefficients, which
+    Template object of lift/drag performance coefficients, which
     solvers should aim to fill for a given angle of attack.
     """
     _CL: float = NotImplemented
     _CD0: float = NotImplemented
+    _CDf: float = NotImplemented
     _CDi: float = NotImplemented
     _CDw: float = NotImplemented
+    _CDm: float = NotImplemented
     _CD: float = NotImplemented
     _CY: float = NotImplemented
     _Cl: float = NotImplemented
@@ -53,7 +55,8 @@ class AeroSolution(object):
         returnstr = (
             f"""** {self._sections} **
  CD  = {self.CD: .6F}    CY  = {self.CY: .6F}    CL  = {self.CL: .6F}
- CD0 = {self.CD0: .6F}    CDi = {self.CDi: .6F}    CDw = {self.CDw: .6F}
+ CD0 = {self.CD0: .6F}    CDf = {self.CDf: .6F}    CDi = {self.CDi: .6F}
+ CDw = {self.CDw: .6F}    CDm = {self.CDm: .6F}
  Cl  = {self.Cl: .6F}    Cm  = {self.Cm: .6F}    Cn  = {self.Cn: .6F}
  Cli = {np.nan: .6F}    Cmi = {np.nan: .6F}    Cni = {self.Cni: .6F}"""
         ).replace("NAN", "     NAN")
@@ -112,7 +115,7 @@ class AeroSolution(object):
         }
 
         # Find performance parameters of self and other, combine them
-        to_combine = "CY,CL,CD0,CDi,CDw,Cl,Cm,Cn,Cni,x_cp".split(",")
+        to_combine = "CY,CL,CD0,CDf,CDi,CDw,CDm,Cl,Cm,Cn,Cni,x_cp".split(",")
         result_self = {attr: getattr(self, attr) for attr in to_combine}
         result_other = {attr: getattr(other, attr) for attr in to_combine}
         result_new = {
@@ -142,7 +145,7 @@ class AeroSolution(object):
             raise TypeError(errormsg) from e
 
         # Find performance parameters of self and other, combine them
-        to_combine = "CD0,CDi,CDw,CD".split(",")
+        to_combine = "CD0,CDf,CDi,CDw,CDm,CD".split(",")
         result_self = {attr: getattr(self, attr) for attr in to_combine}
         result_other = {attr: getattr(other, attr) for attr in to_combine}
         result_new = {
@@ -218,7 +221,7 @@ class AeroSolution(object):
 
     @property
     def CD0(self) -> float:
-        """Profile component of geometry's coefficient of drag, CD0."""
+        """Base pressure drag coefficient from geometry and form, CD0."""
         if self._CD0 is NotImplemented:
             return np.nan
         return self._CD0
@@ -229,8 +232,20 @@ class AeroSolution(object):
         return
 
     @property
+    def CDf(self):
+        """Component of drag due to skin friction effects, CDf."""
+        if self._CDf is NotImplemented:
+            return np.nan
+        return self._CDf
+
+    @CDf.deleter
+    def CDf(self):
+        self._CDf = NotImplemented
+        return
+
+    @property
     def CDi(self) -> float:
-        """Induced component of geometry's coefficient of drag, CDi."""
+        """Lift-induced component of geometry's coefficient of drag, CDi."""
         if self._CDi is NotImplemented:
             return np.nan
         return self._CDi
@@ -253,19 +268,32 @@ class AeroSolution(object):
         return
 
     @property
+    def CDm(self):
+        """Additive component of drag from miscellaneous sources, CDm."""
+        if self._CDm is NotImplemented:
+            return np.nan
+        return self._CDm
+
+    @CDm.deleter
+    def CDm(self):
+        self._CDm = NotImplemented
+        return
+
+    @property
     def CD(self) -> float:
-        """Geometry's coefficient of drag (profile + induced + wave), CD."""
-        CD_nansum = np.nansum((self.CD0, self.CDi, self.CDw))
+        """Geometry's coefficient of drag, CD."""
+        CDnansum = np.nansum((self.CD0, self.CDf, self.CDi, self.CDw, self.CDm))
         if self._CD is NotImplemented:
-            return CD_nansum
-        elif np.isclose(self._CD, CD_nansum):
+            return CDnansum
+        elif np.isclose(self._CD, CDnansum):
             self._CD = NotImplemented
-            return CD_nansum
+            return CDnansum
         else:
             errormsg = (
                 f"Total drag coefficient CD is not equal to the sum of "
                 f"component profile, induced, and wave drags! ({self._CD} != "
-                f"{self.CD0=} + {self.CDi} + {self.CDw=})"
+                f"{self.CD0=} + {self.CDf=} + {self.CDi=} + {self.CDw=} + "
+                f"{self.CDm=})"
             )
             raise ValueError(errormsg)
 
