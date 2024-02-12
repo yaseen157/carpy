@@ -17,5 +17,6 @@ sectionproperties
 sympy
 
 # Optional
-jupyter
 notebook
+windrose
+cartopy
