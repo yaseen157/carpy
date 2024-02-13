@@ -533,6 +533,13 @@ class RoughnessKs(object):
         return Quantity([0.508, 2.032], "um")
 
     @property
+    def mylar(self) -> Quantity:
+        """Estimate of equivalent sand grain roughness of Mylar."""
+        # This is just a preliminary estimate for the performance of Mylar.
+        # Just a random 38 nm surface roughness (Ra?), converted to Ks.
+        return 5.863 * Quantity(38, "nm")
+
+    @property
     def paint_camo_smooth(self) -> Quantity:
         """Carefully applied camouflage paint on aluminium."""
         return Quantity(10.16, "um")

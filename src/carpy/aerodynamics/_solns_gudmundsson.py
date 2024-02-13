@@ -34,7 +34,7 @@ class MixedBLDrag(AeroSolution):
         Ks = co.MATERIAL.roughness_Ks.paint_matte_smooth if Ks is None else Ks
         Ks = np.mean(Ks)
         # Assume 85% of profile drag is from skin friction (15% pressure drag)
-        self._CDf_CD0 = 0.85 if CDf_CD0 is None else CDf_CD0
+        self._CDf_CD0 = (85 / 15) if CDf_CD0 is None else CDf_CD0
 
         # Bail early if necessary (why would anyone evaluate zero speed drag?)
         if self.TAS == 0:
