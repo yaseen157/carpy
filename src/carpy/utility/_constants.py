@@ -488,6 +488,11 @@ class RoughnessKs(object):
     """
 
     @property
+    def brass(self) -> Quantity:
+        """Brass."""
+        return Quantity(0.0015, "mm")
+
+    @property
     def composite_molded(self) -> Quantity:
         """Smooth, molded composite surface."""
         return Quantity(0.518, "um")
@@ -496,6 +501,11 @@ class RoughnessKs(object):
     def concrete(self) -> Quantity:
         """Concrete."""
         return Quantity([0.3, 3], "mm")
+
+    @property
+    def copper(self) -> Quantity:
+        """Copper."""
+        return Quantity(0.0015, "mm")
 
     @property
     def glass_smooth(self) -> Quantity:
