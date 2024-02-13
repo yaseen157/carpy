@@ -18,15 +18,29 @@ __author__ = "Yaseen Reza"
 
 class MixedBLDrag(AeroSolution):
     """
-    Method for predicting viscous drag due to skin friction effects.
+    Method for predicting viscous drag due to skin friction effects, based on
+    Young's mixed laminar-turbulent skin friction method.
 
     References:
         S. Gudmundsson, "General Aviation Aircraft Design: Applied Methods and
         Procedures", Butterworth-Heinemann, 2014, pp. 675-685.
     """
 
-    def __init__(self, wingsections: WingSections,
-                 Ks: Hint.num = None, CDf_CD0: Hint.num = None, **kwargs):
+    def __init__(self, wingsections: WingSections, Ks: Hint.num = None,
+                 CDf_CD0: Hint.num = None, Xtr_C=None, **kwargs):
+        """
+        Args:
+            wingsections: WingSections object.
+            Ks: Equivalent sand-grain roughness.
+            CDf_CD0: Ratio of skin friction drag to pressure drag. Optional,
+                CDf:CD0 defaults to 85:15 (85% / 15% mix).
+            Xtr_C: Location of flow transition point, from natural laminar flow
+                to turbulent. Theoretically the upper and lower surface of the
+                aerofoil should have independent transition locations, but this
+                method instead assumes an average location for both surfaces.
+                Optional, defaults to 50%.
+            **kwargs: Passed to AeroSolution.
+        """
         # Super class call
         super().__init__(wingsections, **kwargs)
 
@@ -35,11 +49,11 @@ class MixedBLDrag(AeroSolution):
         Ks = np.mean(Ks)
         # Assume 85% of profile drag is from skin friction (15% pressure drag)
         self._CDf_CD0 = (85 / 15) if CDf_CD0 is None else CDf_CD0
+        # Assume that the aerofoil is covered by 50% natural laminar flow
+        Xtr_C = 0.5 if Xtr_C is None else Xtr_C
 
         # Bail early if necessary (why would anyone evaluate zero speed drag?)
         if self.TAS == 0:
-            self._Cf_laminar = np.nan
-            self._Cf_turbulent = np.nan
             self._Cf = np.nan
             return
 
@@ -65,18 +79,23 @@ class MixedBLDrag(AeroSolution):
         Re = np.vstack((Re, Re_cutoff)).min(axis=0)
 
         # Step 4) Compute skin friction coefficient for fully laminar/turbulent
-        self._sectionCf_laminar = 1.328 * Re ** -0.5
-        self._sectionCf_turbulent = 0.455 * np.log10(Re) ** -2.58
+        # sectionCf_laminar = 1.328 * Re ** -0.5
+        # sectionCf_turbulent = 0.455 * np.log10(Re) ** -2.58
         # Compressiblity correction to Schlichting's relation for Cf_turb
-        self._sectionCf_turbulent *= (1 + 0.144 * Mach ** 2) ** -0.65
+        # sectionCf_turbulent *= (1 + 0.144 * Mach ** 2) ** -0.65
 
         # Step 5) Determine fictitious turbulent boundary layer origin point X0
-        Xtr_C = 0.5  # Assume transition @X==0.5, avg of upper/lower transitions
         X0_C = 36.9 * Xtr_C ** 0.625 * Re ** -0.375
 
         # Step 6) Compute mixed laminar-turbulent flow skin friction coefficient
         # Young's method:
         Cfs = 0.074 * Re ** -0.2 * (1 - (Xtr_C - X0_C)) ** 0.8
+        # Frankl-Voishel's correction for compressibility effects
+        M = self.TAS / self.atmosphere.c_sound(**fltconditions)  # Mach number
+        Cfs = Cfs * (
+            0.000162 * M ** 5 - 0.00383 * M ** 4 + 0.0332 * M ** 3
+            - 0.1180 * M ** 2 + 0.02040 * M + 0.9960
+        )  # Correction magnitude of ~2% required as early as M=0.5
 
         # Find the chords between the stations at which Cf is evaluated
         mid_chords = moving_average([sec.chord.x for sec in sections])
@@ -98,16 +117,6 @@ class MixedBLDrag(AeroSolution):
         self._user_readable = True
 
         return
-
-    @property
-    def Cf_laminar(self) -> float:
-        """100% Laminar limit of skin friction coefficient, Cflaminar."""
-        return self._Cf_laminar
-
-    @property
-    def Cf_turbulent(self) -> float:
-        """100% Turbulent limit of skin friction coefficient, Cfturbulent."""
-        return self._Cf_turbulent
 
     @property
     def Cf(self) -> float:

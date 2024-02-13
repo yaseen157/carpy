@@ -580,6 +580,11 @@ class RoughnessKs(object):
         return Quantity(0.046, "mm")
 
     @property
+    def rubber(self) -> Quantity:
+        """Rubber."""
+        return Quantity(0.025, "mm")
+
+    @property
     def wood_smooth(self) -> Quantity:
         """Carefully polished wooden surface."""
         return Quantity([0.508, 2.032], "um")

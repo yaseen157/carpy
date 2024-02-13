@@ -119,7 +119,7 @@ class Aerodynamics(unittest.TestCase):
         self.assertTrue(np.isclose(soln.Cf, 0.001999, atol=1e-4))
         return
 
-    def test_raymeroswald(self):
+    def test_cavallooswald(self):
         """
         Compute a zeroth-order approximation of Oswald efficiency.
         """
