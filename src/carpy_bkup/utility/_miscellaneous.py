@@ -212,40 +212,4 @@ def call_depth(func):
     return wrapper
 
 
-def revert2scalar(func):
-    @functools.wraps(func)
-    def with_reverting(*args, **kwargs):
-        """Try to turn x into a scalar (if it is an array, list, or tuple)."""
-
-        # Evaluate the wrapped func
-        output = func(*args, **kwargs)
-
-        if not isinstance(output, tuple):
-            output = (output,)
-
-        # Convert all items in the output to scalar if possible
-        new_output = []
-        for x in output:
-            if isinstance(x, np.ndarray):
-                if x.ndim == 0:
-                    new_output.append(x.item())
-                    continue
-                if sum(x.shape) == 1:
-                    new_output.append(x[0])
-                    continue
-            elif isinstance(x, (list, tuple)):
-                if len(x) == 1:
-                    new_output.append(x[0])
-                    continue
-            new_output.append(x)
-
-        # If there was only one output from the function, return that as scalar
-        if len(new_output) == 1:
-            return new_output[0]
-
-        return tuple(new_output)
-
-    return with_reverting
-
-
-__all__ += [call_count.__name__, call_depth.__name__, revert2scalar.__name__]
+__all__ += [call_count.__name__, call_depth.__name__]

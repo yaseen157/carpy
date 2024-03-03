@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from scipy.interpolate import griddata
 
 from carpy.gaskinetics import (
-    V_max, nu_max, IsentropicFlow, NormalShock, ObliqueShock,
+    V_max, nu_max, FlowState, NormalShock, ObliqueShock,
     ExpansionFan, RayleighFlow, FannoFlow
 )
 from carpy.utility import GetPath
@@ -22,18 +22,18 @@ class SimpleWaveFlow(unittest.TestCase):
         # Create 3 lines
         for Mstart in [1, 2, 3]:
             Ms = np.arange(Mstart, Mstart + 1, 1e-2)
-            mus = np.degrees(IsentropicFlow.mu(Ms))
+            mus = np.degrees(FlowState.mu(Ms))
             ax.plot(Ms % 1, mus, c="k")
 
             # Label Mach
             text_xs = np.arange(0.1, 1.1, 0.1)
-            text_ys = np.degrees(IsentropicFlow.mu(text_xs + Mstart)) + 1
+            text_ys = np.degrees(FlowState.mu(text_xs + Mstart)) + 1
             for i in range(10):
                 string = f"{text_xs[i] + Mstart:.1f}"
                 ax.text(text_xs[i], text_ys[i], string, fontsize=7)
             else:
                 Mx = 0.55
-                My = np.degrees(IsentropicFlow.mu(Mx + Mstart)) + 3
+                My = np.degrees(FlowState.mu(Mx + Mstart)) + 3
                 ax.text(Mx, My, "M", fontsize=7)
 
         # Make plot pretty
