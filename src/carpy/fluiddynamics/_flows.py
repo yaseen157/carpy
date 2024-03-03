@@ -5,8 +5,30 @@ from scipy import optimize as sopt
 from carpy.utility import Hint, Quantity, cast2numpy, revert2scalar
 from ._fluids import Fluid
 
-__all__ = ["Flow", "IWedgeShock"]
+__all__ = ["Flow", "IWedgeShock", "IExpansionFan"]
 __author__ = "Yaseen Reza"
+
+
+def PMfunction(mach, gamma):
+    """
+    Prandtl-Meyer function.
+
+    Args:
+        mach: Target Mach number.
+        gamma: Adiabatic index of the flow.
+
+    Returns:
+        Prandtl-Meyer angle, nu.
+
+    """
+    gp1_gm1 = (gamma + 1) / (gamma - 1)
+    M2minus1 = mach ** 2 - 1
+    nu = (
+            gp1_gm1 ** 0.5
+            * np.arctan((M2minus1 / gp1_gm1) ** 0.5)
+            - np.arctan(M2minus1 ** 0.5)
+    )
+    return nu
 
 
 class Flow(object):
@@ -118,7 +140,10 @@ class Flow(object):
 
     @M.setter
     def M(self, value):
-        self.velocity = (value * self.fluid.a).x
+        new_velocity = value * self.fluid.a
+        if (new_velocity < 0).any():
+            raise ValueError("Got invalid flow speed (Mach < 0)")
+        self.velocity = new_velocity.x
 
     @property
     def Kn(self) -> float:
@@ -238,65 +263,97 @@ class Flow(object):
         A_Ac = ((gamma + 1) / 2) ** -power * self.Tt_T ** power / self.M
         return A_Ac
 
+    @property
+    def is_incompressible(self) -> bool:
+        """Returns True if flow is incompressible (Mach < 0.3)"""
+        return self.M < 0.3
 
-class IWedgeShock:
-    """
-    Normal and oblique shock (ideal gas) relations for wedge-shaped shocks.
+    @property
+    def is_compressible(self) -> bool:
+        """Returns True if flow is compressible (0.3 <= Mach)."""
+        return 0.3 <= self.M
 
-    This class applies an irreversible thermodynamic process to an isentropic
-    flow (in state 1) and computes downstream properties (in state 2).
-    """
+    @property
+    def is_subsonic(self) -> bool:
+        """Returns True if flow is subsonic (Mach < 1.0)."""
+        return self.M < 1.0
 
-    def __init__(self, flow1: Flow, *, theta: Hint.nums = None,
-                 beta: Hint.nums = None, weak_shock: bool = None):
+    @property
+    def is_transonic(self) -> bool:
+        """Returns True if flow is transonic (0.8 <= Mach <= 1.2)."""
+        # Conditional assembled as (a<x) & (x<b) for numpy array compatibility
+        return (0.8 <= self.M) & (self.M <= 1.2)
+
+    @property
+    def is_sonic(self) -> bool:
+        """Returns True if flow is sonic (Mach == 1.0)."""
+        return self.M == 1.0
+
+    @property
+    def is_supersonic(self) -> bool:
+        """Returns True if flow is supersonic (1.0 < Mach)."""
+        return 1.0 < self.M
+
+    @property
+    def is_hypersonic(self) -> bool:
+        """Returns True if flow is hypersonic (5.0 <= Mach)."""
+        return 5.0 <= self.M
+
+    @property
+    def geom_mu(self):
         """
-        Args:
-            flow1: Upstream flow conditions.
-            theta: Flow turning angle. Optional, needed if beta is not given.
-            beta: Shockwave angle. Optional, needed if theta is not given.
-            weak_shock: Weak or strong shock. Optional, defaults to False.
+        The angle at which a shock wave propagates from the point of contact
+        with a supersonic object.
+
+        Returns:
+            Mach angle, mu.
+
         """
-        assert flow1.M >= 1, "Cannot cast wedge shock from subsonic flow state"
+        return np.arcsin(1 / self.M)
+
+    @geom_mu.setter
+    def geom_mu(self, value):
+        self.M = 1 / np.sin(value)
+
+    @property
+    def geom_nu(self):
+        """
+        The angle through which a sonic flow must turn isentropically to produce
+        the given flow's Mach number.
+
+        Returns:
+            Prandtl-Meyer angle, nu.
+
+        Notes:
+            This parameter can be set - in which case Mach number is solved for.
+
+        """
+        nu = PMfunction(mach=self.M, gamma=self.gamma)
+        return nu
+
+    @geom_nu.setter
+    def geom_nu(self, value):
+        self.M = sopt.newton(
+            lambda M: PMfunction(M, gamma=self.gamma) - value, x0=2)
+
+
+class IdealFeature(object):
+    """
+    Flow feature with upstream (state1) and downstream (state2) conditions,
+    assuming ideal gas flow relations hold.
+    """
+    p2_p1: property
+    T2_T1: property
+    M2: property
+
+    def __init__(self, flow1: Flow):
         self._state1 = flow1
 
-        if beta is not None and theta is not None:
-            errormsg = "Over-defined. Specify only one of 'beta' or 'theta'."
-            raise ValueError(errormsg)
-
-        # Trivial (but unusual): flow shock angle is given
-        elif beta is not None:
-            if weak_shock is not None:
-                raise ValueError("'weak_shock' shouldn't be given if 'beta' is")
-
-        # Complex (and common): flow turning angle is given, solve for beta...
-        elif theta is not None:
-            theta = cast2numpy(theta)
-            beta = np.zeros_like(theta)
-
-            weak_shock = False if weak_shock is None else weak_shock
-            if weak_shock is True:
-                x0 = np.radians(40)  # Guess low --> weak shock solution
-            else:
-                x0 = np.radians(80)  # Guess high --> strong shock solution
-
-            def f_opt(beta_i, theta_gold):
-                """Optimisation helper function, takes arguments of beta_i
-                (shock angle) and a target theta_gold (deflection angle).
-                """
-                theta_comp = type(self)(flow1, beta=beta_i).theta
-                theta_diff = theta_comp - theta_gold
-                return theta_diff
-
-            for i, theta_i in enumerate(theta.flat):
-                try:
-                    beta.flat[i] = sopt.newton(f_opt, x0=x0, args=(theta_i,))
-                except RuntimeError:
-                    beta.flat[i] = np.nan
-
-        else:
-            beta = np.pi / 2  # Flow without deflection, i.e. theta = 0
-
-        self._beta = cast2numpy(beta)
+        # Self test, for the health of dependent methods
+        for attr in ["p2_p1", "T2_T1", "M2"]:
+            if attr not in dir(self):
+                errormsg = f"'{attr}' is undefined for {type(self).__name__}"
+                raise NotImplementedError(errormsg)
 
     @property
     def state1(self) -> Flow:
@@ -319,15 +376,148 @@ class IWedgeShock:
         return state2
 
     @property
-    def beta(self):
-        """The angle the shockwave makes to the direction of freestream flow."""
-        return self._beta
+    def p1(self) -> Quantity:
+        """Upstream pressure."""
+        return self.state1.p
 
     @property
-    def theta(self):
-        """The angle by which the flow is deflected away from the freestream."""
+    def T1(self) -> Quantity:
+        """Upstream temperature."""
+        return self.state1.T
+
+    @property
+    def rho1(self) -> Quantity:
+        """Upstream density."""
+        return self.state1.rho
+
+    @property
+    def geom_mu1(self) -> float:
+        """Upstream Mach angle."""
+        return self.state1.geom_mu
+
+    @property
+    def geom_nu1(self) -> float:
+        """Upstream Prandtl-Meyer angle."""
+        return self.state1.geom_nu
+
+    @property
+    def p2(self) -> Quantity:
+        """Downstream pressure."""
+        return self.state2.p
+
+    @property
+    def T2(self) -> Quantity:
+        """Downstream temperature."""
+        return self.state2.T
+
+    @property
+    def rho2(self) -> Quantity:
+        """Downstream density."""
+        return self.state2.rho
+
+    @property
+    def geom_mu2(self) -> float:
+        """Downstream Prandtl-Meyer angle."""
+        return self.state2.geom_mu
+
+    @property
+    def geom_nu2(self) -> float:
+        """Downstream Prandtl-Meyer angle."""
+        return self.state2.geom_nu
+
+
+class IWedgeShock(IdealFeature):
+    """
+    Normal and oblique shock (ideal gas) relations for wedge-shaped shocks.
+
+    This class applies an irreversible thermodynamic process to an isentropic
+    flow (in state 1) and computes downstream properties (in state 2).
+    """
+
+    def __init__(self, flow1: Flow, *, geom_theta: Hint.nums = None,
+                 geom_beta: Hint.nums = None, weak_shock: bool = None):
+        """
+        Args:
+            flow1: Upstream flow conditions.
+            geom_theta: The angle through which the flow turns or is forced to
+                deflect. Optional, needed if geom_beta is not given.
+            geom_beta: The angle of the shock wave that originates from the foot
+                of the wedge. Optional, needed if geom_theta is not given.
+            weak_shock: Argument for whether the solver should find strong or
+                weak shock solutions. Optional, defaults to False (strong).
+
+        Notes:
+            If neither geom_beta nor geom_theta are specified a strong shock
+            with zero-deflection is assumed (normal shock case).
+
+        """
+        assert flow1.M >= 1, "Cannot cast wedge shock from subsonic flow state"
+        super().__init__(flow1)
+
+        if geom_beta is not None and geom_theta is not None:
+            errormsg = "Over-defined. Specify only one of 'beta' or 'theta'."
+            raise ValueError(errormsg)
+
+        # Trivial (but unusual): flow shock angle is given
+        elif geom_beta is not None:
+            if weak_shock is not None:
+                raise ValueError("'weak_shock' shouldn't be given if 'beta' is")
+
+        # Complex (and common): flow turning angle is given, solve for beta...
+        elif geom_theta is not None:
+            geom_theta = cast2numpy(geom_theta)
+            geom_beta = np.zeros_like(geom_theta)
+
+            weak_shock = False if weak_shock is None else weak_shock
+            if weak_shock is True:
+                x0 = np.radians(40)  # Guess low --> weak shock solution
+            else:
+                x0 = np.radians(80)  # Guess high --> strong shock solution
+
+            def f_opt(beta_i, theta_gold):
+                """Optimisation helper function, takes arguments of beta_i
+                (shock angle) and a target theta_gold (deflection angle).
+                """
+                theta_comp = type(self)(flow1, geom_beta=beta_i).geom_theta
+                theta_diff = theta_comp - theta_gold
+                return theta_diff
+
+            for i, theta_i in enumerate(geom_theta.flat):
+                try:
+                    geom_beta.flat[i] = sopt.newton(
+                        f_opt, x0=x0, args=(theta_i,))
+                except RuntimeError:
+                    geom_beta.flat[i] = np.nan
+
+        else:
+            if weak_shock is True:
+                raise ValueError("Unturned flow cannot be weak shocked.")
+            geom_beta = np.pi / 2  # Flow without deflection, i.e. theta = 0
+
+        self._geom_beta = cast2numpy(geom_beta)
+        return
+
+    @property
+    def geom_beta(self):
+        """
+        The angle the shock wave makes to the direction of freestream flow.
+
+        Returns:
+            Shock angle, beta.
+        """
+        return self._geom_beta
+
+    @property
+    def geom_theta(self):
+        """
+        The angle by which the flow is deflected away from the freestream.
+
+        Returns:
+            Flow deflection angle, theta.
+
+        """
         fs = self.state1
-        cottheta = np.tan(self.beta) * (
+        cottheta = np.tan(self.geom_beta) * (
                 (fs.gamma + 1) * fs.M ** 2 / 2 / (self.M1n ** 2 - 1) - 1)
         theta = np.arctan(1 / cottheta)
         return theta
@@ -377,7 +567,7 @@ class IWedgeShock:
     def M2(self):
         """Mach number downstream of the shock."""
         fs = self.state1
-        prefactor = 1 / np.sin(self.beta - self.theta)
+        prefactor = 1 / np.sin(self.geom_beta - self.geom_theta)
         numerator = (1 + (fs.gamma - 1) / 2 * self.M1n ** 2) ** 0.5
         denominator = (fs.gamma * self.M1n ** 2 - (fs.gamma - 1) / 2) ** 0.5
         M2 = prefactor * numerator / denominator
@@ -386,7 +576,7 @@ class IWedgeShock:
     @property
     def M2n(self):
         """Mach number normal to and downstream of the shock."""
-        return self.M2 * np.sin(self.beta - self.theta)
+        return self.M2 * np.sin(self.geom_beta - self.geom_theta)
 
     @property
     def M1(self):
@@ -396,7 +586,7 @@ class IWedgeShock:
     @property
     def M1n(self):
         """Mach number normal to and upstream of the shock."""
-        return self.M1 * np.sin(self.beta)
+        return self.M1 * np.sin(self.geom_beta)
 
     @property
     def Cp(self):
@@ -405,32 +595,79 @@ class IWedgeShock:
         Cp = 4 / (fs.gamma + 1) / fs.M ** 2 * (self.M1n ** 2 - 1)
         return Cp
 
-    @property
-    def p1(self) -> Quantity:
-        """Upstream pressure."""
-        return self.state1.p
+
+class IExpansionFan(IdealFeature):
+    """
+    Centered expansion fan (in an ideal gas) for sonic, abrupt flow expansion.
+
+    The process for converting between upstream and downstream states is
+    modelled as isentropic.
+    """
+
+    def __init__(self, flow1: Flow, geom_theta: Hint.nums):
+        """
+        Args:
+           flow1: Upstream flow conditions.
+           geom_theta: Flow turning angle.
+        """
+        assert flow1.M >= 1, "Cannot place PM expansion fan in subsonic flow"
+        super().__init__(flow1)
+
+        # Recast as necessary
+        geom_theta = cast2numpy(geom_theta)
+        self._geom_theta = geom_theta
+
+        # Compute downstream Mach number based on flow turning
+        nu2 = self.state1.geom_nu + self.geom_theta
+        M2 = np.zeros(cast2numpy(nu2).shape)
+        M2.flat = [
+            sopt.newton(
+                lambda M: PMfunction(M, gamma=self.state1.gamma) - nu2.flat[i],
+                x0=2
+            )
+            for i in range(M2.size)
+        ]
+        self._M2 = M2
 
     @property
-    def T1(self) -> Quantity:
-        """Upstream temperature."""
-        return self.state1.T
+    def geom_theta(self):
+        """
+        The angle by which the flow is deflected away from the freestream.
+
+        Returns:
+            Flow deflection angle, theta.
+
+        """
+        return self._geom_theta
 
     @property
-    def rho1(self) -> Quantity:
-        """Upstream density."""
-        return self.state1.rho
+    def M2(self):
+        """Downstream Mach number."""
+        return self._M2
 
     @property
-    def p2(self) -> Quantity:
-        """Downstream pressure."""
-        return self.state2.p
+    def T2_T1(self):
+        """Temperature ratio over the expansion fan."""
+        # Assumes gamma in state1 is the same as that in state2
+        T2_T1 = (
+                (1 + (self.state1.gamma - 1) / 2 * self.state1.M ** 2)
+                / (1 + (self.state1.gamma - 1) / 2 * self.M2 ** 2)
+        )
+        return T2_T1
 
     @property
-    def T2(self) -> Quantity:
-        """Downstream temperature."""
-        return self.state2.T
+    def r2_r1(self):
+        """Density ratio over the expansion fan."""
+        return self.T2_T1 ** (1 / (self.state1.gamma - 1))
 
     @property
-    def rho2(self) -> Quantity:
-        """Downstream density."""
-        return self.state2.rho
+    def p2_p1(self):
+        """Pressure ratio over the expansion fan."""
+        return self.r2_r1 ** self.state1.gamma
+
+    @property
+    def Cp(self):
+        """Pressure coefficient of the expansion fan."""
+        fs = self.state1
+        Cp = 2 / fs.gamma / fs.M ** 2 * (self.p2_p1 - 1)
+        return Cp

@@ -702,7 +702,9 @@ class Fluid(object):
     @property
     def a(self) -> Quantity:
         """Local speed of sound."""
-        return (self.gamma * self.R * self.state.T) ** 0.5
+        # By using pressure and specific volume, we automatically account for
+        # compressibility factor Z (as in p * v = Z * R * T)
+        return (self.gamma * self.p * self.state.v) ** 0.5
 
 
 class Fluids(object):
