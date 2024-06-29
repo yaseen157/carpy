@@ -10,19 +10,21 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from carpy.utility._miscellaneous import cast2numpy, GetPath, Hint
+from carpy.utility._miscellaneous import cast2numpy, PathAnchor, Hint
 from carpy.utility._vanity import Unicodify
 
 __all__ = ["Quantity", "cast2quantity"]
 __author__ = "Yaseen Reza"
 
-
 # ============================================================================ #
 # Load data required by the module
 # ---------------------------------------------------------------------------- #
+anchor = PathAnchor()
+
+
 def load_quantities_dfs():
     """Load and return the quantity dimensions and prefixes spreadsheets."""
-    filepath = os.path.join(GetPath.localpackage(), "data", "quantities.xlsx")
+    filepath = os.path.join(anchor.directory_path, "data", "quantities.xlsx")
     dataframes = pd.read_excel(io=filepath, sheet_name=None, na_filter=False)
     return dataframes
 
@@ -108,6 +110,9 @@ class Dimensions(object):
                     )
                     raise ValueError(errormsg)
                 pairings[key]["system"] = system
+
+            # Sanitise unit into just alphabetic symbols
+            unit, = re.findall("[A-z]+", unit)
 
             # Look for prefixes in the unitstring
             df_prefix = dfs["prefixes"]

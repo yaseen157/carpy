@@ -1,163 +1,15 @@
-"""Module for consistent modelling of fluids, including ideal and real gases."""
+"""Module for defining the instantaneous state and behaviour of a fluid."""
 from typing import Union
-import warnings
+import re
 
 import cantera as ct
 import numpy as np
+import periodictable as pt
 
-from carpy.utility import Hint, Quantity, revert2scalar
+from carpy.utility import Hint, Quantity, revert2scalar, constants as co
 
-__all__ = ["Fluid", "Fluids"]
+__all__ = ["FluidState", "FluidProperties"]
 __author__ = "Yaseen Reza"
-
-
-# class CanteraFluids:
-#     """A collection of fluids, with thermokinetic models (from Cantera)."""
-#
-#     class PureFluid:
-#         """Pure, homogeneous fluids."""
-#
-#         @staticmethod
-#         def CarbonDioxide():
-#             """Carbon dioxide at standard temperature and pressure."""
-#             gas = ct.CarbonDioxide()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         CO2 = CarbonDioxide
-#
-#         @staticmethod
-#         def Heptane():
-#             """Heptane at standard temperature and pressure."""
-#             gas = ct.Heptane()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         C7H16 = Heptane
-#
-#         @staticmethod
-#         def HFC134a():
-#             """HFC134a refrigerant at standard temperature and pressure."""
-#             gas = ct.Hfc134a()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         R134a = HFC134a
-#
-#         @staticmethod
-#         def Hydrogen():
-#             """Hydrogen at standard temperature and pressure."""
-#             gas = ct.Hydrogen()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         H2 = Hydrogen
-#
-#         @staticmethod
-#         def Methane():
-#             """Methane at standard temperature and pressure."""
-#             gas = ct.Methane()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         CH4 = Methane
-#
-#         @staticmethod
-#         def Nitrogen():
-#             """Nitrogen at standard temperature and pressure."""
-#             gas = ct.Nitrogen()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         N2 = Nitrogen
-#
-#         @staticmethod
-#         def Oxygen():
-#             """Oxygen at standard temperature and pressure."""
-#             gas = ct.Oxygen()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         O2 = Oxygen
-#
-#         @staticmethod
-#         def Water():
-#             """Water at standard temperature and pressure."""
-#             gas = ct.Water()
-#             gas.TP = 288.15, 101325.0
-#             return gas
-#
-#         H2O = Water
-#
-#     class GRI30:
-#         """Gases based on GRI-Mech 3.0 combustion model."""
-#
-#         @staticmethod
-#         def Air():
-#             """Air with standard composition, temperature, and pressure."""
-#             gas = ct.Solution("gri30.yaml")
-#             compositionX = {
-#                 "N2": 78.084,
-#                 "O2": 20.946,
-#                 "Ar": 0.9340,
-#                 "CO2": 0.0407,
-#                 "CH4": 0.00018,
-#                 "H2": 0.000055
-#             }
-#             gas.X = ", ".join([f"{x}:{y}" for (x, y) in compositionX.items()])
-#             gas.TP = 288.15, 101325.0
-#             gas.name = "air_gri30"
-#             return gas
-#
-#     class GRI30highT:
-#         """
-#         Gases based on GRI-Mech 3.0 combustion model, with high temperature
-#         modifications.
-#         """
-#
-#         @staticmethod
-#         def Air():
-#             """Air with standard composition, temperature, and pressure."""
-#             gas = ct.Solution("gri30_highT.yaml")
-#             compositionX = {
-#                 "N2": 78.084,
-#                 "O2": 20.946,
-#                 "Ar": 0.9340,
-#                 "CO2": 0.0407,
-#                 "CH4": 0.00018,
-#                 "H2": 0.000055
-#             }
-#             gas.X = ", ".join([f"{x}:{y}" for (x, y) in compositionX.items()])
-#             gas.TP = 288.15, 101325.0
-#             gas.name = "air_gri30-highT"
-#             return gas
-#
-#     class Air:
-#         """Default air model, as given in Cantera's air.yaml."""
-#
-#         @staticmethod
-#         def Air():
-#             """Air with standard composition, temperature, and pressure."""
-#             gas = ct.Solution("air.yaml")
-#             gas.TP = 288.15, 101325.0
-#             gas.name = "air"
-#             return gas
-#
-#     class AirNASA9:
-#         """Model of air based on NASA 9-coefficient parameterisation model."""
-#
-#         @staticmethod
-#         def Air():
-#             """Air with standard composition, temperature, and pressure."""
-#             gas = ct.Solution("airnasa9.yaml")
-#             compositionX = {
-#                 "N2": 78.084,
-#                 "O2": 20.946,
-#             }
-#             gas.X = ", ".join([f"{x}:{y}" for (x, y) in compositionX.items()])
-#             gas.TP = 288.15, 101325.0
-#             gas.name = "air_nasa9"
-#             return gas
 
 
 class FluidState(object):
@@ -216,14 +68,17 @@ class FluidState(object):
             # state.chi
         }
         if item in attr_map:
-            cantera_object = self._parent.cantera_object
+            fluid_object = self._parent.fluid_object
             attribute, units = attr_map[item]
-            if isinstance(cantera_object, (ct.Solution, ct.PureFluid)):
-                return Quantity(getattr(cantera_object, attribute), units)
-            elif isinstance(cantera_object, np.ndarray):
-                output = np.zeros(cantera_object.shape)
+            if isinstance(fluid_object, (ct.Solution, ct.PureFluid)):
+                return Quantity(getattr(fluid_object, attribute), units)
+            elif isinstance(fluid_object, (LinearGases,)):
+                nonprivattr = item[1:]
+                return getattr(fluid_object, nonprivattr)
+            elif isinstance(fluid_object, np.ndarray):
+                output = np.zeros(fluid_object.shape)
                 output.flat = [
-                    getattr(cantera_object.flat[i], attribute)
+                    getattr(fluid_object.flat[i], attribute)
                     for i in range(output.size)
                 ]
                 return Quantity(output, units)
@@ -504,9 +359,11 @@ class FluidProperties(object):
 class Fluid(object):
     """An object for storing the properties of a fluid."""
 
-    _ct_object: Union[ct.Solution, ct.PureFluid] = None
-    _ct_mechanism: str = None
-    _ct_composition: str = None
+    state: FluidState
+    props: FluidProperties
+    _fluid_model: Union[ct.Solution, ct.PureFluid] = None
+    _fluid_mech: str = None
+    _fluid_comp: str = None
 
     def __init__(self):
         self.state = FluidState(parent=self)  # Define thermodynamic state
@@ -521,49 +378,72 @@ class Fluid(object):
             return getattr(self.props, item)
         return super().__getattribute__(item)
 
+    def __setattr__(self, name, value):
+        # Override more local variables first:
+        # Accessing self.state and self.props causes recursion because it's not
+        # in dir(self), but actually in __annotations__ - that's why it's here
+        if name in dir(self) + list(self.__annotations__):
+            super().__setattr__(name, value)
+            return None
+
+        # Otherwise, check the FluidState and FluidProperties (if they exist)
+        elif name in dir(self.state):
+            self.state.__setattr__(name, value)
+            return None
+        elif name in dir(self.props):
+            self.props.__setattr__(name, value)
+            return None
+
+        # The parameter does not exist (and shouldn't be set)
+        errormsg = (
+            f"Setting parameter '{name}' for {type(self).__name__} object "
+            f"is disallowed for user safety (prevents recursive getattr calls)."
+        )
+        raise AttributeError(errormsg)
+
     def __call__(self, T: Hint.nums = None, p: Hint.nums = None):
         # Recast as necessary
         T = self.state.T if T is None else T
         p = self.state.p if p is None else p
-        T, p, ct_obj = np.broadcast_arrays(T, p, self.cantera_object)
+        T, p, gas_obj = np.broadcast_arrays(T, p, self.fluid_object)
 
         # One fluid can evaluate multiple states by broadcasting Cantera objects
         new_canteras = np.empty(T.shape, dtype=type(self))
         for i in range(new_canteras.size):
-            if isinstance(ct_obj.flat[i], ct.Solution):
-                new_canteras.flat[i] = ct.Solution(self.cantera_mechanism)
-                new_canteras.flat[i].X = self.cantera_composition
-            elif isinstance(ct_obj.flat[i], ct.PureFluid):
-                new_canteras.flat[i] = type(ct_obj.flat[i])()
+            if isinstance(gas_obj.flat[i], ct.Solution):
+                new_canteras.flat[i] = ct.Solution(self.fluid_mechanism)
+                new_canteras.flat[i].X = self.fluid_composition
+            elif isinstance(gas_obj.flat[i], ct.PureFluid):
+                new_canteras.flat[i] = type(gas_obj.flat[i])()
             else:
                 raise NotImplementedError
             new_canteras.flat[i].TP = T.flat[i], p.flat[i]
 
         # Create the new fluid, apply broadcasted cantera objects
         new_fluid = Fluid()
-        new_fluid._ct_object = new_canteras
-        new_fluid._ct_mechanism = self.cantera_mechanism
-        new_fluid.cantera_composition = self.cantera_composition
+        new_fluid._fluid_model = new_canteras
+        new_fluid._fluid_mech = self.fluid_mechanism
+        new_fluid.fluid_composition = self.fluid_composition
         return new_fluid
 
     @property
     @revert2scalar
-    def cantera_object(self) -> Union[ct.Solution, ct.PureFluid]:
-        """A Cantera phase object."""
-        return self._ct_object
+    def fluid_object(self):
+        """The gas model from which state/properties update and propagate."""
+        return self._fluid_model
 
     @property
-    def cantera_mechanism(self) -> str:
-        """The name of the Cantera chemical kinetics file used."""
-        return self._ct_mechanism
+    def fluid_mechanism(self) -> str:
+        """The name of mechanism or model type used."""
+        return self._fluid_mech
 
     @property
-    def cantera_composition(self) -> str:
-        """The molar composition of the Cantera phase object."""
-        return self._ct_composition
+    def fluid_composition(self) -> str:
+        """The molar composition of fluid."""
+        return self._fluid_comp
 
-    @cantera_composition.setter
-    def cantera_composition(self, value):
+    @fluid_composition.setter
+    def fluid_composition(self, value):
         # Derive composition string
         if isinstance(value, str):
             X = value
@@ -572,13 +452,14 @@ class Fluid(object):
         else:
             raise TypeError(f"Expected mol composition str/dict, not '{value}'")
 
+        # Try to assign the composition (reject it if it's invalid for the mech)
         try:
-            if isinstance(self.cantera_object, ct.Solution):
-                self.cantera_object.X = X
-            elif isinstance(self.cantera_object, np.ndarray):
-                for i in range(self.cantera_object.size):
-                    setattr(self.cantera_object.flat[i], "X", X)
-            self._ct_composition = X
+            if isinstance(self.fluid_object, ct.Solution):
+                self.fluid_object.X = X
+            elif isinstance(self.fluid_object, np.ndarray):
+                for i in range(self.fluid_object.size):
+                    setattr(self.fluid_object.flat[i], "X", X)
+            self._fluid_comp = X
         except Exception as e:
             raise UserWarning("Cannot set composition") from e
 
@@ -595,14 +476,14 @@ class Fluid(object):
 
         """
         obj = cls()
-        obj._ct_object = fluid
+        obj._fluid_model = fluid
         # It's important to set a Cantera object's state AFTER its composition
-        obj._ct_object.TP = 288.15, 101325.0
+        obj._fluid_model.TP = 288.15, 101325.0
         return obj
 
     @classmethod
     def from_cantera_mech(cls, mechanism: str,
-                          X: Union[dict[str, float], str]):
+                          X: Union[dict[str, float], str] = None):
         """
         Create a Fluid object, from a Cantera fluid.
 
@@ -610,18 +491,28 @@ class Fluid(object):
             mechanism: Cantera mechanism filename, e.g. "gri30.yaml".
             X: Dictionary or string describing the molar composition of the
                 fluid. For example, "CH4:1, O2:2" creates a stoichiometric mix
-                of methane and oxygen.
+                of methane and oxygen. Optional, defaults to None (which
+                selects a species from the list of species in the mechanism).
 
         Returns:
             Fluid object.
 
         """
         obj = cls()
-        obj._ct_object = ct.Solution(mechanism)
-        obj._ct_mechanism = mechanism
-        obj.cantera_composition = X
+        obj._fluid_model = ct.Solution(mechanism)
+        obj._fluid_mech = mechanism
+        if X is not None:
+            obj.fluid_composition = X
         # It's important to set a Cantera object's state AFTER its composition
-        obj._ct_object.TP = 288.15, 101325.0
+        obj._fluid_model.TP = 288.15, 101325.0
+        return obj
+
+    @classmethod
+    def from_gasmodel_perfect(cls, X: str):
+        obj = cls()
+        obj._fluid_model = LinearGases(species=X)
+        obj._fluid_mech = "PerfectGas"
+        obj._fluid_comp = X
         return obj
 
     @property
@@ -697,6 +588,7 @@ class Fluid(object):
         The amount of mechanical work obtained by heating a unit mass of the gas
         through a unit temperature rise at constant pressure.
         """
+        # This is the same as cp - cv = R unless gamma has more complexity to it
         return (self.gamma - 1) / self.gamma * self.state.cp
 
     @property
@@ -707,170 +599,130 @@ class Fluid(object):
         return (self.gamma * self.p * self.state.v) ** 0.5
 
 
-class Fluids(object):
-    """A collection of FLuid objects."""
+re_atomstyle = re.compile(r"[A-Z][a-z]{,2}")
+pt_symbols = [x for x in dir(pt) if re_atomstyle.match(x)]
+re_atoms = re.compile("|".join(pt_symbols))
+re_atomgroups = re.compile(f"({re_atoms.pattern})" + r"([0-9.]*)")
 
-    class PerfectGas:
-        """Perfect (a.k.a. calorically perfect) gases."""
 
-        @staticmethod
-        def Monatomic() -> Fluid:
-            """Perfect monatomic gas."""
-            fluid = Fluid()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                fluid.state.gamma = 5 / 3
-            return fluid
+class LinearGases(object):
+    """
+    Perfect (a.k.a. calorically perfect) gas model, designed to stand in place
+    of a Cantera Solution object and support thermodynamic modules of this
+    library.
+    """
+    _W: Quantity
+    _X: str
 
-        @staticmethod
-        def Diatomic() -> Fluid:
-            """Perfect diatomic gas."""
-            fluid = Fluid()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                fluid.state.gamma = 7 / 5
-            return fluid
+    def __init__(self, species: str):
+        self.T = 288.15
+        self.P = 101_325.0
+        # Invoke special behaviour when X is set...
+        self.X = species
+        return
 
-        @staticmethod
-        def Triatomic() -> Fluid:
-            """Perfect triatomic (linear) gas."""
-            fluid = Fluid()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                fluid.state.gamma = (9 - 1) / (7 - 1)
-            return fluid
+    @property
+    def T(self) -> Quantity:
+        """Temperature."""
+        return self._T
 
-        @staticmethod
-        def TrigonalPlanar() -> Fluid:
-            """Perfect trigonal planar gas."""
-            fluid = Fluid()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                fluid.state.gamma = 9 / 7
-            return fluid
+    @T.setter
+    def T(self, value):
+        self._T = Quantity(value, "K")
 
-    class PureFluid:
-        """Pure, homogeneous fluids."""
+    @property
+    def P(self) -> Quantity:
+        """Pressure."""
+        return self._p
 
-        @staticmethod
-        def CarbonDioxide() -> Fluid:
-            """Carbon dioxide at standard temperature and pressure."""
-            fluid = ct.CarbonDioxide()
-            return Fluid().from_cantera_fluid(fluid)
+    @P.setter
+    def P(self, value):
+        self._p = Quantity(value, "Pa")
 
-        CO2 = CarbonDioxide
+    @property
+    def TP(self) -> tuple[Quantity, Quantity]:
+        """Temperature and pressure."""
+        return self.T, self.P
 
-        @staticmethod
-        def Heptane() -> Fluid:
-            """Heptane at standard temperature and pressure."""
-            fluid = ct.Heptane()
-            return Fluid().from_cantera_fluid(fluid)
+    @property
+    def R(self) -> Quantity:
+        """Specific gas constant, R."""
+        R = co.PHYSICAL.R / self.W
+        return R
 
-        C7H16 = Heptane
+    @property
+    def W(self) -> Quantity:
+        """Molecular mass per unit mole."""
+        return self._W
 
-        @staticmethod
-        def HFC134a() -> Fluid:
-            """HFC134a refrigerant at standard temperature and pressure."""
-            fluid = ct.Hfc134a()
-            return Fluid().from_cantera_fluid(fluid)
+    @property
+    def X(self) -> str:
+        """Molecular species."""
+        return self._X
 
-        R134a = HFC134a
+    @X.setter
+    def X(self, value):
+        # Find pairs of (element, number of atoms)
+        atomgroups = re_atomgroups.findall(value)
+        atomgroups = [
+            (x, float(y)) if y != "" else (x, 1.)  # If not specified, one atom
+            for (x, y) in atomgroups
+        ]
 
-        @staticmethod
-        def Hydrogen() -> Fluid:
-            """Hydrogen at standard temperature and pressure."""
-            fluid = ct.Hydrogen()
-            return Fluid().from_cantera_fluid(fluid)
+        # Error handling: complicated molecule
+        linear = (N := sum([num for (_, num) in atomgroups])) <= 3
+        if not linear or len(atomgroups) > 2:
+            errormsg = (
+                f"{type(self).__name__}.X was expecting a linear molecule, "
+                f"instead got X='{value}'"
+            )
+            raise ValueError(errormsg)
 
-        H2 = Hydrogen
+        # Error handling: find things that look like atoms but actually aren't
+        likeatoms = re_atomstyle.findall(value)
+        falseatoms = set(likeatoms) - set(x for x, y in atomgroups)
+        if falseatoms:
+            errormsg = f"Unrecognised elements in '{value}': {falseatoms}"
+            raise ValueError(errormsg)
 
-        @staticmethod
-        def Methane() -> Fluid:
-            """Methane at standard temperature and pressure."""
-            fluid = ct.Methane()
-            return Fluid().from_cantera_fluid(fluid)
+        # Compute the weight of the molecule (kg/kmol)
+        W = sum([getattr(pt, elem).mass * num for (elem, num) in atomgroups])
+        self._W = Quantity(W, "kg kmol^{-1}")
 
-        CH4 = Methane
+        # Compute the excited degrees of freedom at reasonable temperatures
+        dof = 3  # Translational degrees of freedom
+        linear = (N := sum([num for (_, num) in atomgroups])) <= 3
+        if linear:
+            dof += 2  # Rotational degrees of freedom
+            # At standard temperature, vibration is not excited!
+            # dof += 2 * (3 * N - 5)  # Vibration
+        else:
+            dof += 3  # Rotational degrees of freedom
+            # At standard temperature, vibration is not excited!
+            # dof += 2 * (3 * N - 6)  # Vibration
+        if N > 2:
+            # Ansatz fix for simple molecules with more than 2 atoms
+            dof += 2 * (N - 2)
 
-        @staticmethod
-        def Nitrogen() -> Fluid:
-            """Nitrogen at standard temperature and pressure."""
-            fluid = ct.Nitrogen()
-            return Fluid().from_cantera_fluid(fluid)
+        self._cv = Quantity(dof / 2 * self.R, "J kg^{-1} K^{-1}")
 
-        N2 = Nitrogen
+        # Finally, save the value
+        self._X = value
 
-        @staticmethod
-        def Oxygen() -> Fluid:
-            """Oxygen at standard temperature and pressure."""
-            fluid = ct.Oxygen()
-            return Fluid().from_cantera_fluid(fluid)
+    @property
+    def cv(self) -> Quantity:
+        return self._cv
 
-        O2 = Oxygen
+    @property
+    def cp(self) -> Quantity:
+        return self.cv + self.R
 
-        @staticmethod
-        def Water() -> Fluid:
-            """Water at standard temperature and pressure."""
-            fluid = ct.Water()
-            return Fluid().from_cantera_fluid(fluid)
+    @property
+    def gamma(self) -> float:
+        return (self.cp / self.cv).x
 
-        H2O = Water
-
-    class GRI30:
-        """Gases based on GRI-Mech 3.0 combustion model."""
-
-        @staticmethod
-        def Air() -> Fluid:
-            """Air with standard composition, temperature, and pressure."""
-            mech = "gri30.yaml"
-            compositionX = {
-                "N2": 78.084,
-                "O2": 20.946,
-                "Ar": 0.9340,
-                "CO2": 0.0407,
-                "CH4": 0.00018,
-                "H2": 0.000055
-            }
-            return Fluid.from_cantera_mech(mech, compositionX)
-
-    class GRI30highT:
-        """
-        Gases based on GRI-Mech 3.0 combustion model, with high temperature
-        modifications.
-        """
-
-        @staticmethod
-        def Air() -> Fluid:
-            """Air with standard composition, temperature, and pressure."""
-            mech = "gri30_highT.yaml"
-            compositionX = {
-                "N2": 78.084,
-                "O2": 20.946,
-                "Ar": 0.9340,
-                "CO2": 0.0407,
-                "CH4": 0.00018,
-                "H2": 0.000055
-            }
-            return Fluid.from_cantera_mech(mech, compositionX)
-
-    class Air:
-        """Default air model, as given in Cantera's air.yaml."""
-
-        @staticmethod
-        def Air() -> Fluid:
-            """Air with standard composition, temperature, and pressure."""
-            mech = "air.yaml"
-            return Fluid.from_cantera_mech(mech)
-
-    class AirNASA9:
-        """Model of air based on NASA 9-coefficient parameterisation model."""
-
-        @staticmethod
-        def Air() -> Fluid:
-            """Air with standard composition, temperature, and pressure."""
-            mech = "airnasa9.yaml"
-            compositionX = {
-                "N2": 78.084,
-                "O2": 20.946,
-            }
-            return Fluid.from_cantera_mech(mech, compositionX)
+    @property
+    def rho(self) -> Quantity:
+        """Gas density."""
+        rho = self.P / self.R / self.T
+        return rho

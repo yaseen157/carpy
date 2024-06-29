@@ -2,7 +2,9 @@
 import functools
 import inspect
 import os
+import re
 import typing
+from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -17,8 +19,10 @@ __author__ = "Yaseen Reza"
 # ---------------------------------------------------------------------------- #
 class Hint(object):
     """A static class of common argument typehints."""
+    int = typing.Union[int, np.integer]
+    real = typing.Union[float, np.inexact]
     iter = typing.Union[tuple, list, np.ndarray]
-    num = typing.Union[int, float, np.integer, np.inexact]
+    num = typing.Union[int, real]
     nums = typing.Union[iter, num]
     func = typing.Union[typing.Callable]
     any = typing.Union[typing.Any]
@@ -95,43 +99,166 @@ def collapse_array(scalar_or_vector):
         return scalar_or_vector
 
 
+class NumberSets:
+
+    @staticmethod
+    def is_C(value, /) -> bool:
+        """True if value is of a Python type that allows complex numbers."""
+        return np.iscomplex(value)
+
+    @staticmethod
+    def is_R(value, /) -> bool:
+        """True if value is of a Python type that allows real numbers."""
+        return np.isfinite(value)
+
+    @staticmethod
+    def is_Z(value, /) -> bool:
+        """True if value is of a Python type that allows integers."""
+        return isinstance(value, (int, np.integer))
+
+    @classmethod
+    def cast_R(cls, value, /) -> float:
+        """Return real number."""
+        if cls.is_R(value):
+            return value
+        raise ValueError(f"Couldn't cast '{value}' to float (real number set)")
+
+    @classmethod
+    def cast_Z(cls, value, /, *, safe: bool = False) -> int:
+        """
+        Return integer number.
+
+        Raises:
+            ValueError: If 'safe' is True, only permits lossless casting.
+
+        """
+        if cls.is_Z(value):
+            return value
+        elif (casted := int(value)) == value:
+            return casted
+
+        if safe:
+            raise ValueError(f"'{value}' does not belong to integer set")
+
+        warnmsg = f"Casted '{value}' to '{casted}' (integer set)"
+        warn(warnmsg, RuntimeWarning)
+        return casted
+
+    @classmethod
+    def cast_N(cls, value, /, *, safe: bool = False) -> int:
+        """
+        Return natural number.
+
+        Raises:
+            ValueError: If 'safe' is True, only permits lossless casting.
+
+        """
+        if (casted := cls.cast_Z(value)) >= 0:
+            return casted
+
+        if safe:
+            raise ValueError(f"'{value}' does not belong to natural set")
+
+        warnmsg = f"Casted '{value}' to '{casted}' (natural set)"
+        warn(warnmsg, RuntimeWarning)
+        return casted
+
+
 __all__ += [Hint.__name__, cast2numpy.__name__, isNone.__name__,
-            collapse_array.__name__]
+            collapse_array.__name__, NumberSets.__name__]
 
 
 # ============================================================================ #
 # Pathing and files
 # ---------------------------------------------------------------------------- #
-class GetPath(object):
-    """A static class of methods providing relevant file paths."""
-    _library_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), os.pardir))
+def get_parent(path):
+    """Given a filepath, return a path one directory higher."""
+    parent_path, _ = os.path.split(path)
+    return parent_path
+
+
+def get_child(path):
+    """Given a filepath, return the lowest level directory in the path name."""
+    _, child_path = os.path.split(path)
+    return child_path
+
+
+class PathAnchor:
+    """
+    Instantiate to spawn an "anchor" in your code, from which various useful
+    absolute paths relating to the anchor's location can be derived.
+    """
+
+    def __init__(self):
+        self._stack = inspect.stack()
+
+    @property
+    def filepath(self) -> str:
+        """Returns the path of file in which the anchor was spawned."""
+        return self._stack[1].filename
+
+    @property
+    def filename(self) -> str:
+        """
+        Returns the name of the file in which the anchor was spawned, including
+        any file extensions.
+        """
+        return get_child(path=self.filepath)
+
+    @property
+    def filename_stem(self) -> str:
+        """Returns the stem of the filename (no extensions)."""
+        stem, = re.findall("(.+)(?=[^.]*\.)+", self.filename)
+        return stem
+
+    @property
+    def filename_ext(self) -> str:
+        """Returns the extension of the filename, with the dot."""
+        return self.filename[len(self.filename_stem):]
+
+    @property
+    def directory_path(self) -> str:
+        """
+        Returns the path to the directory containing the file in which the
+        anchor was spawned.
+        """
+        return get_parent(path=self.filepath)
+
+    @property
+    def library_path(self) -> str:
+        """
+        Returns, if appropriate, the path to the library of code in which the
+        anchor was spawned.
+
+        Notes:
+            This only works if folders are explicitly identified as modules
+            using an "__init__.py" file - which is not required in versions of
+            Python >= 3.4.
+
+        """
+        ascended = False
+        current_path = self.directory_path
+
+        # Look for explicit module declarations. When they stop, we stop.
+        while "__init__.py" in os.listdir(current_path):
+            ascended = True
+            current_path = get_parent(current_path)
+
+        if ascended is False:
+            error_msg = (
+                f"{type(self).__name__} does not appear to have spawned inside "
+                f"an explicitly defined module - a more appropriate call would "
+                f"be made with 'self.{type(self).library_path.fget.__name__}'"
+            )
+            warn(message=error_msg, category=RuntimeWarning)
+
+        return current_path
 
     @classmethod
-    def library(cls) -> str:
-        """Return the absolute OS path of the library's installation."""
-        return cls._library_path
-
-    @staticmethod
-    def localpackage(*optional_paths) -> str:
-        """
-        Return the absolute path of the caller file's local package.
-
-        Args:
-            *optional_paths: Optional extra paths to follow.
-
-        Returns:
-            Returns 'os.path.join(localpackage_path, *paths)'.
-
-        """
-        local_pkg_path = os.path.dirname(inspect.stack()[1].filename)
-        extended_path = os.path.join(local_pkg_path, *optional_paths)
-        return extended_path
-
-    @staticmethod
-    def github() -> str:
-        """Return the URL to carpy's source."""
-        return "https://github.com/yaseen157/carpy"
+    @property
+    def home_path(cls):
+        path = os.path.expanduser("~")
+        return path
 
 
 class LoadData(object):
@@ -156,7 +283,7 @@ class LoadData(object):
         return dataframes
 
 
-__all__ += [GetPath.__name__, LoadData.__name__]
+__all__ += [PathAnchor.__name__, LoadData.__name__]
 
 
 # ============================================================================ #

@@ -1,11 +1,13 @@
 """Module for consistent modelling of fluids, including ideal and real gases."""
+import warnings
+
 import numpy as np
 from scipy import optimize as sopt
 
 from carpy.utility import Hint, Quantity, cast2numpy, revert2scalar
-from ._fluids import Fluid
+from ._fluidstates import Fluid
 
-__all__ = ["Flow", "IWedgeShock", "IExpansionFan"]
+__all__ = ["Flow", "FlowProcess"]
 __author__ = "Yaseen Reza"
 
 
@@ -337,7 +339,7 @@ class Flow(object):
             lambda M: PMfunction(M, gamma=self.gamma) - value, x0=2)
 
 
-class IdealFeature(object):
+class BaseFlowProcess(object):
     """
     Flow feature with upstream (state1) and downstream (state2) conditions,
     assuming ideal gas flow relations hold.
@@ -426,7 +428,7 @@ class IdealFeature(object):
         return self.state2.geom_nu
 
 
-class IWedgeShock(IdealFeature):
+class IWedgeShock(BaseFlowProcess):
     """
     Normal and oblique shock (ideal gas) relations for wedge-shaped shocks.
 
@@ -488,6 +490,12 @@ class IWedgeShock(IdealFeature):
                         f_opt, x0=x0, args=(theta_i,))
                 except RuntimeError:
                     geom_beta.flat[i] = np.nan
+                    warnmsg = (
+                        f"Couldn't solve for all shock wave angles, given "
+                        f"{geom_theta=} [rad] "
+                        f"({np.degrees(geom_theta)} [deg])"
+                    )
+                    warnings.warn(message=warnmsg, category=RuntimeWarning)
 
         else:
             if weak_shock is True:
@@ -498,6 +506,7 @@ class IWedgeShock(IdealFeature):
         return
 
     @property
+    @revert2scalar
     def geom_beta(self):
         """
         The angle the shock wave makes to the direction of freestream flow.
@@ -508,6 +517,7 @@ class IWedgeShock(IdealFeature):
         return self._geom_beta
 
     @property
+    @revert2scalar
     def geom_theta(self):
         """
         The angle by which the flow is deflected away from the freestream.
@@ -531,19 +541,26 @@ class IWedgeShock(IdealFeature):
         return p2_p1
 
     @property
+    @revert2scalar
     def pt2_pt1(self) -> float:
         """Total (stagnation) pressure ratio over the shock."""
-        pt2 = self.state2.pt_p * self.state2.p
-        pt1 = self.state1.pt_p * self.state1.p
-        return (pt2 / pt1).x
+        gam1 = self.state1.gamma
+        term1 = ((gam1 + 1) * self.M1n ** 2 / ((gam1 - 1) * self.M1n ** 2 + 2)
+                 ) ** (gam1 / (gam1 - 1))
+        term2 = ((gam1 + 1) / (2 * gam1 * self.M1n ** 2 - (gam1 - 1))
+                 ) ** (1 / (gam1 - 1))
+        pt2_pt1 = term1 * term2
+        return pt2_pt1
 
     @property
+    @revert2scalar
     def p1_pt2(self) -> float:
         """Freestream static to post-shock total pressure ratio."""
         p1_pt2 = self.state1.p_pt / self.pt2_pt1
         return p1_pt2
 
     @property
+    @revert2scalar
     def T2_T1(self):
         """Temperature ratio over the shock."""
         return self.p2_p1 / self.r2_r1
@@ -564,6 +581,13 @@ class IWedgeShock(IdealFeature):
         return r2_r1
 
     @property
+    def rt2_rt1(self):
+        """Total (stagnation) density ratio over the shock."""
+        # With a Tt2_Tt1 ratio of 1, this is just the pt2_pt1 result
+        return self.pt2_pt1
+
+    @property
+    @revert2scalar
     def M2(self):
         """Mach number downstream of the shock."""
         fs = self.state1
@@ -574,21 +598,25 @@ class IWedgeShock(IdealFeature):
         return M2
 
     @property
+    @revert2scalar
     def M2n(self):
         """Mach number normal to and downstream of the shock."""
         return self.M2 * np.sin(self.geom_beta - self.geom_theta)
 
     @property
+    @revert2scalar
     def M1(self):
         """Mach number upstream of the shock."""
         return self.state1.M
 
     @property
+    @revert2scalar
     def M1n(self):
         """Mach number normal to and upstream of the shock."""
         return self.M1 * np.sin(self.geom_beta)
 
     @property
+    @revert2scalar
     def Cp(self):
         """Pressure coefficient of the shock."""
         fs = self.state1
@@ -596,7 +624,7 @@ class IWedgeShock(IdealFeature):
         return Cp
 
 
-class IExpansionFan(IdealFeature):
+class IExpansionFan(BaseFlowProcess):
     """
     Centered expansion fan (in an ideal gas) for sonic, abrupt flow expansion.
 
@@ -641,11 +669,13 @@ class IExpansionFan(IdealFeature):
         return self._geom_theta
 
     @property
+    @revert2scalar
     def M2(self):
         """Downstream Mach number."""
         return self._M2
 
     @property
+    @revert2scalar
     def T2_T1(self):
         """Temperature ratio over the expansion fan."""
         # Assumes gamma in state1 is the same as that in state2
@@ -656,18 +686,128 @@ class IExpansionFan(IdealFeature):
         return T2_T1
 
     @property
+    @revert2scalar
     def r2_r1(self):
         """Density ratio over the expansion fan."""
         return self.T2_T1 ** (1 / (self.state1.gamma - 1))
 
     @property
+    @revert2scalar
     def p2_p1(self):
         """Pressure ratio over the expansion fan."""
         return self.r2_r1 ** self.state1.gamma
 
     @property
+    @revert2scalar
     def Cp(self):
         """Pressure coefficient of the expansion fan."""
         fs = self.state1
         Cp = 2 / fs.gamma / fs.M ** 2 * (self.p2_p1 - 1)
         return Cp
+
+
+class FlowProcess:
+    """A collection of (ideal gas) processes."""
+
+    @staticmethod
+    def normalshock(flow1: Flow) -> IWedgeShock:
+        """
+        Apply a normal shock to a flow.
+
+        Args:
+            flow1: A flow object (describing the fluid and flow speed) at a
+                point upstream of the flow feature.
+
+        Returns:
+            An IWedgeShock object with attributes of up- and downstream flow.
+
+        Notes:
+            Assumes ideal fluid properties.
+
+        """
+        shockedflow = IWedgeShock(flow1=flow1)
+        return shockedflow
+
+    @staticmethod
+    def obliqueshock(flow1: Flow, *, geom_theta: float = None,
+                     geom_beta: float = None,
+                     weak_shock: bool = None):
+        """
+        Apply an oblique shock to a flow.
+
+        Args:
+            flow1: A flow object (describing the fluid and flow speed) at a
+                point upstream of the flow feature.
+        Keyword Args:
+            geom_theta: The flow deflection angle, theta. Optional, need not be
+                given if beta is provided.
+            geom_beta: The shockwave angle, beta. Optional, need not be given
+                if theta is provided.
+            weak_shock: Flag to specify if the shock should be strong or weak.
+
+        Returns:
+            An IWedgeShock object with attributes of up- and downstream flow.
+
+        Notes:
+            Assumes ideal fluid properties.
+
+        """
+        shockedflow = IWedgeShock(
+            flow1=flow1, geom_theta=geom_theta, geom_beta=geom_beta,
+            weak_shock=weak_shock
+        )
+        return shockedflow
+
+    @staticmethod
+    def obliqueshock_w(flow1: Flow, *, geom_theta: float = None,
+                       geom_beta: float = None):
+        """
+        Apply an oblique, weak shock to a flow.
+
+        Args:
+            flow1: A flow object (describing the fluid and flow speed) at a
+                point upstream of the flow feature.
+            geom_theta: The flow deflection angle, theta. Optional, need not be
+                given if beta is provided.
+            geom_beta: The shockwave angle, beta. Optional, need not be given
+                if theta is provided.
+
+        Returns:
+            An IWedgeShock object with attributes of up- and downstream flow.
+
+        Notes:
+            Assumes ideal fluid properties.
+
+        """
+        shockedflow = IWedgeShock(
+            flow1=flow1, geom_theta=geom_theta, geom_beta=geom_beta,
+            weak_shock=True
+        )
+        return shockedflow
+
+    @staticmethod
+    def obliqueshock_s(flow1: Flow, *, geom_theta: float = None,
+                       geom_beta: float = None):
+        """
+        Apply an oblique, strong shock to a flow.
+
+        Args:
+            flow1: A flow object (describing the fluid and flow speed) at a
+                point upstream of the flow feature.
+            geom_theta: The flow deflection angle, theta. Optional, need not be
+                given if beta is provided.
+            geom_beta: The shockwave angle, beta. Optional, need not be given
+                if theta is provided.
+
+        Returns:
+            An IWedgeShock object with attributes of up- and downstream flow.
+
+        Notes:
+            Assumes ideal fluid properties.
+
+        """
+        shockedflow = IWedgeShock(
+            flow1=flow1, geom_theta=geom_theta, geom_beta=geom_beta,
+            weak_shock=False
+        )
+        return shockedflow
