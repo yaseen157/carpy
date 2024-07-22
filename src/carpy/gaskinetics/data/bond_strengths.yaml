@@ -1,0 +1,112 @@
+---
+# Bond strengths (bond dissociation energy), measured in kJ per mole.
+# ==============================================================================
+# Alpha to <some-functional-group>, means the carbon adjacent to said group. For
+# example, a C-H bond alpha to amine means the C-H bond on the carbon adjacent
+# to the amine group.
+# ==============================================================================
+
+# Wikipedia and Google
+C-H:
+  Methyl: 439         # Methyl bond H3C-H
+  Ethyl: 423          # Ethyl bond C2H5-H
+  Isopropyl: 414      # Isopropyl bond (CH3)2CH-H
+  t-Butyl: 404        # tetra-Butyl bond (CH3)3C-H
+  a-amine: 381        # Alpha to amine
+  a-ether: 385        # Alpha to ether
+  a-ketone: 402       # Alpha to ketone
+  Vinyl: 464          # Vinyl bond CH2CH-H
+  Acetylenic: 556     # Acetylenic bond HCC-H
+  Phenyl: 473         # Phenyl bond C6H5-H
+  Alicylic: 372       # Alicylic bond CH2CHCH2-H
+  Benzylic: 377       # Benzylic bond C6H5CH2−H
+C-C:
+  Alkane: 362         # Alkane bond, between 347-377
+  Alkene: 710         # Alkene bond
+  Alkyne: 960         # Alkyne bond
+  C=C: 611
+  C#C: 835
+C-N:
+  C-N: 300
+C-O:
+  CH3OH: 385          # Methanol
+  CO2: 532            # Carbon dioxide
+  CH2O: 748           # Formaldehyde
+  CO: 1077            # Carbon monoxide
+  C-O: 350
+  C=O: 732
+C-F:
+  C-F: 481
+C-S:
+  C-S: 260
+C-Cl:
+  C-Cl: 350
+C-Br:
+  C-Br: 270
+C-I:
+  C-I: 240
+
+H-H:
+  H-H: 431
+H-N:
+  H-N: 390
+H-O:
+  H2O: 497            # Water
+  CH3OH: 440          # Methanol
+  a-tocopherol: 323   # Alpha to tocopherol
+  H-O: 460
+H-F:
+  H-F: 569
+H-S:
+  H-S: 340
+H-Cl:
+  H-Cl: 432
+H-Br:
+  H-Br: 366
+H-I:
+  H-I: 298
+
+N-N:
+  N-N: 240
+  N#N: 945
+N-O:
+  N-O: 200
+N-F:
+  N-F: 270
+N-Cl:
+  N-Cl: 200
+N-Br:
+  N-Br: 240
+
+O-O:
+  O-O: 180
+  O=O: 498
+O-F:
+  O-F: 180
+O-Cl:
+  O-Cl: 200
+O-Br:
+  O-Br: 210
+O-I:
+  O-I: 220
+
+F-F:
+  F-F: 157
+F-S:
+  F-S: 310
+
+S-S:
+  S-S: 225
+S-Cl:
+  S-Cl: 250
+S-Br:
+  S-Br: 210
+
+Cl-Cl:
+  Cl-Cl: 242
+
+Br-Br:
+  Br-Br: 192
+
+I-I:
+  I-I: 151

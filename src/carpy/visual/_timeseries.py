@@ -3,13 +3,14 @@ from functools import partial
 from matplotlib import pyplot as plt
 from matplotlib.dates import DateFormatter
 from matplotlib.widgets import RadioButtons, RangeSlider
+import numpy as np
 
 from carpy.utility import Quantity
 
-__all__ = ["SensorStream"]
+__all__ = ["TimeSeries"]
 
 
-class SensorStream:
+class TimeSeries:
 
     def __init__(self, _name, /, timestamps, **data):
         self._name = _name
@@ -25,11 +26,11 @@ class SensorStream:
             return seconds / 86_400
 
         # Create figure and axes
-        nplots = len(self._data)
+        n_plots = len(self._data)
         fig, axs = plt.subplot_mosaic(
             [
                 [f"data:{i}", f"radio:{i}"]
-                for i in range(nplots)
+                for i in range(n_plots)
             ],
             figsize=(10, 6),
             width_ratios=[5, 1],
@@ -64,10 +65,10 @@ class SensorStream:
                 # When selection is made on radio menu, rescale the y-axis
                 def mapper(label, id, k):
                     """label: Radio label, id: row, k: self._data['key']."""
-                    ydata = self._data[k].to(label)
-                    lines[id].set_ydata(ydata)
-                    dlim = ((t := ydata.max()) - (b := ydata.min())) / 20
-                    axs[f"data:{id}"].set_ylim(b - dlim, t + dlim)
+                    y_data = self._data[k].to(label)
+                    lines[id].set_ydata(y_data)
+                    delta_lim = ((t := y_data.max()) - (b := y_data.min())) / 20
+                    axs[f"data:{id}"].set_ylim(b - delta_lim, t + delta_lim)
                     fig.canvas.draw_idle()
                     return
 
@@ -85,8 +86,8 @@ class SensorStream:
             # x-axis invisible, axes limits set by data bounds
             ax.get_xaxis().set_visible(False)
             ax.set_xlim(
-                lines[i].get_xdata().min(),
-                lines[i].get_xdata().max()
+                np.min(lines[i].get_xdata()),
+                np.max(lines[i].get_xdata())
             )
 
             # y-axis labelling
@@ -106,7 +107,7 @@ class SensorStream:
 
         # Spawn a new axes object, containing the slider element
         slider = RangeSlider(
-            ax=plt.axes([0.2, 0.05, 0.60, 0.03]), label="Context [s]",
+            ax=plt.axes((0.2, 0.05, 0.60, 0.03)), label="Context [s]",
             valinit=(self._time.min(), self._time.max()),
             valmin=self._time.min(), valmax=self._time.max(),
             valfmt='%i'
@@ -115,7 +116,7 @@ class SensorStream:
         def update(val) -> None:
             """Whenever the sliders are moved, call this. val: (min, max)."""
             # Update the selection
-            for i in range(nplots):
+            for i in range(n_plots):
                 ax = axs[f"data:{i}"]
                 ax.axis([s2d(val[0]), s2d(val[1]), *(ax.get_ylim())])
 
