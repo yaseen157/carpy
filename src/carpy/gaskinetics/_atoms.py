@@ -62,30 +62,26 @@ class Atom:
             if order == "auto":
 
                 # If the atoms are homonuclear, bond as many times as is practical
-                if self._my_atom.symbol == target.symbol:
-                    atom_A_potential = self._my_atom.electrons.sp_capacity - self._my_atom.group
+                if (self._my_atom.symbol == target.symbol
+                        or "H" in [self._my_atom.symbol, target.symbol]
+                        or "O" in [self._my_atom.symbol, target.symbol]):
+                    atom_A_potential = self._my_atom.electrons.sp_capacity - self._my_atom.electrons.sp_neutral
                     for bond in self:
                         atom_A_potential -= bond.order
 
-                    atom_B_potential = target.electrons.sp_capacity - target.group
+                    atom_B_potential = target.electrons.sp_capacity - target.electrons.sp_neutral
                     for bond in target.bonding:
                         atom_B_potential -= bond.order
-
-                    order = min(atom_A_potential, atom_B_potential)
-
-                elif "H" in [self._my_atom.symbol, target.symbol]:
-                    order = 1
-
-                elif "O" in [self._my_atom.symbol, target.symbol]:
-                    order = 2
 
                 else:
                     raise NotImplementedError
 
+                order = min(atom_A_potential, atom_B_potential)
+
             else:
                 raise NotImplementedError
 
-            if order == 0:
+            if order <= 0:
                 error_msg = f"{self._my_atom} cannot make a simple covalent bond to {target} (no electrons available)."
                 raise ValueError(error_msg)
 
@@ -179,8 +175,8 @@ class Atom:
         @property
         def sp_neutral(self):
             """Return the number of sp-orbital valence electrons in a neutral parent atom."""
-            group = self[f"{self._parent.period}s"] + self.get(f"{self._parent.period}p", 0)
-            return group
+            valence = self[f"{self._parent.period}s"] + self.get(f"{self._parent.period}p", 0)
+            return valence
 
     def __init__(self, symbol: str):
         assert symbol in element_symbols, f"'{symbol}' is not a recognised symbol for any of the periodic elements"

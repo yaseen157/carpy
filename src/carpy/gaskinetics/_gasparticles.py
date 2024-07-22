@@ -257,7 +257,8 @@ class Particles:
 
     CH4 = ABnParticle("CH4")
     CO2 = ABnParticle("CO2")
+    H2O = ABnParticle("OH2")
 
 
 if __name__ == "__main__":
-    print(Particles.CH4.atoms[0].bonding)
+    print(Particles.H2O.atoms[0].bonding)
