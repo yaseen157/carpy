@@ -17,7 +17,7 @@ C-O:
   CO: 18.9572  # Not terribly sure on this, from Google, but it's triple bond...
 
 H-H:
-  HH: 5.10  # From Google
+  H2: 5.10  # From Google
 
 H-N:
   NH: 5.97

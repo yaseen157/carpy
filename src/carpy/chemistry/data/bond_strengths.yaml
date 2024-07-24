@@ -2,8 +2,8 @@
 # Bond strengths (bond dissociation energy), measured in kJ per mole.
 # ==============================================================================
 # Alpha to <some-functional-group>, means the carbon adjacent to said group. For
-# example, a C-H bond alpha to amine means the C-H bond on the carbon adjacent
-# to the amine group.
+# example, a C-H bond alpha to amine means the C-H bond in question is on the
+# carbon adjacent to the amine group.
 # ==============================================================================
 
 # Wikipedia and Google
