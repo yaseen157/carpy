@@ -48,7 +48,7 @@ lengths = LoadData.yaml(filepath=os.path.join(data_path, "bond_lengths.yaml"))
 strengths = LoadData.yaml(filepath=os.path.join(data_path, "bond_strengths.yaml"))
 
 
-def organic_sort(*atoms: Atom):
+def organic_sort(*atoms: Atom) -> list[Atom]:
     """Sort atoms in ascending order of atomic number, apart from Carbon (which comes first)."""
 
     def sort_func(x: Atom):
@@ -70,14 +70,25 @@ class CovalentBond:
             order: Multiplicity of the covalent bond, i.e. sum of the simple covalent and dative covalent bond orders.
 
         """
-        self.atoms = organic_sort(A, B)
-        self.order = order
+        self._atoms = set(organic_sort(A, B))
+        self._order = order
         return
 
     def __repr__(self):
         order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
-        repr_str = f"{str(self.atoms[0])}{order_symbol}{str(self.atoms[1])}"
+        atom_l, atom_r = self.atoms
+        repr_str = f"{str(atom_l)}{order_symbol}{str(atom_r)}"
         return repr_str
+
+    @property
+    def atoms(self) -> set[Atom]:
+        """The atoms participating in the bond."""
+        return self._atoms
+
+    @property
+    def order(self) -> int:
+        """The order (multiplicity) of the bond."""
+        return self._order
 
     @property
     def force_constant(self) -> Quantity:
@@ -156,6 +167,18 @@ class LocalBonds(set):
         self._parent = atom
         super(LocalBonds, self).__init__()
         return
+
+    def __getitem__(self, item):
+        # Return all bonds that the query atom participates in
+        if isinstance(item, str):
+            # If using a string, don't return a bond that contains the parent because... every bond contains the parent
+            bonds = {bond for bond in self if item in [atom.symbol for atom in bond.atoms if atom != self._parent]}
+        elif type(item).__name__ == "Atom":
+            bonds = {bond for bond in self if item in bond.atoms}
+        else:
+            error_msg = f"Subclass of set cannot be indexed with '{item}' ({type(item)} object)"
+            raise IndexError(error_msg)
+        return bonds
 
     def add(self, __element):
         if isinstance(__element, (CovalentBond,)):

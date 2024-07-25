@@ -80,7 +80,7 @@ class Atom:
             for atoms in [bond.atoms for bond in self.bonds]
             for atom in atoms
         ]) - {self}
-        return set(neighbours)
+        return neighbours
 
 
 class ElectronConfiguration(dict):

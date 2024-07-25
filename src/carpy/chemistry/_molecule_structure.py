@@ -1,11 +1,11 @@
 from __future__ import annotations
 import re
+import warnings
 
 import numpy as np
 import periodictable as pt
 
 from carpy.chemistry._atom import Atom
-from carpy.chemistry._atom_bonding import CovalentBond
 from carpy.utility import Unicodify, Graphs
 
 # Element names must be sorted with the longest character length symbols first to prevent partial regex matches. For
@@ -102,8 +102,8 @@ class Structure:
         )
         raise RuntimeError(error_msg)
 
-    def __init__(self, formula):
-        self._formula = formula
+    def __init__(self, *args, **kwargs):
+        self._formula = kwargs.get("formula")
         return
 
     def __repr__(self):
@@ -114,62 +114,6 @@ class Structure:
         rtn_str = Unicodify.chemical_formula(self._formula)
         return rtn_str
 
-    @staticmethod
-    def from_atoms(atom: Atom, formula: str = "<UNKNOWN>") -> Structure:
-        """
-        Create a Molecule object from a custom arrangement of atoms.
-
-        Args:
-            atom: Any atom object constituent of the molecule's structure you wish to describe. The atom's bonding
-                partners must be fully defined, users may not restructure molecules after object instantiation.
-            formula: Condensed formula for the atom (there are presently no methods to do this automatically, sorry).
-
-        Returns:
-            Molecular structure object.
-
-        """
-        # Create a new molecule object and discover atomic components
-        obj = object.__new__(Structure)
-        obj._graph = discover_molecule(atom=atom)
-
-        # Run the instantiation methods of the original Molecule class
-        # TODO: intelligent parsing of the condensed structural formula from the molecule's structure
-        Structure.__init__(obj, formula)
-
-        # Return the fully instantiated class to the user
-        return obj
-
-    @staticmethod
-    def from_condensed_formula(formula: str) -> Structure:
-        """
-        Create a Molecule object from a condensed structural formula.
-
-        Args:
-            formula: Condensed structural formula for a molecule.
-
-        Returns:
-            Molecular structure object.
-
-        Notes:
-            A robust method for translating any condensed formula into a molecular structure object is not yet
-            implemented.
-
-        """
-        obj = None
-
-        # Try to instantiate from a list of subclasses, if the regex pattern is a match
-        subclasses = [ABnStructure, DiatomicStructure]
-        for subclass in subclasses:
-            if subclass.regex.fullmatch(formula):
-                obj = subclass(formula)
-                break  # Don't continue the for loop and overwrite our successful subclass instantiation
-
-        if obj is None:
-            error_msg = f"Could not parse the condensed chemical formula '{formula}' from any of {subclasses=}"
-            raise ValueError(error_msg)
-
-        return obj
-
     @property
     def _atoms(self):
         """Generator for list of atoms in the molecule. A generator preserves the order, where a set does not."""
@@ -177,11 +121,13 @@ class Structure:
 
     @property
     def atoms(self) -> set[Atom]:
+        """Unordered set of atoms that constitute the molecule's structure."""
         atoms = set(self._atoms)
         return atoms
 
     @property
-    def longest_path(self):
+    def _longest_path(self) -> list[int]:
+        """Produce a list of the ._atoms indices that represent the molecule's longest chain of functional groups."""
         mat_adjacency = self._graph.mat_adjacency
         mask = np.nan
         np.fill_diagonal(mat_adjacency, mask)
@@ -236,6 +182,124 @@ class Structure:
 
         raise NotImplementedError("I don't yet know how to de-conflict branches of equal length")
 
+    @property
+    def functional_groups(self):
+        groups = []
+        halogen_map = {"Fl": "fluoro", "Cl": "chloro", "Br": "bromo", "I": "iodo"}
+
+        for root in self._atoms:
+
+            if root.symbol == "H":
+                continue  # skip the atom
+
+            carbon = set(filter(lambda neighbour: neighbour.symbol == "C", root.neighbours))
+            hydrogen = set(filter(lambda neighbour: neighbour.symbol == "H", root.neighbours))
+            R_groups = carbon | hydrogen
+            X_groups = set(filter(lambda neighbour: neighbour.electrons.pt_group == 17, root.neighbours))
+
+            if root.symbol == "C":
+
+                # alkyl: 3 hydrogens and any R-group
+                if len(hydrogen) >= 3:
+                    groups.append(("alkyl", {root} | hydrogen))
+
+                # alkenyl: C=C bond and both of those C's must have 3 bonding partners
+                # alkynyl: C#C bond and both of those C's must have 2 bonding partners
+                elif root.bonds["C"]:
+                    cc_order = root.bonds["C"].pop().order
+                    cc_partners = [len(x.bonds) for x in root.bonds["C"].pop().atoms]
+
+                    if cc_order == 2 and all(list(map(lambda x: x == 3, cc_partners))):
+                        groups.append(("alkenyl", root.bonds["C"].pop().atoms))
+                    elif cc_order == 3 and all(list(map(lambda x: x == 2, cc_partners))):
+                        groups.append(("alkynyl", root.bonds["C"].pop().atoms))
+
+                # fluoro, chloro, bromo, iodo, halo
+                if X_groups:
+                    for halogen in X_groups:
+                        groups.append((halogen_map.get(halogen.symbol, "halo"), {root, halogen}))
+
+            elif root.symbol == "O":
+
+                # hydroxyl
+                if len(carbon) == 1 and len(hydrogen) == 1:
+                    groups.append(("hydroxyl", {root} | hydrogen))
+
+                # ketone, aldehyde, haloformyl
+                if len(carbon) == 1 and root.bonds.pop().order == 2:
+                    c = carbon.pop()
+
+                    if len(bond := c.bonds["H"]) == 1:
+                        groups.append(("aldehyde", {root} | bond.atoms))
+                    else:
+                        for halogen in halogen_map.keys():
+                            if bond := c.bonds[halogen]:
+                                groups.append(("haloformyl", {root} | bond.atoms))
+                                break
+                        else:
+                            groups.append(("ketone", {c, root}))
+
+        warn_msg = f"Method for determining functional groups is incomplete and may not produce satisfactory results"
+        warnings.warn(warn_msg, category=UserWarning)
+
+        return groups
+
+    @staticmethod
+    def from_atoms(atom: Atom, formula: str = "<UNKNOWN>") -> Structure:
+        """
+        Create a Molecule object from a custom arrangement of atoms.
+
+        Args:
+            atom: Any atom object constituent of the molecule's structure you wish to describe. The atom's bonding
+                partners must be fully defined, users may not restructure molecules after object instantiation.
+            formula: Condensed formula for the atom (there are presently no methods to do this automatically, sorry).
+
+        Returns:
+            Molecular structure object.
+
+        """
+        # Create a new molecule object and discover atomic components
+        obj = object.__new__(Structure)
+        obj._graph = discover_molecule(atom=atom)
+
+        # Run the instantiation methods of the original Molecule class
+        # TODO: intelligent parsing of the condensed structural formula from the molecule's structure
+        Structure.__init__(obj, formula=formula)
+
+        # Return the fully instantiated class to the user
+        return obj
+
+    @staticmethod
+    def from_condensed_formula(formula: str) -> Structure:
+        """
+        Create a Molecule object from a condensed structural formula.
+
+        Args:
+            formula: Condensed structural formula for a molecule.
+
+        Returns:
+            Molecular structure object.
+
+        Notes:
+            A robust method for translating any condensed formula into a molecular structure object is not yet
+            implemented.
+
+        """
+        obj = None
+
+        # Try to instantiate from a list of subclasses, if the regex pattern is a match
+        subclasses = [ABnStructure, DiatomicStructure, MonatomicStructure]
+        for subclass in subclasses:
+            if subclass.regex.fullmatch(formula):
+                obj = subclass(formula)
+                break  # Don't continue the for loop and overwrite our successful subclass instantiation
+
+        if obj is None:
+            error_msg = f"Could not parse the condensed chemical formula '{formula}' from any of {subclasses=}"
+            raise ValueError(error_msg)
+
+        return obj
+
 
 class ABnStructure(Structure):
     regex = re.compile(rf"({element_regex})({element_regex})(\d+)")
@@ -253,7 +317,28 @@ class ABnStructure(Structure):
         obj._graph = discover_molecule(atom=atom)
 
         # Run the instantiation methods of the original Molecule class
-        Structure.__init__(obj, formula)
+        Structure.__init__(obj, formula=formula)
+
+        # Return the fully instantiated class to the user
+        return obj
+
+
+class MonatomicStructure(Structure):
+    regex = re.compile(f"({element_regex})")
+
+    def __new__(cls, formula):
+        # Parse the formula
+        A, = cls.regex.fullmatch(formula).groups()
+
+        # Construct atom
+        atom = Atom(A)
+
+        # Create a new molecule object and assign the new structure
+        obj = object.__new__(Structure)
+        obj._graph = discover_molecule(atom=atom)
+
+        # Run the instantiation methods of the original Molecule class
+        Structure.__init__(obj, formula=formula)
 
         # Return the fully instantiated class to the user
         return obj
@@ -280,42 +365,50 @@ class DiatomicStructure(Structure):
         obj._graph = discover_molecule(atom=atom)
 
         # Run the instantiation methods of the original Molecule class
-        Structure.__init__(obj, formula)
+        Structure.__init__(obj, formula=formula)
 
         # Return the fully instantiated class to the user
         return obj
 
 
 if __name__ == "__main__":
-    # methane = Structure.from_condensed_formula("CH4")
-    # print(methane, methane.atoms)
-    # hydrogen = Structure.from_condensed_formula("H2")
-    # print(hydrogen, hydrogen.atoms)
-    # carbonmonoxide = Structure.from_condensed_formula("CO")
-    # print(carbonmonoxide, carbonmonoxide.atoms)
-    #
-    # n = Atom("N")
-    # n.bonds.add_covalent(Atom("N"))
-    # n.bonds.add_covalent(Atom("O"))
-    # dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
-    # print(dinitrogenoxide, dinitrogenoxide.atoms)
+    methane = Structure.from_condensed_formula("CH4")
+    print(methane, methane.functional_groups)
+    hydrogen = Structure.from_condensed_formula("H2")
+    print(hydrogen, hydrogen.functional_groups)
+    carbonmonoxide = Structure.from_condensed_formula("CO")
+    print(carbonmonoxide, carbonmonoxide.functional_groups)
+
+    n = Atom("N")
+    n.bonds.add_covalent(Atom("N"))
+    n.bonds.add_covalent(Atom("O"))
+    dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
+    print(dinitrogenoxide, dinitrogenoxide.functional_groups)
 
     c1 = Atom("C")
     c2 = Atom("C")
     c3 = Atom("C")
     c4 = Atom("C")
     c5 = Atom("C")
-    c1.bonds.add_covalent(c2, order_limit=1)
+    c1.bonds.add_covalent(c2, order_limit=2)
     c2.bonds.add_covalent(c3, order_limit=1)
     c3.bonds.add_covalent(c4, order_limit=1)
     c4.bonds.add_covalent(c5, order_limit=1)
-    [c1.bonds.add_covalent(Atom("H")) for _ in range(3)]
-    [c2.bonds.add_covalent(Atom("H")) for _ in range(2)]
-    [c3.bonds.add_covalent(Atom("H")) for _ in range(2)]
-    [c4.bonds.add_covalent(Atom("H")) for _ in range(2)]
-    [c5.bonds.add_covalent(Atom("H")) for _ in range(3)]
-    custom = Structure.from_atoms(c1, "C5H12")
-    print(custom, "\n", custom.longest_path)
+    [c1.bonds.add_covalent(Atom("H")) for _ in range(2)]
+    [c2.bonds.add_covalent(Atom("H")) for _ in range(1)]
+    c3.bonds.add_covalent(Atom("O"))
+    [c4.bonds.add_covalent(Atom("H")) for _ in range(1)]
+    [c5.bonds.add_covalent(Atom("H")) for _ in range(2)]
+    c4.bonds.add_covalent(Atom("Cl"))
+    o = Atom("O")
+    o.bonds.add_covalent(Atom("H"))
+    c5.bonds.add_covalent(o)
+
+    custom = Structure.from_atoms(c1, "C5H8OHCl")
+    print(custom, custom.functional_groups)
+
+    # helium = Structure.from_condensed_formula("He")
+    # print(helium, helium.atoms)
 
     # TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
     #   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point
