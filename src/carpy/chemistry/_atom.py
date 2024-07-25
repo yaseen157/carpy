@@ -1,10 +1,11 @@
 """Module for representing atoms and their electronic configurations."""
+from __future__ import annotations
 from functools import cached_property
 import re
 
 import periodictable as pt
 
-from carpy.chemistry._atom_bonding import AtomBonding
+from carpy.chemistry._atom_bonding import LocalBonds
 from carpy.utility import Unicodify
 
 __all__ = ["Atom"]
@@ -12,53 +13,74 @@ __author__ = "Yaseen Reza"
 
 
 class Atom:
-    _oxidation = 0
+    """Class for representing atoms, their bonds, and their electronic configuration."""
+    _oxidation_state: int = 0
 
     def __init__(self, /, symbol: str):
         assert symbol in dir(pt), f"'{symbol}' is not a recognised symbol for any of the periodic elements"
 
         self._element = getattr(pt, symbol)
-        self.bonds = AtomBonding(atom=self)
+        self.bonds = LocalBonds(atom=self)
         self.electrons = ElectronConfiguration(atom=self)
 
     def __repr__(self):
         reprstr = f"<{type(self).__name__}(\"{self.symbol}\") @ {hex(id(self))}>"
         return reprstr
 
-    # TODO: Charge should report as a function of simple covalent bond order, not the total order (that includes dative)
-    # def __str__(self):
-    #     charge = self.atomic_number - self.electrons.total + sum(bond.order for bond in self.bonds)
-    #     if charge > 0:
-    #         charge_script = f"{charge}+"
-    #     elif charge < 0:
-    #         charge_script = f"{abs(charge)}-"
-    #     else:
-    #         charge_script = ""
-    #
-    #     rtnstr = f"{self.symbol}" + Unicodify.superscript_all(charge_script)
-    #
-    #     return rtnstr
+    def __str__(self):
+        charge = self.atomic_charge
+
+        charge_script = f"{abs(charge)}" if abs(charge) > 1 else ""
+        if charge > 0:
+            charge_script += "+"
+        elif charge < 0:
+            charge_script += "-"
+
+        rtn_str = f"{self.symbol}" + Unicodify.superscript_all(charge_script)
+
+        return rtn_str
 
     @property
     def element(self) -> pt.core.Element:
+        """Chemical element object."""
         return self._element
 
     @property
     def atomic_number(self) -> int:
-        """Return the atomic number of the element that spawned this class."""
+        """Return the atomic (nuclear charge) number of the element that spawned this class."""
         return self.element.number
 
     @property
+    def atomic_charge(self) -> int:
+        """The difference between the number of protons and electrons in the atom."""
+        # I know the below expression looks wrong, but this form is necessary to correct for dative covalent bonding
+        charge = self.atomic_number - self.electrons.total + sum(bond.order for bond in self.bonds)
+        return charge
+
+    @property
     def symbol(self) -> str:
+        """The atom's chemical element symbol."""
         return self.element.symbol
 
     @property
     def oxidation_state(self) -> int:
-        return self._oxidation
+        """The oxidation state of the atom."""
+        return self._oxidation_state
 
     @property
     def steric_number(self) -> int:
+        """The steric number of the atom, the sum of this atom's bonds (not their multiplicity) and lone pairs."""
         return len(self.bonds) + self.electrons.lone_pairs
+
+    @property
+    def neighbours(self) -> set[Atom]:
+        """Set of neighbouring atoms."""
+        neighbours = set([
+            atom
+            for atoms in [bond.atoms for bond in self.bonds]
+            for atom in atoms
+        ]) - {self}
+        return set(neighbours)
 
 
 class ElectronConfiguration(dict):

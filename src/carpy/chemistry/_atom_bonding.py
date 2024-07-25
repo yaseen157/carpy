@@ -1,6 +1,5 @@
 """Module enabling access to parameters of atomic bonding, including atomic electronegativity and bond properties."""
 from __future__ import annotations
-
 from functools import cached_property
 import os
 import typing
@@ -13,7 +12,7 @@ from carpy.utility import PathAnchor, LoadData, Quantity
 if typing.TYPE_CHECKING:
     from ._atom import Atom
 
-__all__ = ["AtomBonding"]
+__all__ = ["LocalBonds"]
 __author__ = "Yaseen Reza"
 
 anchor = PathAnchor()
@@ -61,16 +60,24 @@ def organic_sort(*atoms: Atom):
 
 
 class CovalentBond:
+    """Use to record covalent bonding between atoms, and automatically assign (if possible) properties of the bond."""
 
     def __init__(self, A: Atom, B: Atom, order: int):
+        """
+        Args:
+            A: Any atom (order does not matter).
+            B: Any other atom.
+            order: Multiplicity of the covalent bond, i.e. sum of the simple covalent and dative covalent bond orders.
+
+        """
         self.atoms = organic_sort(A, B)
         self.order = order
         return
 
     def __repr__(self):
         order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
-        reprstr = f"{self.atoms[0].symbol}{order_symbol}{self.atoms[1].symbol}"
-        return reprstr
+        repr_str = f"{str(self.atoms[0])}{order_symbol}{str(self.atoms[1])}"
+        return repr_str
 
     @property
     def force_constant(self) -> Quantity:
@@ -98,6 +105,7 @@ class CovalentBond:
 
     @cached_property
     def length(self) -> Quantity:
+        """Bond length."""
         # Create an order agnostic bond label
         atom_l, atom_r = self.atoms
         l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
@@ -117,6 +125,7 @@ class CovalentBond:
 
     @cached_property
     def strength(self) -> Quantity:
+        """Bond dissociative strength."""
         # Create an order agnostic bond label
         atom_l, atom_r = self.atoms
         l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
@@ -140,12 +149,19 @@ class CovalentBond:
         return D
 
 
-class AtomBonding(set):
+class LocalBonds(set):
+    """Class for recording the set of bonds an atom directly possesses."""
 
     def __init__(self, atom: Atom):
         self._parent = atom
-        super(AtomBonding, self).__init__()
+        super(LocalBonds, self).__init__()
         return
+
+    def add(self, __element):
+        if isinstance(__element, (CovalentBond,)):
+            return super(LocalBonds, self).add(__element)
+        error_msg = f"User of {type(self).__name__} is not allowed to manually invoke .add() for any reason"
+        raise ValueError(error_msg)
 
     def add_covalent(self, atom: Atom, order_limit: int = None) -> None:
         """
@@ -154,9 +170,19 @@ class AtomBonding(set):
         Args:
             atom: Target atom object to bond to.
             order_limit: Maximum allowable bond order. Optional.
+
+        Notes:
+            Best results in building a molecule occur when you sort out the bonds of uncharged species first. This is
+            because the species in a molecule often only charges after the bond has been created. For example,
+            dinitrogen oxide (N2O) has two charged species (-1)N (+1)N (0)O, in which case you should start with the
+            (+1)N and double bond to the uncharged oxygen in that resonance structure. Likewise, the alternate resonance
+            structure with charges (0)N (+1)N (-1)O should start by triple bonding nitrogen (creating an uncharged
+            diatomic molecule as we expect), and then either atom can form a coordinate covalent bond with oxygen.
+
         """
         atom1 = self._parent
         atom2 = atom
+        assert atom1 is not atom2, "An atom cannot bond to itself"
 
         atom1_unpaired = atom1.electrons.valence_free
         atom2_unpaired = atom2.electrons.valence_free
@@ -179,9 +205,9 @@ class AtomBonding(set):
             total_bond_order = min(total_bond_order, order_limit)
 
         # Reverse engineer dative covalent bond order (in case it was limited), and record the bond in both atoms
-        donor_limit = total_bond_order - simple_order
-        atom1.electrons += (simple_order + min(donor_limit, atom2_donor_order))
-        atom2.electrons += (simple_order + min(donor_limit, atom1_donor_order))
+        donor_order_limit = total_bond_order - simple_order
+        atom1.electrons += (simple_order + 2 * min(donor_order_limit, atom2_donor_order))
+        atom2.electrons += (simple_order + 2 * min(donor_order_limit, atom1_donor_order))
         covalent_bond = CovalentBond(A=atom1, B=atom2, order=total_bond_order)
         self.add(covalent_bond)
         atom2.bonds.add(covalent_bond)
@@ -192,11 +218,11 @@ class AtomBonding(set):
             atom2_chi = chi_lookup.loc[atom2.element.number]["chi_Pauling"]
             # If atom 1 is less electronegative, its oxidation state (representing loss of electrons) increases
             if atom1_chi < atom2_chi:
-                atom1._oxidation += simple_order
-                atom2._oxidation -= simple_order
+                atom1._oxidation_state += simple_order  # noqa (ignore inspection, access to private variable)
+                atom2._oxidation_state -= simple_order  # noqa
             # ... and vice versa
             else:
-                atom1._oxidation -= simple_order
-                atom2._oxidation += simple_order
+                atom1._oxidation_state -= simple_order  # noqa
+                atom2._oxidation_state += simple_order  # noqa
 
         return
