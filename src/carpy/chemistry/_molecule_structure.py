@@ -372,18 +372,18 @@ class DiatomicStructure(Structure):
 
 
 if __name__ == "__main__":
-    methane = Structure.from_condensed_formula("CH4")
-    print(methane, methane.functional_groups)
-    hydrogen = Structure.from_condensed_formula("H2")
-    print(hydrogen, hydrogen.functional_groups)
-    carbonmonoxide = Structure.from_condensed_formula("CO")
-    print(carbonmonoxide, carbonmonoxide.functional_groups)
-
-    n = Atom("N")
-    n.bonds.add_covalent(Atom("N"))
-    n.bonds.add_covalent(Atom("O"))
-    dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
-    print(dinitrogenoxide, dinitrogenoxide.functional_groups)
+    # methane = Structure.from_condensed_formula("CH4")
+    # print(methane, methane.functional_groups)
+    # hydrogen = Structure.from_condensed_formula("H2")
+    # print(hydrogen, hydrogen.functional_groups)
+    # carbonmonoxide = Structure.from_condensed_formula("CO")
+    # print(carbonmonoxide, carbonmonoxide.functional_groups)
+    #
+    # n = Atom("N")
+    # n.bonds.add_covalent(Atom("N"))
+    # n.bonds.add_covalent(Atom("O"))
+    # dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
+    # print(dinitrogenoxide, dinitrogenoxide.functional_groups)
 
     c1 = Atom("C")
     c2 = Atom("C")
@@ -404,8 +404,9 @@ if __name__ == "__main__":
     o.bonds.add_covalent(Atom("H"))
     c5.bonds.add_covalent(o)
 
-    custom = Structure.from_atoms(c1, "C5H8OHCl")
-    print(custom, custom.functional_groups)
+    custom = Structure.from_atoms(c1, "CH2CHCOCH(Cl)CH2OH")
+    print(custom)
+    [print(x) for x in custom.functional_groups]
 
     # helium = Structure.from_condensed_formula("He")
     # print(helium, helium.atoms)
