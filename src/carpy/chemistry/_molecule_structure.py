@@ -187,62 +187,154 @@ class Structure:
         groups = []
         halogen_map = {"Fl": "fluoro", "Cl": "chloro", "Br": "bromo", "I": "iodo"}
 
+        def symbol_in_roots_neighbour(root: Atom, symbol: str):
+            return {neighbour for neighbour in root.neighbours if neighbour.symbol == symbol}
+
         for root in self._atoms:
 
             if root.symbol == "H":
                 continue  # skip the atom
 
-            carbon = set(filter(lambda neighbour: neighbour.symbol == "C", root.neighbours))
-            hydrogen = set(filter(lambda neighbour: neighbour.symbol == "H", root.neighbours))
-            R_groups = carbon | hydrogen
+            C_groups = symbol_in_roots_neighbour(root, "C")
+            H_groups = symbol_in_roots_neighbour(root, "H")
+            # R_groups = carbon | hydrogen
             X_groups = set(filter(lambda neighbour: neighbour.electrons.pt_group == 17, root.neighbours))
 
-            if root.symbol == "C":
+            # Located carbon central atom
+            if (C1 := root).symbol == "C":
 
                 # alkyl: 3 hydrogens and any R-group
-                if len(hydrogen) >= 3:
-                    groups.append(("alkyl", {root} | hydrogen))
+                if len(H_groups) >= 3:
+                    groups.append(("alkyl", {C1} | H_groups))
 
                 # alkenyl: C=C bond and both of those C's must have 3 bonding partners
                 # alkynyl: C#C bond and both of those C's must have 2 bonding partners
-                elif root.bonds["C"]:
-                    cc_order = root.bonds["C"].pop().order
-                    cc_partners = [len(x.bonds) for x in root.bonds["C"].pop().atoms]
+                elif C1.bonds["C"]:
+                    CC_order = C1.bonds["C"].pop().order
+                    CC_substituents = [len(x.bonds) for x in root.bonds["C"].pop().atoms]  # NOT substituents of root C1
 
-                    if cc_order == 2 and all(list(map(lambda x: x == 3, cc_partners))):
-                        groups.append(("alkenyl", root.bonds["C"].pop().atoms))
-                    elif cc_order == 3 and all(list(map(lambda x: x == 2, cc_partners))):
-                        groups.append(("alkynyl", root.bonds["C"].pop().atoms))
+                    if CC_order == 2 and all([C_substituents == 3 for C_substituents in CC_substituents]):
+                        groups.append(("alkenyl", C1.bonds["C"].pop().atoms))
+                    elif CC_order == 3 and all([C_substituents == 2 for C_substituents in CC_substituents]):
+                        groups.append(("alkynyl", C1.bonds["C"].pop().atoms))
 
                 # fluoro, chloro, bromo, iodo, halo
                 if X_groups:
                     for halogen in X_groups:
-                        groups.append((halogen_map.get(halogen.symbol, "halo"), {root, halogen}))
+                        groups.append((halogen_map.get(halogen.symbol, "halo"), {C1, halogen}))
 
-            elif root.symbol == "O":
+            # Located a CO bond
+            elif (O1 := root).symbol == "O" and len(C_groups) == 1:
+                C1, = C_groups
+                CO_order = O1.bonds["C"].pop().order
 
-                # hydroxyl
-                if len(carbon) == 1 and len(hydrogen) == 1:
-                    groups.append(("hydroxyl", {root} | hydrogen))
+                if CO_order == 1:
 
-                # ketone, aldehyde, haloformyl
-                if len(carbon) == 1 and root.bonds.pop().order == 2:
-                    c = carbon.pop()
+                    # hydroxyl
+                    if len(C1.bonds["O"]) == 1 and len(H_groups) == 1:  # find COH
+                        groups.append(("hydroxyl", {O1} | H_groups))
 
-                    if len(bond := c.bonds["H"]) == 1:
-                        groups.append(("aldehyde", {root} | bond.atoms))
-                    else:
+                    # hydroperoxy, peroxy
+                    elif len(bonds := O1.bonds["O"]) == 1:  # find OO
+                        O2 = bonds.pop().atoms - {O1}
+
+                        if bonds := O2.bonds["H"]:
+                            groups.append(("hydroperoxy", {O1} | bonds.pop().atoms))
+                        else:
+                            groups.append(("peroxy", {O1} | bonds.pop().atoms))
+
+                elif CO_order == 2:
+
+                    # ketone, aldehyde, haloformyl
+                    if len(C1.bonds["O"]) == 1:  # find CO
                         for halogen in halogen_map.keys():
-                            if bond := c.bonds[halogen]:
-                                groups.append(("haloformyl", {root} | bond.atoms))
+                            for bond in C1.bonds[halogen]:
+                                groups.append(("haloformyl", {O1} | bond.atoms))
                                 break
                         else:
-                            groups.append(("ketone", {c, root}))
+                            if bonds := C1.bonds["H"]:
+                                groups.append(("aldehyde", {O1} | bonds.pop().atoms))  # Choose lucky random H for group
+                            else:
+                                groups.append(("ketone", {C1, O1}))
+
+                    # carobxylate, carboxyl, carboalkoxy
+                    elif len(bonds := C1.bonds["O"]) == 2:  # find COO
+                        O2, = {atom for bond in bonds for atom in bond.atoms} - {C1, O1}
+
+                        if len(O2.bonds) == 1:
+                            groups.append(("carboxylate", {C1, O1, O2}))
+                        elif bonds := O2.bonds["H"]:
+                            groups.append(("carboxyl", {O1, C1} | bonds.pop().atoms))
+                        else:
+                            groups.append(("carboalkoxy", {C1, O1, O2}))
+
+                    # carbonate
+                    elif len(bonds := C1.bonds["O"]) == 3:
+                        groups.append(("carbonate ester", {atom for bond in bonds for atom in bond.atoms}))
+
+                        # # ether, hemiacetal, hemiketal, acetal, ketal
+                        # elif len(bonds := C1.bonds) == 4:
+
+                        pass
+
+            # Located a COC bond
+            elif (O1 := root).symbol == "O" and len(C_groups) == 2:
+                C1, C2 = sorted(C_groups, key=lambda atom: len(atom.bonds["O"]), reverse=True)  # C1 has most oxygen
+
+                # ether
+                if len(C1.bonds["O"]) == 1 and len(C2.bonds["O"]) == 1:
+                    groups.append(("carbonate ester", {C1, O1, C2}))
+
+                # carboxylic anhydride
+                elif len(C1.bonds["O"]) == 2 and len(C2.bonds["O"]) == 2:
+
+                    members = set()
+                    for C in [C1, C2]:
+                        for bonds in C.bonds["O"]:
+                            for bond in bonds:
+                                for atom in bond.atoms:
+                                    members.add(atom)
+                    groups.append(("carboxylic anhydride", members))
+
+                # hemiacetal, hemiketal, acetal, ketal
+                elif len(bonds := C1.bonds["O"]) == 2:
+                    O2, = {atom for bond in bonds for atom in bond.atoms} - {C1, O1}
+
+                    if bonds := C1.bonds["H"]:
+                        func_h = bonds.pop().atoms - {C1}  # Pick a lucky hydrogen
+                        suffix = "acetal"
+                    else:
+                        func_h = {}
+                        suffix = "ketal"
+
+                    if bonds := O2.bonds["H"]:
+                        func_h = func_h | bonds.pop().atoms - {C1}
+                        prefix = "hemi"
+                    else:
+                        prefix = ""
+
+                    groups.append((f"{prefix}{suffix}", {atom for bond in C1.bonds for atom in bond.atoms} | func_h))
+
+                # orthoester
+                elif len(bonds := C1.bonds["O"]) == 3:
+                    groups.append(("orthoester", {C1} | {atom for bond in bonds for atom in bond.atoms}))
+
+                # orthocarbonate ester
+                elif len(bonds := C1.bonds["O"]) == 4:
+                    groups.append(("orthocarbonate ester", {C1} | {atom for bond in bonds for atom in bond.atoms}))
 
         warn_msg = f"Method for determining functional groups is incomplete and may not produce satisfactory results"
+        warn_msg += f" - particularly for molecules containing nitrogen, sulphur, phosphorus, boron, or metals"
         warnings.warn(warn_msg, category=UserWarning)
 
-        return groups
+        # Remove groups that were recorded twice
+        squashed_groups = []
+        for group in groups:
+            if group in squashed_groups:
+                continue
+            squashed_groups.append(group)
+
+        return squashed_groups
 
     @staticmethod
     def from_atoms(atom: Atom, formula: str = "<UNKNOWN>") -> Structure:
