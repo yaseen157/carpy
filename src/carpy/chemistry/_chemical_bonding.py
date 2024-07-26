@@ -12,7 +12,7 @@ from carpy.utility import PathAnchor, LoadData, Quantity
 if typing.TYPE_CHECKING:
     from ._atom import Atom
 
-__all__ = ["LocalBonds"]
+__all__ = ["LocalBonds", "CovalentBond"]
 __author__ = "Yaseen Reza"
 
 anchor = PathAnchor()
@@ -70,7 +70,7 @@ class CovalentBond:
             order: Multiplicity of the covalent bond, i.e. sum of the simple covalent and dative covalent bond orders.
 
         """
-        self._atoms = set(organic_sort(A, B))
+        self._atoms = tuple(organic_sort(A, B))
         self._order = order
         return
 
@@ -81,7 +81,7 @@ class CovalentBond:
         return repr_str
 
     @property
-    def atoms(self) -> set[Atom]:
+    def atoms(self) -> tuple[Atom, ...]:
         """The atoms participating in the bond."""
         return self._atoms
 
@@ -135,7 +135,7 @@ class CovalentBond:
         return r
 
     @cached_property
-    def strength(self) -> Quantity:
+    def enthalpy(self) -> Quantity:
         """Bond dissociative strength."""
         # Create an order agnostic bond label
         atom_l, atom_r = self.atoms
@@ -232,7 +232,7 @@ class LocalBonds(set):
         atom1.electrons += (simple_order + 2 * min(donor_order_limit, atom2_donor_order))
         atom2.electrons += (simple_order + 2 * min(donor_order_limit, atom1_donor_order))
         covalent_bond = CovalentBond(A=atom1, B=atom2, order=total_bond_order)
-        self.add(covalent_bond)
+        atom1.bonds.add(covalent_bond)
         atom2.bonds.add(covalent_bond)
 
         # Predict oxidation state change

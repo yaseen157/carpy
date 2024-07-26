@@ -1,4 +1,4 @@
-"""Test for library utility functions."""
+"""Tests for library utility functions."""
 import unittest
 
 import numpy as np
@@ -6,7 +6,7 @@ import numpy as np
 from carpy.utility import interp_lin, interp_exp
 from carpy.utility import PathAnchor, Hint, cast2numpy
 from carpy.utility import Quantity
-from carpy.utility import Unicodify, Pretty
+from carpy.utility import Unicodify
 
 
 class Maths(unittest.TestCase):
@@ -161,7 +161,7 @@ class Miscellaneous(unittest.TestCase):
     @staticmethod
     def test_pathing():
         anchor = PathAnchor()
-        
+
         return
 
 
@@ -225,13 +225,13 @@ class UnitConversion(unittest.TestCase):
 class Vanity(unittest.TestCase):
     """Tests for 'vanity' methods."""
 
-    def test_pretty_temperature(self):
+    def test_temperature(self):
         test_input = [(10., None), (10.0, None), (10.60, None), (10.606, None),
                       (10.606, "degF"), (10.32, "K"), (-3, "degR")]
         gold_output = ['+10°C', '+10°C', '+10.6°C', '+10.606°C',
                        '+10.606°F', '+10.32 K', '-3°R']
         for i, (temperature, unit) in enumerate(test_input):
-            result = Pretty.temperature(temperature, unit)
+            result = Unicodify.temperature(temperature, unit)
             self.assertEqual(first=result, second=gold_output[i])
         return
 

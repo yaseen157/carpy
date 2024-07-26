@@ -1,3 +1,4 @@
+"""Module enabling the structuring of atoms and subsequent determination of the chemical attributes of these 'forms'."""
 from __future__ import annotations
 import re
 import warnings
@@ -6,7 +7,11 @@ import numpy as np
 import periodictable as pt
 
 from carpy.chemistry._atom import Atom
-from carpy.utility import Unicodify, Graphs
+from carpy.chemistry._chemical_bonding import CovalentBond
+from carpy.utility import Unicodify, Graphs, Quantity, constants as co, cast2numpy
+
+__all__ = ["Structure"]
+__author__ = "Yaseen Reza"
 
 # Element names must be sorted with the longest character length symbols first to prevent partial regex matches. For
 # example, we are avoiding searching the string "HBr" and returning matches for Hydrogen and Boron.
@@ -82,7 +87,236 @@ def discover_molecule(atom: Atom) -> Graphs.Graph:
     return graph
 
 
-class Structure:
+class KineticMethods:
+    _longest_path: list[int]
+    _ordered_atoms: tuple[Atom, ...]
+    atoms: set[Atom]
+    bonds: set[CovalentBond]
+
+    def __init__(self):
+        # 1 dimensional heat capacity
+        self._cv_1d = (co.PHYSICAL.R / self.molar_mass) / 2
+
+    @property
+    def molecular_mass(self) -> Quantity:
+        """Molecular mass of the structure."""
+        molecular_mass = Quantity(sum([atom.atomic_mass for atom in self.atoms]), "kg")
+        return molecular_mass
+
+    @property
+    def molar_mass(self) -> Quantity:
+        """Relative molecular mass of the structure, as in, compared to 1/12 of the molar mass of a C-12 atom."""
+        relative_molecular_mass = Quantity(self.molecular_mass.to("Da"), "g mol^{-1}")
+        return relative_molecular_mass
+
+    @property
+    def theta_rot(self) -> Quantity:
+        """
+        Characteristic rotational temperature.
+
+        Returns:
+            A quantity object with shape (3,), with each element representing the characteristic rotational temperature
+            for a principal axis of rotation. For a molecule with only 2 degrees of freedom, the third element has a
+            value of infinity (unreachable dimension).
+
+        """
+        # Characteristic rotational temperature
+        I = np.diagonal(self._inertia_tensor())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # Expect a divide by zero error if inertia tensor has zeros on diagonal
+            theta_rot = co.PHYSICAL.hbar ** 2 / (2 * I * co.PHYSICAL.k_B)
+        return theta_rot
+
+    @property
+    def theta_vib(self) -> dict[CovalentBond, Quantity]:
+        """
+        Characteristic vibrational temperature.
+
+        Each bond is assigned its own unique
+
+        """
+        # Characteristic vibrational temperature
+        theta_vib = dict()
+        for bond in self.bonds:
+            atom_l, atom_r = bond.atoms
+            mu = 1 / (1 / atom_l.atomic_mass + 1 / atom_r.atomic_mass)
+            nu = 1 / (2 * np.pi) * (bond.force_constant / mu) ** 0.5
+            theta_vib[bond] = co.PHYSICAL.h * nu / co.PHYSICAL.k_B
+        return theta_vib
+
+    @property
+    def theta_diss(self) -> Quantity:
+        """
+        Characteristic dissociation temperature.
+
+        This is the characteristic temperature of dissociation for the molecule.
+        """
+        # Characteristic dissociation temperature
+        if len(self.atoms) == 1:  # Hack for monatomics (there is no freedom due to dissociation)
+            return Quantity(np.inf, "K")
+
+        D = Quantity(sum([bond.enthalpy for bond in self.bonds]), "J mol^{-1}") / self.molar_mass
+        R_specific = co.PHYSICAL.R / (self.molecular_mass * co.PHYSICAL.N_A)
+        theta_diss = D / R_specific
+        return theta_diss
+
+    def specific_heat_V(self, T) -> Quantity:
+        """Isochoric (constant volume) specific heat capacity."""
+        # Recast as necessary
+        T = cast2numpy(T)
+        if np.any(T == 0):
+            error_msg = f"It is insensible to compute the heat capacity at 0 K, please check input temperatures"
+            raise ValueError(error_msg)
+
+        def partition_function(Tcharacteristic):
+            # If the user has provided a number of temperature values in an array, we don't want to incorrectly
+            # broadcast those values in the maths that follows. We take the user's temperature array and broadcast it
+            # to a higher dimension:
+            T_broadcasted_char = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
+            T_broadcasted_user = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_char.ndim - 1))).T
+            x = T_broadcasted_user / 2 / T_broadcasted_char
+            out = (x / np.sinh(np.clip(x, None, 710))) ** 2  # clip because x >> 0 results in np.exp overflow error
+            # Squeeze the output to remove any dimensions we added from broadcasting
+            return out.squeeze()
+
+        # Translation contribution
+        dof_trans = 3
+        cv = self._cv_1d * dof_trans
+
+        # Rotation contribution
+        dof_rot = np.isfinite(self.theta_rot.x).sum()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing
+            principal_activations = partition_function(Tcharacteristic=self.theta_rot)
+        # Slice the 3D principle activations by degree of freedoms to ignore the np.posinf 2 DoF linear molecules get
+        cv += self._cv_1d * np.nansum(principal_activations[:dof_rot], axis=0)
+
+        # Vibration contribution
+        dof_vib = 2 * (3 * len(self.atoms) - (dof_trans + dof_rot))
+        n_bonds = len(self.bonds)
+        for bond, theta_vib in self.theta_vib.items():
+            cv += self._cv_1d * (dof_vib / n_bonds) * partition_function(Tcharacteristic=theta_vib)
+
+        # Dissociation contribution
+        if np.isfinite(self.theta_diss.x):  # theta_diss is infinite if structure is monatomic
+            cv += self._cv_1d * partition_function(Tcharacteristic=self.theta_diss)
+
+        return cv
+
+    def specific_heat_P(self, T) -> Quantity:
+        """Isobaric (constant pressure) specific heat capacity."""
+        return self.specific_heat_V(T) + 2 * self._cv_1d
+
+    def specific_heat_ratio(self, T) -> np.ndarray:
+        """Adiabatic index, a.k.a. the ratio of specific heats (isobaric heat capacity : isochoric heat capacity)."""
+        return (self.specific_heat_P(T) / self.specific_heat_V(T)).x
+
+    def _inertia_tensor(self):
+        atom_mass = np.zeros(len(self.atoms))
+        atom_xyz = np.zeros((len(self.atoms), 3))
+
+        # Monatomic
+        if len(self.atoms) == 1:
+            monatom, = self.atoms
+            atom_mass[0] = monatom.atomic_mass
+
+        # Diatomic
+        elif len(self.atoms) == 2:
+            atom1, atom2 = self.atoms
+
+            atom_mass[0] = atom1.atomic_mass
+            atom_mass[1] = atom2.atomic_mass
+            atom_xyz[1] = np.array([0, 0, float(list(atom1.bonds)[0].length)])
+
+        # Polyatomic
+        else:
+            # TODO: More robust computation of inertia from *larger* polyatomic structures
+            longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_path]
+
+            # Central atom should have the most neighbours
+            longest_path_atoms = sorted(longest_path_atoms, key=lambda x: x.neighbours)
+            central_atom_candidates = [
+                atom for atom in longest_path_atoms
+                if len(atom.neighbours) == len(longest_path_atoms[0].neighbours)
+            ]
+
+            # One central atom candidate
+            if len(central_atom_candidates) == 1:
+                central_atom: Atom
+                central_atom, = central_atom_candidates
+
+                # Symmetric difference should be empty if central atom is bonded to every atom in the structure
+                if {atom for bond in central_atom.bonds for atom in bond.atoms} ^ self.atoms:
+                    error_msg = f"Could not locate central atom of molecule"
+                    raise RuntimeError(error_msg)
+
+                # Distribute mass
+                atom_mass[0] = central_atom.atomic_mass
+                r_neighbour = n_vertex_3dsphere(n=central_atom.steric_number)
+                for i, neighbour in enumerate(central_atom.neighbours):
+                    bond_to_neighbour, = central_atom.bonds[neighbour]
+                    atom_mass[i + 1] = neighbour.atomic_mass
+                    atom_xyz[i + 1] = r_neighbour[i] * bond_to_neighbour.length
+
+            else:
+                error_msg = f"Molecules of this complexity cannot be processed yet, sorry."
+                raise NotImplementedError(error_msg)
+
+        # Compute centre of mass and adjust atomic reference frame to it
+        com_xyz = (atom_mass[:, None] * atom_xyz).sum(axis=0) / atom_mass.sum()
+        atom_xyz = atom_xyz - com_xyz  # atomic reference frame origin is now coincident with centre of mass
+
+        # Now we can compute moments of inertia and products of inertia
+        Ixx = np.sum(atom_mass[:, None] * (atom_xyz[:, 1:] ** 2))
+        Iyy = np.sum(atom_mass[:, None] * (atom_xyz[:, ::2] ** 2))
+        Izz = np.sum(atom_mass[:, None] * (atom_xyz[:, :-1] ** 2))
+        Ixy = Iyx = -np.sum(atom_mass * atom_xyz[:, :-1].prod(axis=1))
+        Ixz = Izx = -np.sum(atom_mass * atom_xyz[:, ::2].prod(axis=1))
+        Iyz = Izy = -np.sum(atom_mass * atom_xyz[:, 1:].prod(axis=1))
+        inertia_tensor = np.array(
+            [[Ixx, Ixy, Ixz],
+             [Iyx, Iyy, Iyz],
+             [Izx, Izy, Izz]]
+        )
+
+        # TODO: For a molecule with non-zero products of inertia, determine the principle axis orientation that allow us
+        #  to zero the inertia tensor off-diagonals
+        # I11, I12, I13 = sp.symbols("I11, I12, I13")
+        # I21, I22, I23 = sp.symbols("I21, I22, I23")
+        # I31, I32, I33 = sp.symbols("I31, I32, I33")
+        # lamda = sp.symbols("lamda")
+        #
+        # det_func = (
+        #         (I11 - lamda) * ((I22 - lamda) * (I33 - lamda) - I23 * I32)
+        #         - I12 * (I21 * (I33 - lamda) - I23 * I31)
+        #         + I13 * (I21 * I32 - I31 * (I22 - lamda))
+        # ).subs({
+        #     I11: Ixx, I12: Ixy, I13: Ixz,
+        #     I21: Iyx, I22: Iyy, I23: Iyz,
+        #     I31: Izx, I32: Izy, I33: Izz,
+        # })
+        # eqn = sp.Eq(det_func, 0)
+        # solns = sp.solve(eqn, lamda)
+        #
+        # for soln in solns:
+        #     lamda_soln = complex(soln).real  # simply discard the imaginary part???
+        #
+        #     A = inertia_tensor - np.identity(3) * lamda_soln
+        #     b = np.zeros(3)
+        #     omega = np.linalg.solve(A, b)
+        #     print(omega)
+
+        # Assert symmetry in the inertia tensor
+        for i in range(3):
+            for j in range(3):
+                if i == j:
+                    continue
+                assert inertia_tensor[i][j] == 0, "non-zero term in product of inertia - molecule is not symmetrical"
+
+        return Quantity(inertia_tensor, "kg m^{2}")
+
+
+class Structure(KineticMethods):
     """
     Class for recording and describing a permutation of a physical molecular structure. The main goal of the class is to
     allow users to specify unique resonant structures in the global definition of a molecule. This won't affect simple
@@ -103,6 +337,7 @@ class Structure:
         raise RuntimeError(error_msg)
 
     def __init__(self, *args, **kwargs):
+        super().__init__()
         self._formula = kwargs.get("formula")
         return
 
@@ -115,15 +350,21 @@ class Structure:
         return rtn_str
 
     @property
-    def _atoms(self):
-        """Generator for list of atoms in the molecule. A generator preserves the order, where a set does not."""
-        return (node.obj for node in self._graph.link_map.keys())
+    def _ordered_atoms(self) -> tuple[Atom, ...]:
+        """Tuple for list of atoms in the molecule. A tuple provides a consistent order of atoms where sets do not."""
+        return tuple(node.obj for node in self._graph.link_map.keys())
 
     @property
     def atoms(self) -> set[Atom]:
-        """Unordered set of atoms that constitute the molecule's structure."""
-        atoms = set(self._atoms)
+        """Unordered set of atoms that constitute the molecule's chemical structure."""
+        atoms = set(self._ordered_atoms)
         return atoms
+
+    @property
+    def bonds(self) -> set:
+        """Unordered set of bonds that constitute the molecule's chemical structure."""
+        bonds = {bond for atom in self.atoms for bond in atom.bonds}
+        return bonds
 
     @property
     def _longest_path(self) -> list[int]:
@@ -135,10 +376,15 @@ class Structure:
         # Select hydrogen atoms that are bonded to carbon and mask them from further consideration
         selection = [
             True if atom.symbol == "H" and "C" in [neighbour.symbol for neighbour in atom.neighbours] else False
-            for atom in self._atoms
+            for atom in self._ordered_atoms
         ]
         mat_adjacency[selection] = mask
         mat_adjacency.T[selection] = mask
+
+        # If we got rid of every bond (because it's a small molecule like methane with only C-H bonds)
+        if np.isnan(mat_adjacency).all():
+            id = np.argmax(self._graph.mat_adjacency.sum(axis=0))  # Find index of most bonded atom
+            return [id]  # Return a "path" (just that one atom)
 
         # Whatever is leftover as having just one valid neighbour must be the start of/end of a chain
         path_seeds = list([x] for x in np.argwhere(np.nansum(mat_adjacency, axis=0) == 1).flat)
@@ -190,7 +436,7 @@ class Structure:
         def symbol_in_roots_neighbour(root: Atom, symbol: str):
             return {neighbour for neighbour in root.neighbours if neighbour.symbol == symbol}
 
-        for root in self._atoms:
+        for root in self._ordered_atoms:
 
             if root.symbol == "H":
                 continue  # skip the atom
@@ -271,11 +517,6 @@ class Structure:
                     # carbonate
                     elif len(bonds := C1.bonds["O"]) == 3:
                         groups.append(("carbonate ester", {atom for bond in bonds for atom in bond.atoms}))
-
-                        # # ether, hemiacetal, hemiketal, acetal, ketal
-                        # elif len(bonds := C1.bonds) == 4:
-
-                        pass
 
             # Located a COC bond
             elif (O1 := root).symbol == "O" and len(C_groups) == 2:
@@ -394,6 +635,7 @@ class Structure:
 
 
 class ABnStructure(Structure):
+    """Custom instantiation framework for heteronuclear molecules (central atom A, peripheral atoms B)."""
     regex = re.compile(rf"({element_regex})({element_regex})(\d+)")
 
     def __new__(cls, formula):
@@ -416,6 +658,7 @@ class ABnStructure(Structure):
 
 
 class MonatomicStructure(Structure):
+    """Custom instantiation framework for homonuclear monatomic molecules."""
     regex = re.compile(f"({element_regex})")
 
     def __new__(cls, formula):
@@ -437,6 +680,7 @@ class MonatomicStructure(Structure):
 
 
 class DiatomicStructure(Structure):
+    """Custom instantiation framework for diatomic molecules."""
     regex = re.compile(f"{rf'({element_regex})2'}|{rf'({element_regex})({element_regex})'}")
 
     def __new__(cls, formula):
@@ -503,69 +747,7 @@ if __name__ == "__main__":
     helium = Structure.from_condensed_formula("He")
     print(helium, helium.atoms)
 
+    print(hydrogen.specific_heat_ratio([0.01, 30, 300, 100000]))
+
     # TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
     #   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point
-
-    """
-    # Diatomic temperatures (diatomic assumptions used for reduced mass, and implies use of strongest bonds)
-    # Diatomic inertia (I) is the product of reduced mass (mu) and the square of equilibrium bond length (r)
-    mu = 1 / (1 / self.atoms[0].mass + 1 / self.atoms[1].mass)
-
-    query = "-".join([atom.symbol for atom in self.atoms])
-    if bond_data := BondData.lengths.get(query):
-        _r = bond_data.get(query, min(list(bond_data.values())))  # <- shortest bond is usually strongest
-    else:
-        _r = np.nan
-    r = Quantity(_r, "pm")
-    I = mu * r ** 2
-    self.theta_rot = co.PHYSICAL.hbar ** 2 / (2 * I * co.PHYSICAL.k_B)
-
-    # Diatomic characteristic vibrational frequency nu = 1 / 2pi * sqrt(k / mu) where k is the bond force constant
-    if bond_data := BondData.force_constants.get(query):
-        _k = bond_data.get(query, np.mean(list(bond_data.values())))
-    else:
-        _k = np.nan
-    k = Quantity(_k, "N cm^{-1}")
-    nu = 1 / (2 * np.pi) * (k / mu) ** 0.5
-    self.theta_vib = co.PHYSICAL.h * nu / co.PHYSICAL.k_B
-
-    # Diatomic dissociation temperature is from dividing molecular dissociation energy by the specific gas constant
-    if bond_data := BondData.strengths.get(query):
-        _D = max(list(bond_data.values()))  # <- highest energy bond is usually strongest
-    else:
-        _D = np.nan
-
-    D = Quantity(_D, "kJ mol^{-1}") / self.M_r
-    R_specific = co.PHYSICAL.R / (self.M * co.PHYSICAL.N_A)
-    self.theta_diss = D / R_specific# Diatomic temperatures (diatomic assumptions used for reduced mass, and implies use of strongest bonds)
-    # Diatomic inertia (I) is the product of reduced mass (mu) and the square of equilibrium bond length (r)
-    mu = 1 / (1 / self.atoms[0].mass + 1 / self.atoms[1].mass)
-
-    query = "-".join([atom.symbol for atom in self.atoms])
-    if bond_data := BondData.lengths.get(query):
-        _r = bond_data.get(query, min(list(bond_data.values())))  # <- shortest bond is usually strongest
-    else:
-        _r = np.nan
-    r = Quantity(_r, "pm")
-    I = mu * r ** 2
-    self.theta_rot = co.PHYSICAL.hbar ** 2 / (2 * I * co.PHYSICAL.k_B)
-
-    # Diatomic characteristic vibrational frequency nu = 1 / 2pi * sqrt(k / mu) where k is the bond force constant
-    if bond_data := BondData.force_constants.get(query):
-        _k = bond_data.get(query, np.mean(list(bond_data.values())))
-    else:
-        _k = np.nan
-    k = Quantity(_k, "N cm^{-1}")
-    nu = 1 / (2 * np.pi) * (k / mu) ** 0.5
-    self.theta_vib = co.PHYSICAL.h * nu / co.PHYSICAL.k_B
-
-    # Diatomic dissociation temperature is from dividing molecular dissociation energy by the specific gas constant
-    if bond_data := BondData.strengths.get(query):
-        _D = max(list(bond_data.values()))  # <- highest energy bond is usually strongest
-    else:
-        _D = np.nan
-
-    D = Quantity(_D, "kJ mol^{-1}") / self.M_r
-    R_specific = co.PHYSICAL.R / (self.M * co.PHYSICAL.N_A)
-    self.theta_diss = D / R_specific
-    """

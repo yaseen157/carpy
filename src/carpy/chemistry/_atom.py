@@ -5,8 +5,8 @@ import re
 
 import periodictable as pt
 
-from carpy.chemistry._atom_bonding import LocalBonds
-from carpy.utility import Unicodify
+from carpy.chemistry._chemical_bonding import LocalBonds
+from carpy.utility import Quantity, Unicodify
 
 __all__ = ["Atom"]
 __author__ = "Yaseen Reza"
@@ -56,6 +56,10 @@ class Atom:
         # I know the below expression looks wrong, but this form is necessary to correct for dative covalent bonding
         charge = self.atomic_number - self.electrons.total + sum(bond.order for bond in self.bonds)
         return charge
+
+    @property
+    def atomic_mass(self) -> Quantity:
+        return Quantity(self.element.mass, "Da")  # noqa: .mass property is not documented for some reason
 
     @property
     def symbol(self) -> str:
