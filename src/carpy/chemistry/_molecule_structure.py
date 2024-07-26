@@ -205,7 +205,7 @@ class Structure:
 
                 # alkyl: 3 hydrogens and any R-group
                 if len(H_groups) >= 3:
-                    groups.append(("alkyl", {C1} | H_groups))
+                    groups.append(("alkyl", {C1} | {H for (i, H) in enumerate(H_groups) if i < 3}))
 
                 # alkenyl: C=C bond and both of those C's must have 3 bonding partners
                 # alkynyl: C#C bond and both of those C's must have 2 bonding partners
@@ -221,7 +221,7 @@ class Structure:
                 # fluoro, chloro, bromo, iodo, halo
                 if X_groups:
                     for halogen in X_groups:
-                        groups.append((halogen_map.get(halogen.symbol, "halo"), {C1, halogen}))
+                        groups.append((halogen_map.get(halogen.symbol, "halo"), {halogen}))
 
             # Located a CO bond
             elif (O1 := root).symbol == "O" and len(C_groups) == 1:
@@ -464,18 +464,18 @@ class DiatomicStructure(Structure):
 
 
 if __name__ == "__main__":
-    # methane = Structure.from_condensed_formula("CH4")
-    # print(methane, methane.functional_groups)
-    # hydrogen = Structure.from_condensed_formula("H2")
-    # print(hydrogen, hydrogen.functional_groups)
-    # carbonmonoxide = Structure.from_condensed_formula("CO")
-    # print(carbonmonoxide, carbonmonoxide.functional_groups)
-    #
-    # n = Atom("N")
-    # n.bonds.add_covalent(Atom("N"))
-    # n.bonds.add_covalent(Atom("O"))
-    # dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
-    # print(dinitrogenoxide, dinitrogenoxide.functional_groups)
+    methane = Structure.from_condensed_formula("CH4")
+    print(methane, methane.functional_groups)
+    hydrogen = Structure.from_condensed_formula("H2")
+    print(hydrogen, hydrogen.functional_groups)
+    carbonmonoxide = Structure.from_condensed_formula("CO")
+    print(carbonmonoxide, carbonmonoxide.functional_groups)
+
+    n = Atom("N")
+    n.bonds.add_covalent(Atom("N"))
+    n.bonds.add_covalent(Atom("O"))
+    dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
+    print(dinitrogenoxide, dinitrogenoxide.functional_groups)
 
     c1 = Atom("C")
     c2 = Atom("C")
@@ -500,8 +500,8 @@ if __name__ == "__main__":
     print(custom)
     [print(x) for x in custom.functional_groups]
 
-    # helium = Structure.from_condensed_formula("He")
-    # print(helium, helium.atoms)
+    helium = Structure.from_condensed_formula("He")
+    print(helium, helium.atoms)
 
     # TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
     #   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point
