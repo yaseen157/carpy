@@ -160,8 +160,69 @@ class KineticMethods:
         theta_diss = D / R_specific
         return theta_diss
 
+    def specific_internal_energy(self, T) -> Quantity:
+        """
+        Specific internal energy of the molecule.
+
+        Args:
+            T: Temperature, in Kelvin.
+
+        Returns:
+            Specific internal energy.
+
+        """
+        # Recast as necessary
+        T = cast2numpy(T)
+        if np.any(T == 0):
+            error_msg = f"It is insensible to compute the internal energy at 0 K, please check input temperatures"
+            raise ValueError(error_msg)
+
+        def partition_function(Tcharacteristic):
+            # If the user has provided a number of temperature values in an array, we don't want to incorrectly
+            # broadcast those values in the maths that follows. We take the user's temperature array and broadcast it
+            # to a higher dimension:
+            T_broadcasted_user = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
+            T_broadcasted_char = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_user.ndim - 1))).T
+            x = T_broadcasted_char / T_broadcasted_user
+            out = x / (np.exp(np.clip(x, None, 710)) - 1)  # clip because x >> 0 results in np.exp overflow error
+            # Squeeze the output to remove any dimensions we added from broadcasting
+            return out.squeeze()
+
+        # Translation contribution
+        dof_trans = 3
+        int_e = (self._cv_1d * T) * dof_trans
+
+        # Rotation contribution
+        dof_rot = np.isfinite(self.theta_rot.x).sum()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing
+            principal_activations = partition_function(Tcharacteristic=self.theta_rot)
+        # Slice the 3D principle activations by degree of freedoms to ignore the np.posinf 2 DoF linear molecules get
+        int_e += (self._cv_1d * T) * np.nansum(principal_activations[:dof_rot], axis=0)
+
+        # Vibration contribution
+        dof_vib = 2 * (3 * len(self.atoms) - (dof_trans + dof_rot))
+        n_bonds = len(self.bonds)
+        for bond, theta_vib in self.theta_vib.items():
+            int_e += (self._cv_1d * T) * (dof_vib / n_bonds) * partition_function(Tcharacteristic=theta_vib)
+
+        # Dissociation contribution
+        if np.isfinite(self.theta_diss.x):  # theta_diss is infinite if structure is monatomic
+            int_e += (self._cv_1d * T) * partition_function(Tcharacteristic=self.theta_diss)
+
+        return int_e
+
     def specific_heat_V(self, T) -> Quantity:
-        """Isochoric (constant volume) specific heat capacity."""
+        """
+        Isochoric (constant volume) specific heat capacity.
+
+        Args:
+            T: Temperature, in Kelvin.
+
+        Returns:
+            Isochoric specific heat capacity.
+
+        """
         # Recast as necessary
         T = cast2numpy(T)
         if np.any(T == 0):
@@ -172,9 +233,9 @@ class KineticMethods:
             # If the user has provided a number of temperature values in an array, we don't want to incorrectly
             # broadcast those values in the maths that follows. We take the user's temperature array and broadcast it
             # to a higher dimension:
-            T_broadcasted_char = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
-            T_broadcasted_user = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_char.ndim - 1))).T
-            x = T_broadcasted_user / 2 / T_broadcasted_char
+            T_broadcasted_user = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
+            T_broadcasted_char = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_user.ndim - 1))).T
+            x = T_broadcasted_char / 2 / T_broadcasted_user
             out = (x / np.sinh(np.clip(x, None, 710))) ** 2  # clip because x >> 0 results in np.exp overflow error
             # Squeeze the output to remove any dimensions we added from broadcasting
             return out.squeeze()
@@ -204,11 +265,29 @@ class KineticMethods:
         return cv
 
     def specific_heat_P(self, T) -> Quantity:
-        """Isobaric (constant pressure) specific heat capacity."""
+        """
+        Isobaric (constant pressure) specific heat capacity.
+
+        Args:
+            T: Temperature, in Kelvin.
+
+        Returns:
+            Isobaric specific heat capacity.
+
+        """
         return self.specific_heat_V(T) + 2 * self._cv_1d
 
-    def specific_heat_ratio(self, T) -> np.ndarray:
-        """Adiabatic index, a.k.a. the ratio of specific heats (isobaric heat capacity : isochoric heat capacity)."""
+    def specific_heat_ratio(self, T) -> float:
+        """
+        Adiabatic index, a.k.a. the ratio of specific heats (isobaric heat capacity : isochoric heat capacity).
+
+        Args:
+            T: Temperature, in Kelvin.
+
+        Returns:
+            Adiabatic index.
+
+        """
         return (self.specific_heat_P(T) / self.specific_heat_V(T)).x
 
     def _inertia_tensor(self):
@@ -721,33 +800,10 @@ if __name__ == "__main__":
     dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
     print(dinitrogenoxide, dinitrogenoxide.functional_groups)
 
-    c1 = Atom("C")
-    c2 = Atom("C")
-    c3 = Atom("C")
-    c4 = Atom("C")
-    c5 = Atom("C")
-    c1.bonds.add_covalent(c2, order_limit=2)
-    c2.bonds.add_covalent(c3, order_limit=1)
-    c3.bonds.add_covalent(c4, order_limit=1)
-    c4.bonds.add_covalent(c5, order_limit=1)
-    [c1.bonds.add_covalent(Atom("H")) for _ in range(2)]
-    [c2.bonds.add_covalent(Atom("H")) for _ in range(1)]
-    c3.bonds.add_covalent(Atom("O"))
-    [c4.bonds.add_covalent(Atom("H")) for _ in range(1)]
-    [c5.bonds.add_covalent(Atom("H")) for _ in range(2)]
-    c4.bonds.add_covalent(Atom("Cl"))
-    o = Atom("O")
-    o.bonds.add_covalent(Atom("H"))
-    c5.bonds.add_covalent(o)
-
-    custom = Structure.from_atoms(c1, "CH2CHCOCH(Cl)CH2OH")
-    print(custom)
-    [print(x) for x in custom.functional_groups]
-
-    helium = Structure.from_condensed_formula("He")
-    print(helium, helium.atoms)
-
     print(hydrogen.specific_heat_ratio([0.01, 30, 300, 100000]))
+    # print(hydrogen.theta_rot)
+    # print(hydrogen.theta_vib)
+    # print(hydrogen.theta_diss)
 
     # TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
     #   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point

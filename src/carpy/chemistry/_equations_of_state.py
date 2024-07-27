@@ -3,13 +3,13 @@ from scipy.optimize import minimize_scalar
 
 from carpy.utility import Quantity, cast2numpy, constants as co
 
-__all__ = ["VanderWaals", "RedlichKwong", "SoaveRedlichKwong", "PengRobinson"]
+__all__ = ["EquationOfState", "Ideal", "VanderWaals", "RedlichKwong", "SoaveRedlichKwong", "PengRobinson"]
 __author__ = "Yaseen Reza"
 
 
-class CubicEOS:
+class EquationOfState:
     """
-    Base class for cubic equations of state.
+    Base class for equations of state.
 
     Cubic equations of state are thermodynamic models for fluid pressure can be expressed as a cubic function of the
     molar volume.
@@ -18,16 +18,18 @@ class CubicEOS:
     _critical_T: Quantity
     _critical_Vm: Quantity
 
-    def __init__(self, pc, Tc):
+    def __init__(self, p_c, T_c):
         """
         Args:
-            pc: Critical pressure of the fluid, in Pascal.
-            Tc: Critical temperature of the fluid, in Kelvin.
+            p_c: Critical pressure of the fluid, in Pascal.
+            T_c: Critical temperature of the fluid, in Kelvin.
         """
-        self._critical_p = Quantity(pc, "Pa")
-        assert self._critical_p.size == 1, "Was expecting a scalar quantity!"
-        self._critical_T = Quantity(Tc, "K")
-        assert self._critical_T.size == 1, "Was expecting a scalar quantity!"
+        if p_c:
+            self._critical_p = Quantity(p_c, "Pa")
+            assert self._critical_p.size == 1, "Was expecting a scalar quantity!"
+        if T_c:
+            self._critical_T = Quantity(T_c, "K")
+            assert self._critical_T.size == 1, "Was expecting a scalar quantity!"
 
     @property
     def p_c(self) -> Quantity:
@@ -40,7 +42,7 @@ class CubicEOS:
 
     @property
     def T_c(self) -> Quantity:
-        """Temperature of substance at the critical point."""
+        """Absolute temperature of substance at the critical point."""
         return self._critical_T
 
     @T_c.setter
@@ -74,23 +76,25 @@ class CubicEOS:
         Vm_r = (Vm / self.Vm_c).x
         return Vm_r
 
-    def _pressure(self, T, Vm):
+    def _pressure(self, T: Quantity, Vm: Quantity):
         error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
         raise NotImplementedError(error_msg)
 
     def pressure(self, T, Vm) -> Quantity:
         """
         Args:
-            T: Temperature, in Kelvin.
+            T: Absolute temperature, in Kelvin.
             Vm: Molar volume, in metres cubed per mole.
 
         Returns:
             Fluid pressure.
 
         """
+        T = Quantity(T, "K")
+        Vm = Quantity(Vm, "m^{3} mol^{-1}")
         return self._pressure(T, Vm)
 
-    def _temperature(self, T, Vm):
+    def _temperature(self, T: Quantity, Vm: Quantity):
         error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
         raise NotImplementedError(error_msg)
 
@@ -101,12 +105,14 @@ class CubicEOS:
             Vm: Molar volume, in metres cubed per mole.
 
         Returns:
-            Fluid temperature.
+            Absolute fluid temperature.
 
         """
+        p = Quantity(p, "Pa")
+        Vm = Quantity(Vm, "m^{3} mol^{-1}")
         return self._temperature(p, Vm)
 
-    def _molar_volume(self, T, Vm):
+    def _molar_volume(self, T: Quantity, Vm: Quantity):
         error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
         raise NotImplementedError(error_msg)
 
@@ -114,17 +120,39 @@ class CubicEOS:
         """
         Args:
             p: Pressure, in Pascal.
-            T: Temperature, in Kelvin.
+            T: Absolute temperature, in Kelvin.
 
         Returns:
             Molar volume.
 
         """
+        p = Quantity(p, "Pa")
+        T = Quantity(T, "K")
         return self._molar_volume(p, T)
 
 
-class VanderWaals(CubicEOS):
-    """The van der Waals equation of state."""
+class Ideal(EquationOfState):
+    """A class implementing the ideal-gas law derived equation of state."""
+
+    def __init__(self):
+        super().__init__(p_c=None, T_c=None)  # Do not define a critical temperature or pressure.
+        return
+
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
+        p = co.PHYSICAL.R * T / Vm
+        return p
+
+    def _temperature(self, p: Quantity, Vm: Quantity) -> Quantity:
+        T = p * Vm / co.PHYSICAL.R
+        return T
+
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+        Vm = co.PHYSICAL.R * T / p
+        return Vm
+
+
+class VanderWaals(EquationOfState):
+    """A class implementing the van der Waals equation of state."""
 
     @property
     def _critical_Vm(self) -> Quantity:
@@ -138,26 +166,19 @@ class VanderWaals(CubicEOS):
         a = 27 * self.p_c * b ** 2
         return dict([("a", a), ("b", b)])
 
-    def _pressure(self, T, Vm) -> Quantity:
-        T = Quantity(T, "K")
-        Vm = Quantity(Vm, "m^{3} mol^{-1}")
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
         a, b = (constants := self.constants)["a"], constants["b"]
 
         p = co.PHYSICAL.R * T / (Vm - b) - a / Vm ** 2
         return p
 
-    def _temperature(self, p, Vm) -> Quantity:
-        p = Quantity(p, "Pa")
-        Vm = Quantity(Vm, "m^{3} mol^{-1}")
+    def _temperature(self, p: Quantity, Vm: Quantity) -> Quantity:
         a, b = (constants := self.constants)["a"], constants["b"]
 
         T = (p + a / Vm ** 2) * (Vm - b) / co.PHYSICAL.R
         return T
 
-    def _molar_volume(self, p, T) -> Quantity:
-        p = Quantity(p, "Pa")
-        T = Quantity(T, "K")
-
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
         # Find reduced state variables
         p_r = self.p_r(p)
         T_r = self.T_r(T)
@@ -171,7 +192,8 @@ class VanderWaals(CubicEOS):
         return Vm
 
 
-class RedlichKwong(CubicEOS):
+class RedlichKwong(EquationOfState):
+    """A class implementing the Redlich-Kwong equation of state."""
     _Omega_a = (9 * (2 ** (1 / 3) - 1)) ** -1  # ~0.42748..
     _Omega_b = 1 / _Omega_a / 27  # ~0.08664
 
@@ -188,18 +210,13 @@ class RedlichKwong(CubicEOS):
         b = self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c
         return dict([("a", a), ("b", b)])
 
-    def _pressure(self, T, Vm):
-        T = Quantity(T, "K")
-        Vm = Quantity(Vm, "m^{3} mol^{-1}")
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
         a, b = (constants := self.constants)["a"], constants["b"]
 
         p = co.PHYSICAL.R * T / (Vm - b) - a / (T ** 0.5 * Vm * (Vm + b))
         return p
 
-    def _temperature(self, p, Vm, tol=1e-6):
-        p = Quantity(p, "Pa")
-        Vm = Quantity(Vm, "m^{3} mol^{-1}")
-
+    def _temperature(self, p: Quantity, Vm: Quantity, tol: float = 1e-6) -> Quantity:
         pressures, molar_volumes = np.broadcast_arrays(p, Vm)
         temperatures = np.zeros(pressures.shape)
 
@@ -215,9 +232,7 @@ class RedlichKwong(CubicEOS):
 
         return Quantity(temperatures, "K")
 
-    def _molar_volume(self, p, T, tol=1e-6):
-        p = Quantity(p, "Pa")
-        T = Quantity(T, "K")
+    def _molar_volume(self, p: Quantity, T: Quantity, tol: float = 1e-6) -> Quantity:
         a, b = (constants := self.constants)["a"], constants["b"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
@@ -243,16 +258,17 @@ class RedlichKwong(CubicEOS):
 
 
 class SoaveRedlichKwong(RedlichKwong):
+    """A class implementing the Soave-modification of the Redlich-Kwong equation of state."""
 
-    def __init__(self, pc, Tc, omega: float = 0):
+    def __init__(self, p_c, T_c, omega: float = 0):
         """
         Args:
-            pc: Critical pressure of the fluid, in Pascal.
-            Tc: Critical temperature of the fluid, in Kelvin.
+            p_c: Critical pressure of the fluid, in Pascal.
+            T_c: Critical temperature of the fluid, in Kelvin.
             omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
 
         """
-        super().__init__(pc=pc, Tc=Tc)
+        super().__init__(p_c=p_c, T_c=T_c)
         self._omega = omega
         return
 
@@ -263,9 +279,7 @@ class SoaveRedlichKwong(RedlichKwong):
         b = self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c
         return dict([("a", a), ("b", b), ("omega", self._omega)])
 
-    def _pressure(self, T, Vm):
-        T = Quantity(T, "K")
-        Vm = Quantity(Vm, "m^{3} mol^{-1}")
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
         a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
 
         # Compute Soave modification for hydrocarbons, alpha, from acentric factor, omega
@@ -274,9 +288,7 @@ class SoaveRedlichKwong(RedlichKwong):
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / (Vm * (Vm + b))
         return p
 
-    def _molar_volume(self, p, T, tol=1e-6):
-        p = Quantity(p, "Pa")
-        T = Quantity(T, "K")
+    def _molar_volume(self, p: Quantity, T: Quantity, tol=1e-6) -> Quantity:
         a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
@@ -307,25 +319,31 @@ class SoaveRedlichKwong(RedlichKwong):
 
 
 class PengRobinson(SoaveRedlichKwong):
+    """A class implementing the van der Waals equation of state."""
     _eta_c = (1 + (4 - 8 ** 0.5) ** (1 / 3) + (4 + 8 ** 0.5) ** (1 / 3)) ** -1
     _Omega_a = (8 + 40 * _eta_c) / (49 - 37 * _eta_c)
     _Omega_b = _eta_c / (3 + _eta_c)
 
-    def __init__(self, pc, Tc, omega: float = 0):
+    def __init__(self, p_c, T_c, omega: float = 0):
         """
         Args:
-            pc: Critical pressure of the fluid, in Pascal.
-            Tc: Critical temperature of the fluid, in Kelvin.
+            p_c: Critical pressure of the fluid, in Pascal.
+            T_c: Critical temperature of the fluid, in Kelvin.
             omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
 
         """
-        super().__init__(pc=pc, Tc=Tc)
+        super().__init__(p_c=p_c, T_c=T_c)
         self._omega = omega
         return
 
-    def _pressure(self, T, Vm):
-        T = Quantity(T, "K")
-        Vm = Quantity(Vm, "m^{3} mol^{-1}")
+    @property
+    def constants(self) -> dict[str, Quantity]:
+        """Parameters as defined in the Peng-Robinson equation of state."""
+        a = self._Omega_a * co.PHYSICAL.R ** 2 * self.T_c ** 2 / self.p_c
+        b = self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c
+        return dict([("a", a), ("b", b), ("omega", self._omega)])
+
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
         a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
 
         kappa = 0.37464 + 1.54226 * omega - 0.26992 * omega ** 2
@@ -334,9 +352,7 @@ class PengRobinson(SoaveRedlichKwong):
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / (Vm ** 2 + 2 * b * Vm - b ** 2)
         return p
 
-    def _molar_volume(self, p, T, tol=1e-6):
-        p = Quantity(p, "Pa")
-        T = Quantity(T, "K")
+    def _molar_volume(self, p: Quantity, T: Quantity, tol: float = 1e-6) -> Quantity:
         a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
@@ -367,21 +383,21 @@ class PengRobinson(SoaveRedlichKwong):
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
 
-class ElliotSureshDonohue(CubicEOS):
+class ElliotSureshDonohue(EquationOfState):
     _z_m = 9.5
     _k1 = 1.7745
     _k2 = 1.0617
     _k3 = 1.90476
 
-    def __init__(self, pc, Tc, omega: float = 0):
+    def __init__(self, p_c, T_c, omega: float = 0):
         """
         Args:
-            pc: Critical pressure of the fluid, in Pascal.
-            Tc: Critical temperature of the fluid, in Kelvin.
+            p_c: Critical pressure of the fluid, in Pascal.
+            T_c: Critical temperature of the fluid, in Kelvin.
             omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
 
         """
-        super().__init__(pc=pc, Tc=Tc)
+        super().__init__(p_c=p_c, T_c=T_c)
         self._omega = omega
 
         # shape factor c, where c = 1 for spherical molecules
@@ -406,5 +422,5 @@ class ElliotSureshDonohue(CubicEOS):
 
 
 if __name__ == "__main__":
-    air = PengRobinson(pc=Quantity(37.858, "bar"), Tc=Quantity(-140.52, "degC"))
+    air = PengRobinson(p_c=Quantity(37.858, "bar"), T_c=Quantity(-140.52, "degC"))
     # TODO: Figure out how, if at all possible, to get mixes of the equations of state models

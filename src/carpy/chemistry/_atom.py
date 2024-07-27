@@ -55,6 +55,14 @@ class Atom:
         """The difference between the number of protons and electrons in the atom."""
         # I know the below expression looks wrong, but this form is necessary to correct for dative covalent bonding
         charge = self.atomic_number - self.electrons.total + sum(bond.order for bond in self.bonds)
+        #
+        # homonuclear_bonds = {bond for bond in self.bonds[self.symbol]}
+        # heteronuclear_bonds = self.bonds - homonuclear_bonds
+        #
+        # homonuclear_bond_order = sum([bond.order for bond in self.bonds if ])
+        # dative_order = sum([bond.order for bond in self.bonds])
+        #
+        # charge = self.electrons.valence_limit - self.electrons.
         return charge
 
     @property
@@ -158,10 +166,13 @@ class ElectronConfiguration(dict):
         # Cache the element's group
         if self.pt_period == 1:
             group = self[f"{self.pt_period}s"]
+            group += 16 if group == 2 else 0
         elif self.pt_period == 2:
             group = self[f"{self.pt_period}s"] + self[f"{self.pt_period}p"]
+            group += 10 if group > 2 else 0
         elif self.pt_period == 3:
-            group = self[f"{self.pt_period}s"] + self[f"{self.pt_period}p"] + 10  # because we skipped the d subshell
+            group = self[f"{self.pt_period}s"] + self[f"{self.pt_period}p"]
+            group += 10 if group > 2 else 0
         else:
             group = self[f"{self.pt_period}s"] + self[f"{self.pt_period}p"] + self[f"{self.pt_period - 1}d"]
         self._pt_group = group

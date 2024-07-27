@@ -48,4 +48,32 @@ def w() -> None:
     print(warrantytxt)
     return None
 
+
 # ============================================================================ #
+
+import importlib as _importlib
+
+submodules = [
+    "airworthiness",
+    "chemistry",
+    "concepts",
+    "gaskinetics",
+    "utility",
+    "visual"
+]
+
+__all__ = submodules + ["__version__"]
+
+
+def __dir__():
+    return __all__
+
+
+def __getattr__(name):
+    if name in submodules:
+        return _importlib.import_module(f'carpy.{name}')
+    else:
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(f"Module 'carpy' has no attribute '{name}'")
