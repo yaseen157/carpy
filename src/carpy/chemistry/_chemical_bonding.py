@@ -181,10 +181,16 @@ class LocalBonds(set):
         return bonds
 
     def add(self, __element):
-        if isinstance(__element, (CovalentBond,)):
-            return super(LocalBonds, self).add(__element)
+        # It doesn't make sense to add a bond manually. Later yet, this method may be redirected to add_covalent.
+        # Probably not though since we don't model 3c2e or 3c4e bonds, for example
         error_msg = f"User of {type(self).__name__} is not allowed to manually invoke .add() for any reason"
         raise ValueError(error_msg)
+
+    def pop(self):
+        # It doesn't make sense to pop this set as the user can't guarantee which bond they're popping. If for some
+        # reason this method is deemed necessary in future it needs to reflect the same change on both bond parent atoms
+        error_msg = f".pop() method should not be used directly on {type(self).__name__} for any reason"
+        raise RuntimeError(error_msg)
 
     def add_covalent(self, atom: Atom, order_limit: int = None) -> None:
         """
@@ -232,8 +238,8 @@ class LocalBonds(set):
         atom1.electrons += (simple_order + 2 * min(donor_order_limit, atom2_donor_order))
         atom2.electrons += (simple_order + 2 * min(donor_order_limit, atom1_donor_order))
         covalent_bond = CovalentBond(A=atom1, B=atom2, order=total_bond_order)
-        atom1.bonds.add(covalent_bond)
-        atom2.bonds.add(covalent_bond)
+        set.add(atom1.bonds, covalent_bond)
+        set.add(atom2.bonds, covalent_bond)
 
         # Predict oxidation state change
         if atom1.element.number != atom2.element.number:

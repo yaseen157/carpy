@@ -318,7 +318,7 @@ class KineticMethods:
 
 class Structure(KineticMethods):
     """
-    Class for recording and describing a permutation of a physical molecular structure. The main goal of the class is to
+    Class for recording and describing a permutation of a physical chemical structure. The main goal of the class is to
     allow users to specify unique resonant structures in the global definition of a molecule. This won't affect simple
     molecules like methane (CH4), but could allow users to describe the multiple resonant states of dinitrogen oxide.
 

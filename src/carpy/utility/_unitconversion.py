@@ -1,5 +1,4 @@
 """A module for the conversion of units."""
-import copy
 import functools
 import itertools
 import os
@@ -41,6 +40,20 @@ pattern_prefixes = "|".join([
     f"(?:{sym})" for sym in sorted(dfs["prefixes"]["Symbol"], key=len)[::-1]])
 
 
+def deepcopy_dict(dictionary: dict) -> dict:
+    """Recursively copy the contents of one dictionary into a brand new one."""
+    new_dict = dict()
+
+    for (key, value) in dictionary.items():
+
+        if isinstance(value, dict):
+            new_dict[key] = deepcopy_dict(value)
+        else:
+            new_dict[key] = value
+
+    return new_dict
+
+
 class Dimensions(object):
     """
     This class can be used to create and track the dimensionality of any
@@ -70,9 +83,9 @@ class Dimensions(object):
         self._unitstring = "" if units is None else units
 
         # Check cache for an easy answer
-        # (use deepcopy because of dictionary memory persistence nonsense)
         if self._unitstring in self._sessioncache:
-            self._pairings = copy.deepcopy(self._sessioncache[self._unitstring])
+            self._pairings = deepcopy_dict(self._sessioncache[self._unitstring])
+
             return
 
         # Otherwise, break units into components and proceed
@@ -180,7 +193,7 @@ class Dimensions(object):
 
         # Store and write to cache
         self._pairings = pairings
-        self._sessioncache[self._unitstring] = copy.deepcopy(self._pairings)
+        self._sessioncache[self._unitstring] = deepcopy_dict(self._pairings)
         return
 
     def __repr__(self):
