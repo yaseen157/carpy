@@ -1,9 +1,12 @@
-"""Module that gives physical meaning to a molecular structure."""
+"""Module that allows for the representation of molecules and atoms as "chemical species" with define structure(s)."""
 import numpy as np
 
 from carpy.chemistry._atom import Atom
 from carpy.chemistry._chemical_structure import Structure
 from carpy.utility import Quantity, constants as co
+
+__all__ = ["ChemicalSpecies", "AtomicSpecies"]
+__author__ = "Yaseen Reza"
 
 
 class ChemicalSpecies:

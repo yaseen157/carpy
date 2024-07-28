@@ -140,7 +140,7 @@ class KineticMethods:
         """
         Characteristic vibrational temperature.
 
-        Each bond is assigned its own unique
+        Each bond is assigned its own dissociation temperature
 
         """
         # Characteristic vibrational temperature
@@ -212,7 +212,8 @@ class KineticMethods:
         dof_vib = 2 * (3 * len(self.atoms) - (dof_trans + dof_rot))
         n_bonds = len(self.bonds)
         for bond, theta_vib in self.theta_vib.items():
-            int_e += (self._cv_1d * T) * (dof_vib / n_bonds) * partition_function(Tcharacteristic=theta_vib)
+            if np.isfinite(theta_vib.x):
+                int_e += (self._cv_1d * T) * (dof_vib / n_bonds) * partition_function(Tcharacteristic=theta_vib)
 
         # Dissociation contribution
         if np.isfinite(self.theta_diss.x):  # theta_diss is infinite if structure is monatomic
@@ -264,7 +265,8 @@ class KineticMethods:
         dof_vib = 2 * (3 * len(self.atoms) - (dof_trans + dof_rot))
         n_bonds = len(self.bonds)
         for bond, theta_vib in self.theta_vib.items():
-            cv += self._cv_1d * (dof_vib / n_bonds) * partition_function(Tcharacteristic=theta_vib)
+            if np.isfinite(theta_vib.x):
+                cv += self._cv_1d * (dof_vib / n_bonds) * partition_function(Tcharacteristic=theta_vib)
 
         # Dissociation contribution
         if np.isfinite(self.theta_diss.x):  # theta_diss is infinite if structure is monatomic

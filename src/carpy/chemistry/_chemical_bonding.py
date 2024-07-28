@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import cached_property
 import os
 import typing
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -110,6 +111,10 @@ class CovalentBond:
         if bond_data := force_constants.get(l1_query):
             _k = np.mean(list(bond_data.values()))
 
+        if np.isnan(_k):
+            warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
+            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
+
         k = Quantity(_k, units="N cm^{-1}")
 
         return k
@@ -129,6 +134,10 @@ class CovalentBond:
 
         if bond_data := lengths.get(l1_query):
             _r = bond_data.get(l2_query, np.mean(list(bond_data.values())))
+
+        if np.isnan(_r):
+            warn_msg = f"Could not find length data for the {type(self).__name__} type {self}"
+            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
 
         r = Quantity(_r, "pm")
 
@@ -155,6 +164,10 @@ class CovalentBond:
 
             # highest priority: Bond data relevant to the specific molecule
             _ = NotImplemented
+
+        if np.isnan(_D):
+            warn_msg = f"Could not find dissociative strength data for the {type(self).__name__} type {self}"
+            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
 
         D = Quantity(_D, "kJ mol^{-1}")
         return D
