@@ -66,18 +66,16 @@ class AtomicProperties(unittest.TestCase):
         return
 
 
-class MoleculeStructures(unittest.TestCase):
+class MolecularStructures(unittest.TestCase):
     """Test the molecular structures."""
 
     def test_monatomic(self):
         argon = Structure.from_condensed_formula("Ar")
-        self.assertAlmostEqual(argon.specific_heat_ratio(300), 5 / 3)
         return
 
     def test_diatomic(self):
         # Spawn nitrogen
         nitrogen = Structure.from_condensed_formula("N2")
-        self.assertAlmostEqual(nitrogen.specific_heat_ratio(300), 1.4, places=3)
 
         # Nitrogen has one bond
         self.assertEqual(len(nitrogen.bonds), 1)

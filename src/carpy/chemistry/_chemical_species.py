@@ -1,4 +1,6 @@
 """Module that gives physical meaning to a molecular structure."""
+import numpy as np
+
 from carpy.chemistry._atom import Atom
 from carpy.chemistry._chemical_structure import Structure
 from carpy.utility import Quantity, constants as co
@@ -19,6 +21,44 @@ class ChemicalSpecies:
     def molar_mass(self) -> Quantity:
         """Molar mass of the species."""
         return self._structures[0].molar_mass
+
+    def specific_heat_V(self, p, T) -> Quantity:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Isochoric specific heat capacity.
+
+        """
+        p, T = np.broadcast_arrays(p, T)
+        cv = np.zeros(p.shape)
+        for i in range(cv.size):
+            cv.flat[i] = np.mean([
+                structure.specific_heat_V(p=p.flat[i], T=T.flat[i])
+                for structure in self._structures
+            ])
+        return Quantity(cv, "J kg^{-1} K^{-1}")
+
+    def specific_internal_energy(self, p, T) -> Quantity:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Specific internal energy.
+        """
+        # Take an average of the structures
+        p, T = np.broadcast_arrays(p, T)
+        u = np.zeros(p.shape)
+        for i in range(u.size):
+            u.flat[i] = np.mean([
+                structure.specific_internal_energy(p=p.flat[i], T=T.flat[i])
+                for structure in self._structures
+            ])
+        return Quantity(u, "J kg^{-1}")
 
 
 class AtomicSpecies(ChemicalSpecies):
@@ -95,6 +135,41 @@ class ChemicalMixture:
         molar_composition = {species: (Yi / species.molar_mass * Wbar).x for (species, Yi) in mass_composition.items()}
         self._X = molar_composition
         return
+
+    def cvbar(self, p, T) -> Quantity:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Isochoric specific heat capacity.
+
+        """
+        CV = Quantity(0, "J kg^{-1} K^{-1}")
+        for (species, Yi) in self.Y.items():
+            cvi = species.specific_heat_V(p=p, T=T)
+            CV += cvi * Yi
+        cvbar = CV / 1.0
+        return cvbar
+
+    def ubar(self, p, T) -> Quantity:
+        """
+        Mean specific internal energy of the mixture.
+
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Specific internal energy.
+        """
+        U = Quantity(0, "J kg^{-1}")
+        for (species, Yi) in self.Y.items():
+            ui = species.specific_internal_energy(p=p, T=T)
+            U += ui * Yi
+        ubar = U / 1.0
+        return ubar
 
 
 if __name__ == "__main__":

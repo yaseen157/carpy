@@ -92,9 +92,9 @@ class EquationOfState:
         """
         T = Quantity(T, "K")
         Vm = Quantity(Vm, "m^{3} mol^{-1}")
-        return self._pressure(T, Vm)
+        return self._pressure(T=T, Vm=Vm)
 
-    def _temperature(self, T: Quantity, Vm: Quantity):
+    def _temperature(self, p: Quantity, Vm: Quantity):
         error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
         raise NotImplementedError(error_msg)
 
@@ -110,9 +110,9 @@ class EquationOfState:
         """
         p = Quantity(p, "Pa")
         Vm = Quantity(Vm, "m^{3} mol^{-1}")
-        return self._temperature(p, Vm)
+        return self._temperature(p=p, Vm=Vm)
 
-    def _molar_volume(self, T: Quantity, Vm: Quantity):
+    def _molar_volume(self, p: Quantity, T: Quantity):
         error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
         raise NotImplementedError(error_msg)
 
@@ -128,7 +128,7 @@ class EquationOfState:
         """
         p = Quantity(p, "Pa")
         T = Quantity(T, "K")
-        return self._molar_volume(p, T)
+        return self._molar_volume(p=p, T=T)
 
     def compressibility_factor(self, p, T) -> float:
         """

@@ -168,18 +168,18 @@ class KineticMethods:
         theta_diss = D / R_specific
         return theta_diss
 
-    def specific_internal_energy(self, T) -> Quantity:
+    def specific_internal_energy(self, p, T) -> Quantity:
         """
-        Specific internal energy of the molecule.
-
         Args:
-            T: Temperature, in Kelvin.
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
 
         Returns:
             Specific internal energy.
 
         """
         # Recast as necessary
+        _ = p  # Does nothing!
         T = Quantity(T, "K")
         if np.any(T == 0):
             error_msg = f"It is insensible to compute the internal energy at 0 K, please check input temperatures"
@@ -192,7 +192,7 @@ class KineticMethods:
             T_broadcasted_user = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
             T_broadcasted_char = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_user.ndim - 1))).T
             x = T_broadcasted_char / T_broadcasted_user
-            out = x / (np.exp(np.clip(x, None, 710)) - 1)  # clip because x >> 0 results in np.exp overflow error
+            out = x / (np.exp(np.clip(x, None, 709)) - 1)  # clip because x >> 0 results in np.exp overflow error
             # Squeeze the output to remove any dimensions we added from broadcasting
             return out.squeeze()
 
@@ -220,18 +220,18 @@ class KineticMethods:
 
         return int_e
 
-    def specific_heat_V(self, T) -> Quantity:
+    def specific_heat_V(self, p, T) -> Quantity:
         """
-        Isochoric (constant volume) specific heat capacity.
-
         Args:
-            T: Temperature, in Kelvin.
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
 
         Returns:
             Isochoric specific heat capacity.
 
         """
         # Recast as necessary
+        _ = p  # Does nothing!
         T = cast2numpy(T)
         if np.any(T == 0):
             error_msg = f"It is insensible to compute the heat capacity at 0 K, please check input temperatures"
@@ -271,32 +271,6 @@ class KineticMethods:
             cv += self._cv_1d * partition_function(Tcharacteristic=self.theta_diss)
 
         return cv
-
-    # def specific_heat_P(self, T) -> Quantity:
-    #     """
-    #     Isobaric (constant pressure) specific heat capacity.
-    #
-    #     Args:
-    #         T: Temperature, in Kelvin.
-    #
-    #     Returns:
-    #         Isobaric specific heat capacity.
-    #
-    #     """
-    #     return self.specific_heat_V(T) + 2 * self._cv_1d
-    #
-    # def specific_heat_ratio(self, T) -> float:
-    #     """
-    #     Adiabatic index, a.k.a. the ratio of specific heats (isobaric heat capacity : isochoric heat capacity).
-    #
-    #     Args:
-    #         T: Temperature, in Kelvin.
-    #
-    #     Returns:
-    #         Adiabatic index.
-    #
-    #     """
-    #     return (self.specific_heat_P(T) / self.specific_heat_V(T)).x
 
     def _inertia_tensor(self):
         atom_mass = np.zeros(len(self.atoms))
