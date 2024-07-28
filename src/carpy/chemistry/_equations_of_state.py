@@ -24,10 +24,10 @@ class EquationOfState:
             p_c: Critical pressure of the fluid, in Pascal.
             T_c: Critical temperature of the fluid, in Kelvin.
         """
-        if p_c:
+        if p_c is not None:
             self._critical_p = Quantity(p_c, "Pa")
             assert self._critical_p.size == 1, "Was expecting a scalar quantity!"
-        if T_c:
+        if T_c is not None:
             self._critical_T = Quantity(T_c, "K")
             assert self._critical_T.size == 1, "Was expecting a scalar quantity!"
 
@@ -130,9 +130,28 @@ class EquationOfState:
         T = Quantity(T, "K")
         return self._molar_volume(p, T)
 
+    def compressibility_factor(self, p, T) -> float:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Gas compressibility factor.
+
+        """
+        p = Quantity(p, "Pa")
+        T = Quantity(T, "K")
+
+        Vm = self.molar_volume(p=p, T=T)
+        Z = (p * Vm / co.PHYSICAL.R / T).x
+        return Z
+
 
 class Ideal(EquationOfState):
     """A class implementing the ideal-gas law derived equation of state."""
+
+    # p Vm = R T
 
     def __init__(self):
         super().__init__(p_c=None, T_c=None)  # Do not define a critical temperature or pressure.
@@ -183,13 +202,16 @@ class VanderWaals(EquationOfState):
         p_r = self.p_r(p)
         T_r = self.T_r(T)
 
-        # Polynomial ax^3 + bx^2 + cx + d = 0
-        a, b, c, d = (1, -(1 / 3 + 8 / 3 * T_r / p_r), 3 / p_r, -1 / p_r)
-        roots = np.roots((a, b, c, d))
-        Vm_r = roots[np.isreal(roots)].real
-        Vm = Vm_r * self.Vm_c
+        p_r, T_r = np.broadcast_arrays(p_r, T_r)
+        Vm = np.zeros(p_r.shape)
+        for i in range(Vm.size):
+            # Polynomial ax^3 + bx^2 + cx + d = 0
+            a, b, c, d = (1, -(1 / 3 + 8 / 3 * T_r.flat[i] / p_r.flat[i]), 3 / p_r.flat[i], -1 / p_r.flat[i])
+            roots = np.roots((a, b, c, d))
+            Vm_r = roots[np.isreal(roots)].real
+            Vm.flat[i] = Vm_r * self.Vm_c
 
-        return Vm
+        return Quantity(Vm, "m^{3} mol^{-1}")
 
 
 class RedlichKwong(EquationOfState):
@@ -200,7 +222,7 @@ class RedlichKwong(EquationOfState):
     @property
     def _critical_Vm(self) -> Quantity:
         Z_c = 1 / 3
-        Vm_c = Z_c * (co.PHYSICAL.R * self.T_c) / self.p_c
+        Vm_c = (co.PHYSICAL.R * self.T_c) / (self.p_c * Z_c)
         return Vm_c
 
     @property
@@ -227,8 +249,8 @@ class RedlichKwong(EquationOfState):
             def helper(T):
                 return abs(p - self._pressure(T, Vm).x)
 
-            # T_ideal = p * Vm / co.PHYSICAL.R.x
-            temperatures.flat[i] = minimize_scalar(helper, tol=tol).x.item()
+            T_ideal = p * Vm / co.PHYSICAL.R.x
+            temperatures.flat[i] = minimize_scalar(helper, bracket=(T_ideal * 0.9, T_ideal), tol=tol).x.item()
 
         return Quantity(temperatures, "K")
 
@@ -242,17 +264,18 @@ class RedlichKwong(EquationOfState):
             p = pressures.flat[i]
             T = temperatures.flat[i]
 
-            def helper(Vm):
-                A_squared = a.x / (co.PHYSICAL.R.x ** 2 * T ** (5 / 2))
-                B = b.x / (co.PHYSICAL.R.x * T)
-                h = b.x / Vm
+            par_a = p * T ** 0.5
+            par_b = (-co.PHYSICAL.R * T ** (3 / 2)).x
+            par_c = a.x + b.x * par_b - b.x ** 2 * par_a
+            par_d = -(a * b).x
+            roots = np.roots((par_a, par_b, par_c, par_d))
 
-                lhs = p * Vm / co.PHYSICAL.R.x / T
-                rhs = 1 / (1 - h) - A_squared / B * h / (1 + h)
-                return abs(lhs - rhs)
+            # Ignore negative solution, non-physical
+            roots = roots.real[~np.iscomplex(roots)]
+            roots[roots < 0] = np.nan
 
-            # Vm_ideal = co.PHYSICAL.R.x * T / p
-            molar_volumes.flat[i] = minimize_scalar(helper, tol=tol).x.item()
+            # Vapour state must be maximum of remaining roots
+            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
@@ -299,21 +322,20 @@ class SoaveRedlichKwong(RedlichKwong):
             T = temperatures.flat[i]
 
             alpha = (1 + (0.480 + 1.574 * omega - 0.176 * omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
-            A = (a * alpha * p / (co.PHYSICAL.R * T) ** 2).x
-            B = (b * p / (co.PHYSICAL.R * T)).x
 
-            # Polynomial to solve for compressibility factor, Z
-            a, b, c, d = (1, -1, (A - B - B ** 2), -A * B)
-            roots = np.roots((a, b, c, d))
-            Z = roots[np.isreal(roots)].real.max()  # Assume max value of real roots is Z for vapours
+            # Polynomial to solve for molar volume
+            par_a = p / alpha
+            par_b = (-co.PHYSICAL.R * T / alpha).x
+            par_c = a.x + b.x * par_b - b.x ** 2 * par_a
+            par_d = -(a * b).x
+            roots = np.roots((par_a, par_b, par_c, par_d))
 
-            def helper(Vm):
-                lhs = p * Vm / co.PHYSICAL.R.x / T
-                rhs = Z
-                return abs(lhs - rhs)
+            # Ignore negative solution, non-physical
+            roots = roots.real[~np.iscomplex(roots)]
+            roots[roots < 0] = np.nan
 
-            # Vm_ideal = co.PHYSICAL.R.x * T / p
-            molar_volumes.flat[i] = minimize_scalar(helper, tol=tol).x.item()
+            # Vapour state must be maximum of remaining roots
+            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
@@ -364,21 +386,20 @@ class PengRobinson(SoaveRedlichKwong):
 
             kappa = 0.37464 + 1.54226 * omega - 0.26992 * omega ** 2
             alpha = (1 + kappa * (1 - self.T_r(T) ** 0.5)) ** 2
-            A = (a * alpha * p / (co.PHYSICAL.R * T) ** 2).x
-            B = (b * p / (co.PHYSICAL.R * T)).x
 
-            # Polynomial to solve for compressibility factor, Z
-            a, b, c, d = (1, -(1 - B), (A - 2 * B - 3 * B ** 2), -(A * B - B ** 2 - B ** 3))
-            roots = np.roots((a, b, c, d))
-            Z = roots[np.isreal(roots)].real.max()  # Assume max value of real roots is Z for vapours
+            # Polynomial to solve for molar volume
+            par_a = p
+            par_b = p * b.x - (co.PHYSICAL.R * T).x
+            par_c = a.x * alpha - 3 * b.x ** 2 * p - 2 * b.x * (co.PHYSICAL.R * T).x
+            par_d = p * b.x ** 3 + b.x ** 2 * (co.PHYSICAL.R * T).x - a.x * alpha * b.x
+            roots = np.roots((par_a, par_b, par_c, par_d))
 
-            def helper(Vm):
-                lhs = p * Vm / co.PHYSICAL.R.x / T
-                rhs = Z
-                return abs(lhs - rhs)
+            # Ignore negative solution, non-physical
+            roots = roots.real[~np.iscomplex(roots)]
+            roots[roots < 0] = np.nan
 
-            # Vm_ideal = co.PHYSICAL.R.x * T / p
-            molar_volumes.flat[i] = minimize_scalar(helper, tol=tol).x.item()
+            # Vapour state must be maximum of remaining roots
+            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 

@@ -208,7 +208,7 @@ class PathAnchor:
     @property
     def filename_stem(self) -> str:
         """Returns the stem of the filename (no extensions)."""
-        stem, = re.findall("(.+)(?=[^.]*\.)+", self.filename)
+        stem, = re.findall(r"(.+)(?=[^.]*\.)+", self.filename)
         return stem
 
     @property

@@ -51,7 +51,10 @@ def n_vertex_3dsphere(n: int):
             np.array([[0, 0, 1], [0, 0, -1]])
         ))
 
-    return np.array(out)
+    # Suppress tiny numbers
+    out = np.array(out)
+    out[np.abs(out) < 1e-3] = 0
+    return out
 
 
 def traverse_bonds(atom: Atom) -> set[Atom]:
@@ -122,6 +125,11 @@ class KineticMethods:
         """
         # Characteristic rotational temperature
         I = np.diagonal(self._inertia_tensor())
+
+        # The inertia tensor may have a zero-inertia term in an unexpected axis because we aren't trying to locate the
+        # principle axes in the method yet. Fix that here (so the highest index term becomes zero if applicable)
+        I = np.sort(I)[::-1]
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # Expect a divide by zero error if inertia tensor has zeros on diagonal
             theta_rot = co.PHYSICAL.hbar ** 2 / (2 * I * co.PHYSICAL.k_B)
@@ -172,7 +180,7 @@ class KineticMethods:
 
         """
         # Recast as necessary
-        T = cast2numpy(T)
+        T = Quantity(T, "K")
         if np.any(T == 0):
             error_msg = f"It is insensible to compute the internal energy at 0 K, please check input temperatures"
             raise ValueError(error_msg)
@@ -264,31 +272,31 @@ class KineticMethods:
 
         return cv
 
-    def specific_heat_P(self, T) -> Quantity:
-        """
-        Isobaric (constant pressure) specific heat capacity.
-
-        Args:
-            T: Temperature, in Kelvin.
-
-        Returns:
-            Isobaric specific heat capacity.
-
-        """
-        return self.specific_heat_V(T) + 2 * self._cv_1d
-
-    def specific_heat_ratio(self, T) -> float:
-        """
-        Adiabatic index, a.k.a. the ratio of specific heats (isobaric heat capacity : isochoric heat capacity).
-
-        Args:
-            T: Temperature, in Kelvin.
-
-        Returns:
-            Adiabatic index.
-
-        """
-        return (self.specific_heat_P(T) / self.specific_heat_V(T)).x
+    # def specific_heat_P(self, T) -> Quantity:
+    #     """
+    #     Isobaric (constant pressure) specific heat capacity.
+    #
+    #     Args:
+    #         T: Temperature, in Kelvin.
+    #
+    #     Returns:
+    #         Isobaric specific heat capacity.
+    #
+    #     """
+    #     return self.specific_heat_V(T) + 2 * self._cv_1d
+    #
+    # def specific_heat_ratio(self, T) -> float:
+    #     """
+    #     Adiabatic index, a.k.a. the ratio of specific heats (isobaric heat capacity : isochoric heat capacity).
+    #
+    #     Args:
+    #         T: Temperature, in Kelvin.
+    #
+    #     Returns:
+    #         Adiabatic index.
+    #
+    #     """
+    #     return (self.specific_heat_P(T) / self.specific_heat_V(T)).x
 
     def _inertia_tensor(self):
         atom_mass = np.zeros(len(self.atoms))
@@ -312,8 +320,8 @@ class KineticMethods:
             # TODO: More robust computation of inertia from *larger* polyatomic structures
             longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_path]
 
-            # Central atom should have the most neighbours
-            longest_path_atoms = sorted(longest_path_atoms, key=lambda x: x.neighbours)
+            # Central atom should have the most neighbours, sort from most neighbours to least
+            longest_path_atoms = sorted(longest_path_atoms, key=lambda x: len(x.neighbours), reverse=True)
             central_atom_candidates = [
                 atom for atom in longest_path_atoms
                 if len(atom.neighbours) == len(longest_path_atoms[0].neighbours)
