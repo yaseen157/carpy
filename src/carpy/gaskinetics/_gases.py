@@ -1,10 +1,10 @@
 """Module containing the class structure for modelling pure gases."""
 import numpy as np
 
-from carpy.chemistry import ChemicalSpecies, EquationOfState, IdealGas
+from carpy.chemistry import species, ChemicalSpecies, EquationOfState, IdealGas
 from carpy.utility import Quantity
 
-__all__ = ["PureGas"]
+__all__ = ["species", "PureGas"]
 __author__ = "Yaseen Reza"
 
 

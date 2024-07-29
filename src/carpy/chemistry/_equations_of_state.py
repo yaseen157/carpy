@@ -220,8 +220,8 @@ class EquationOfState:
 class IdealGas(EquationOfState):
     """A class implementing the ideal gas equation of state, a.k.a. the ideal gas law."""
 
-    def __init__(self):
-        super().__init__(p_c=None, T_c=None)  # Do not define a critical temperature or pressure.
+    def __init__(self, p_c=None, T_c=None):
+        super().__init__(p_c=p_c, T_c=T_c)
         return
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
@@ -508,7 +508,4 @@ class ElliotSureshDonohue(EquationOfState):
         error_msg = f"The {type(self).__name__} equation of state model is unavailable at this time"
         raise NotImplementedError(error_msg)
 
-
-if __name__ == "__main__":
-    air = PengRobinson(p_c=Quantity(37.858, "bar"), T_c=Quantity(-140.52, "degC"))
-    # TODO: Figure out how, if at all possible, to get mixes of the equations of state models
+# TODO: Figure out how, if at all possible, to get mixes of the equations of state models

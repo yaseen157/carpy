@@ -769,25 +769,5 @@ class DiatomicStructure(Structure):
         # Return the fully instantiated class to the user
         return obj
 
-
-if __name__ == "__main__":
-    methane = Structure.from_condensed_formula("CH4")
-    print(methane, methane.functional_groups)
-    hydrogen = Structure.from_condensed_formula("H2")
-    print(hydrogen, hydrogen.functional_groups)
-    carbonmonoxide = Structure.from_condensed_formula("CO")
-    print(carbonmonoxide, carbonmonoxide.functional_groups)
-
-    n = Atom("N")
-    n.bonds.add_covalent(Atom("N"))
-    n.bonds.add_covalent(Atom("O"))
-    dinitrogenoxide = Structure.from_atoms(atom=n, formula="N2O")
-    print(dinitrogenoxide, dinitrogenoxide.functional_groups)
-
-    print(hydrogen.specific_heat_ratio([0.01, 30, 300, 100000]))
-    # print(hydrogen.theta_rot)
-    # print(hydrogen.theta_vib)
-    # print(hydrogen.theta_diss)
-
-    # TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
-    #   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point
+# TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
+#   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point

@@ -5,19 +5,16 @@ from carpy.chemistry._atom import Atom
 from carpy.chemistry._chemical_structure import Structure
 from carpy.utility import Quantity, constants as co
 
-__all__ = ["ChemicalSpecies", "AtomicSpecies"]
+__all__ = ["ChemicalSpecies", "AtomicSpecies", "ChemicalMixture"]
 __author__ = "Yaseen Reza"
 
 
 class ChemicalSpecies:
     """Unique chemical species."""
 
-    def __init__(self, structures: Structure | tuple[Structure]):
+    def __init__(self, structures: Structure | tuple[Structure, ...]):
         if not isinstance(structures, tuple):
             structures = (structures,)
-
-        assert len(structures) == 1, "Sorry, resonant/hybrid structure chemistry is unsupported at this time"
-
         self._structures = structures
 
     @property
@@ -173,13 +170,3 @@ class ChemicalMixture:
             U += ui * Yi
         ubar = U / 1.0
         return ubar
-
-
-if __name__ == "__main__":
-    argon = AtomicSpecies("Ar")
-    nitrogen = ChemicalSpecies(structures=Structure.from_condensed_formula("N2"))
-    oxygen = ChemicalSpecies(structures=Structure.from_condensed_formula("O2"))
-
-    air = ChemicalMixture()
-    air.X = {nitrogen: 78.084, oxygen: 20.947, argon: 0.934}
-    print(air.Wbar)

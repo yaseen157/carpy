@@ -297,17 +297,17 @@ class WGS84(object):
 # ---------------------------------------------------------------------------- #
 # Constants from ISO 2533 (1975)
 
-class StandardSealevel(object):
+
+class ISO2533:
     """
-    A class organising standards of mean sea level conditions used in the ISO
-    Standard Atmosphere, as it is described in ISO publication 2533:1975 first
-    edition.
+    A class organising standards used in the ISO Standard Atmosphere, as it is
+    described in ISO publication 2533:1975 first edition.
     """
 
     @cached_property
-    def g(self) -> Quantity:
-        """Standard acceleration of free fall at 45deg 32' 33''"""
-        return Quantity(9.80665, "m s^{-2}")
+    def g_n(self) -> Quantity:
+        """Standard acceleration of free fall, conforming with Lambert's function of latitude at 45deg 32' 33"."""
+        return Quantity(9.806_65, "m s^{-2}")
 
     @cached_property
     def M(self) -> Quantity:
@@ -315,37 +315,61 @@ class StandardSealevel(object):
         return Quantity(28.964_420, "kg kmol^{-1}")
 
     @cached_property
-    def p(self) -> Quantity:
+    def N_A(self) -> Quantity:
+        """Avogadro's constant, as adopted in 1961 by IUPAC"""
+        return Quantity(602.257e24, "kmol^{-1}")
+
+    @cached_property
+    def p_n(self) -> Quantity:
         """Standard air pressure"""
         return Quantity(101.325e3, "Pa")
 
     @cached_property
-    def Rs(self) -> Quantity:
+    def Rstar(self) -> Quantity:
+        """Universal gas constant"""
+        return Quantity(8_314.32, "J K^{-1} kmol^{-1}")
+
+    @cached_property
+    def R(self) -> Quantity:
         """Specific gas constant"""
         return Quantity(287.052_87, "J K^{-1} kg^{-1}")
 
     @cached_property
-    def To(self) -> Quantity:
+    def S(self) -> Quantity:
+        """
+        Sutherland empirical coefficient S in equation for dynamic viscosity.
+        """
+        return Quantity(110.4, "K")
+
+    @cached_property
+    def T_o(self) -> Quantity:
         """Thermodynamic ice-point temperature, at mean sea level"""
         return Quantity(273.15, "K")
 
     @cached_property
-    def T(self) -> Quantity:
+    def T_n(self) -> Quantity:
         """Standard thermodynamic air temperature at mean sea level"""
         return Quantity(288.15, "K")
 
     @cached_property
-    def rho(self) -> Quantity:
-        """Standard air density"""
-        return Quantity(1.225, "kg m^{-3}")
+    def beta_S(self) -> Quantity:
+        """
+        Sutherland empirical coefficient beta in equation for dynamic viscosity.
+        """
+        return Quantity(1.458e-6, "kg m^{-1} s^{-1} K^{-0.5}")
 
     @cached_property
-    def gamma(self) -> Quantity:
+    def kappa(self) -> float:
         """
         Adiabatic index, the ratio of specific heat of air at constant pressure
         to its specific heat at constant volume.
         """
-        return Quantity(1.4)
+        return 1.4
+
+    @cached_property
+    def rho_n(self) -> Quantity:
+        """Standard air density"""
+        return Quantity(1.225, "kg m^{-3}")
 
     @cached_property
     def sigma(self) -> Quantity:
@@ -356,56 +380,54 @@ class StandardSealevel(object):
         return Quantity(0.365e-9, "m")
 
     @cached_property
-    def X(self) -> dict:
-        """
-        Dry, clean air composition at sea level.
-
-        Because Ozone (O3), Sulphur dioxide (SO2), Nitrogen dioxide (NO2) and
-        Iodine (I2) quantities can vary from time to time or place to place,
-        their contributions are omitted.
-        """
-        composition = dict([
-            ("N2", 78.084), ("O2", 20.947_6), ("Ar", 0.934), ("CO2", 0.031_4),
-            ("Ne", 1.818e-3), ("He", 524.0e-6), ("Kr", 114.0e-6),
-            ("Xe", 8.7e-6), ("H2", 50.0e-6), ("N2O", 50.0e-6), ("CH4", 0.2e-3)
-        ])
-        return composition
-
-
-class ISO2533(StandardSealevel):
-    """
-    A class organising standards used in the ISO Standard Atmosphere, as it is
-    described in ISO publication 2533:1975 first edition.
-    """
+    def a_n(self) -> Quantity:
+        """Speed of sound at sea level."""
+        return Quantity(340.294, "m s^{-1}")
 
     @cached_property
-    def NA(self) -> Quantity:
-        """Avogardro's constant, as adopted in 1961 by IUPAC"""
-        return Quantity(602.257e24, "kmol^{-1}")
+    def H_pn(self) -> Quantity:
+        """Pressure scale height at sea level."""
+        return Quantity(8_434.5, "m")
 
     @cached_property
-    def R(self) -> Quantity:
-        """Universal gas constant"""
-        return Quantity(8_314.32, "J K^{-1} kmol^{-1}")
+    def l_n(self) -> Quantity:
+        """Mean free path of air particles at sea level."""
+        return Quantity(66.328e-9, "m")
 
     @cached_property
-    def S(self) -> Quantity:
-        """
-        Sutherland empirical coefficient S in equation for dynamic viscosity.
-        """
-        return Quantity(110.4, "K")
+    def n_n(self) -> Quantity:
+        """Air number density at sea level."""
+        return Quantity(25.471e24, "m^{-3}")
 
     @cached_property
-    def betaS(self) -> Quantity:
-        """
-        Sutherland empirical coefficient beta in equation for dynamic viscosity.
-        """
-        return Quantity(1.458e-6, "kg m^{-1} s^{-1} K^{-0.5}")
+    def vbar_n(self) -> Quantity:
+        """Mean air-particle speed at sea level."""
+        return Quantity(458.94, "m s^{-1}")
 
     @cached_property
-    def r(self) -> Quantity:
-        """Nominal Earth's radius"""
-        return Quantity(6_356_766, "m")
+    def gamma_n(self) -> Quantity:
+        """Specific weight at sea level."""
+        return Quantity(12.013, "N m^{-3}")
+
+    @cached_property
+    def nu_n(self) -> Quantity:
+        """Kinematic viscosity at sea level."""
+        return Quantity(14.607e-6, "m^{2} s^{-1}")
+
+    @cached_property
+    def lambda_n(self) -> Quantity:
+        """Thermal conductivity at sea level."""
+        return Quantity(25.343e-3, "W m^{-1} K^{-1}")
+
+    @cached_property
+    def mu_n(self) -> Quantity:
+        """Dynamic viscosity at sea level."""
+        return Quantity(17.894e-6, "Pa s")
+
+    @cached_property
+    def omega_n(self) -> Quantity:
+        """Air-particle collision frequency at sea level."""
+        return Quantity(6.919_3e9, "s^{-1}")
 
 
 # ---------------------------------------------------------------------------- #
@@ -452,7 +474,6 @@ class Standards(object):
     """A class structure for organising constants based on standards"""
     _aa21k = AA21K()
     _iso2553 = ISO2533()
-    _ssl = StandardSealevel()
     _wgs84 = WGS84()
 
     @cached_property
@@ -461,14 +482,9 @@ class Standards(object):
         return self._aa21k
 
     @cached_property
-    def ISO_2533(self) -> ISO2533:
+    def ISO2533(self) -> ISO2533:
         """Conditions of the International Standard Atmosphere per ISO 2553."""
         return self._iso2553
-
-    @cached_property
-    def SL(self) -> StandardSealevel:
-        """Conditions at sea level in the standard atmosphere per ISO 2553."""
-        return self._ssl
 
     @cached_property
     def WGS84(self) -> WGS84:
