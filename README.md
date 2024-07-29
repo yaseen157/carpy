@@ -107,12 +107,12 @@ copy and paste them into a Jupyter notebook
 
 ```python
 """'Hello World' example to introduce users to CARPy atmospheres."""
-from carpy.environment.atmosphere import ISO_2533_1975
+from carpy.environment.atmosphere import ISO_2533_1975 as ISA
 from carpy.utility import Quantity
 
 # Instantiate an atmosphere object:
 # International Standard Atmosphere from ISO 2533:1975
-atm = ISO_2533_1975()
+atm = ISA()
 
 # Query the ambient density in this model at 41,000 feet
 print(f"{atm} density at 41,000 feet:", atm.density(h=Quantity(41_000, "ft")))
