@@ -604,6 +604,9 @@ class Quantity(np.ndarray):
             )
             raise ValueError(errormsg)
 
+        elif np.isnan(power):
+            return np.nan * self.x
+
         value = np.array(super().__pow__(power, modulo))
         units = self.units ** power
         return Quantity(value, units)

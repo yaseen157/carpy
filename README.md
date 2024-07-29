@@ -21,7 +21,7 @@
 <p align="center">Yaseen Reza</p>
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python Version](https://img.shields.io/badge/python-3.9.5-blue.svg)](https://www.python.org/downloads/release/python-395/)
+[![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-395/)
 [![PyPI Version](https://badge.fury.io/py/carpy.svg)](https://badge.fury.io/py/carpy)
 
 CARPy is an open source project for those interested in the methodology and
@@ -52,7 +52,7 @@ get started, follow the instructions below.
 
 ### Installation
 
-`carpy` is written for (and tested in) Python version 3.9.5.
+`carpy` is written for (and tested in) Python version 3.10.
 
 On most systems you should be able to simply open an operating system terminal
 and at the command prompt type
@@ -107,22 +107,22 @@ copy and paste them into a Jupyter notebook
 
 ```python
 """'Hello World' example to introduce users to CARPy atmospheres."""
-from carpy.environment import ISA1975
+from carpy.environment.atmosphere import ISO_2533_1975
 from carpy.utility import Quantity
 
 # Instantiate an atmosphere object:
-# International Standard Atmosphere with a +10C offset
-atm = ISA1975(T_offset=10)
+# International Standard Atmosphere from ISO 2533:1975
+atm = ISO_2533_1975()
 
-# Query the ambient density in this model at 41,000 feet 
+# Query the ambient density in this model at 41,000 feet
 # noinspection PyTypeChecker
 print(f"{atm} density at 41,000 feet:",
-      atm.rho(altitude=Quantity(41_000, "ft")))
+      atm.density(h=Quantity(41_000, "ft")))
 ```
 
 You should see the following output:
 
-    ISA1975(+10°C) density at 41,000 feet: 0.28740209 kg m⁻³
+    ISO 2533:1975 Standard Atmosphere density at 41,000 feet: 0.28740209 kg m⁻³
 
 You can learn more about `CARPy`'s capabilities through the exemplary
 [notebooks](./docs/source/).

@@ -25,7 +25,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric temperature.
+            Ambient temperature.
 
         """
         h = Quantity(h, "m")
@@ -41,7 +41,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric pressure.
+            Ambient pressure.
 
         """
         h = Quantity(h, "m")
@@ -55,7 +55,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric molar volume.
+            Ambient molar volume.
 
         """
         p = self.pressure(h=h)
@@ -73,7 +73,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric density.
+            Ambient density.
 
         """
         h = Quantity(h, "m")
@@ -89,7 +89,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric speed of sound.
+            Ambient speed of sound.
 
         """
         return self._speed_of_sound(h=h)
@@ -104,7 +104,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric dynamic viscosity.
+            Ambient dynamic viscosity.
 
         """
         h = Quantity(h, "m")
@@ -122,7 +122,7 @@ class StaticAtmosphereModel:
             h: Geopotential altitude, in metres.
 
         Returns:
-            Local atmospheric kinematic viscosity.
+            Ambient kinematic viscosity.
 
         """
         h = Quantity(h, "m")

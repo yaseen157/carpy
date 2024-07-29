@@ -298,7 +298,7 @@ class WGS84(object):
 # Constants from ISO 2533 (1975)
 
 
-class ISO2533:
+class ISO_2533_1975:
     """
     A class organising standards used in the ISO Standard Atmosphere, as it is
     described in ISO publication 2533:1975 first edition.
@@ -473,7 +473,7 @@ class AA21K(object):
 class Standards(object):
     """A class structure for organising constants based on standards"""
     _aa21k = AA21K()
-    _iso2553 = ISO2533()
+    _iso_2553_1975 = ISO_2533_1975()
     _wgs84 = WGS84()
 
     @cached_property
@@ -482,9 +482,9 @@ class Standards(object):
         return self._aa21k
 
     @cached_property
-    def ISO2533(self) -> ISO2533:
+    def ISO_2533_1975(self) -> ISO_2533_1975:
         """Conditions of the International Standard Atmosphere per ISO 2553."""
-        return self._iso2553
+        return self._iso_2553_1975
 
     @cached_property
     def WGS84(self) -> WGS84:

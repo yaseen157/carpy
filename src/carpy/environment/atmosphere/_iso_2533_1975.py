@@ -1,13 +1,11 @@
 """Module implementing the ISO 2533-1975 standard atmosphere."""
-import warnings
-
 import numpy as np
 import pandas as pd
 
 from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
 from carpy.utility import Quantity, constants as co
 
-__all__ = ["ISO2533_1975"]
+__all__ = ["ISO_2533_1975"]
 __author__ = "Yaseen Reza"
 
 # def get_air_mix():
@@ -52,14 +50,14 @@ def compute_pressure_bases():
 
         # If temperature lapse rate is zero
         if beta == 0:
-            multiplier = np.exp(-(co.STANDARD.ISO2533.g_n / co.STANDARD.ISO2533.R / (Tb + dT) * dH))
+            multiplier = np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / (Tb + dT) * dH))
             p_b[i + 1] = p_b[i] * multiplier
             continue
 
         # If temperature lapse rate is non-zero
-        multiplier = (1 + dT / Tb) ** -(co.STANDARD.ISO2533.g_n / beta / co.STANDARD.ISO2533.R)
+        multiplier = (1 + dT / Tb) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R)
         if i == 0:
-            p_b[i] = co.STANDARD.ISO2533.p_n / multiplier
+            p_b[i] = co.STANDARD.ISO_2533_1975.p_n / multiplier
         p_b[i + 1] = p_b[i] * multiplier
     return p_b
 
@@ -67,8 +65,16 @@ def compute_pressure_bases():
 p_b = compute_pressure_bases()
 
 
-class ISO2533_1975(StaticAtmosphereModel):
-    """ISO 2533-1975 Standard Atmosphere model."""
+class ISO_2533_1975(StaticAtmosphereModel):
+    """ISO 2533:1975 Standard Atmosphere model."""
+
+    def __init__(self):
+        super().__init__(equation_of_state=None)
+        return
+
+    def __str__(self):
+        rtn_str = f"ISO 2533:1975 Standard Atmosphere"
+        return rtn_str
 
     def _pressure(self, h: Quantity) -> Quantity:
         # Broadcast h into a higher dimension
@@ -87,13 +93,13 @@ class ISO2533_1975(StaticAtmosphereModel):
 
         # Intelligently determine the pressure depending on if the layer had a temperature lapse
         T = self.temperature(h=h)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # We're expecting divide by zero for the exponent with division by beta
-            multiplier: np.ndarray = np.where(
-                beta == 0,
-                np.exp(-(co.STANDARD.ISO2533.g_n / co.STANDARD.ISO2533.R / T * (h - Hb0)).x),  # beta == 0
-                (1 + beta / Tb0 * (h - Hb0)) ** -(co.STANDARD.ISO2533.g_n / beta / co.STANDARD.ISO2533.R).x  # beta != 0
-            )
+        beta[beta == 0] = np.nan  # Save ourselves the embarassment of dividing by zero
+        multiplier: np.ndarray = np.where(
+            np.isnan(beta),
+            np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / T * (h - Hb0)).x),  # beta == 0
+            (1 + beta / Tb0 * (h - Hb0)) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R).x
+            # beta != 0
+        )
         p = p_b[i] * multiplier
         return Quantity(p, "Pa")
 
@@ -103,7 +109,7 @@ class ISO2533_1975(StaticAtmosphereModel):
 
     def _density(self, h: Quantity) -> Quantity:
         Vm = self.molar_volume(h=h)
-        rho = co.STANDARD.ISO2533.M / Vm
+        rho = co.STANDARD.ISO_2533_1975.M / Vm
         return rho
 
     def _number_density(self, h: Quantity) -> Quantity:
@@ -119,7 +125,7 @@ class ISO2533_1975(StaticAtmosphereModel):
         """
         p = self.pressure(h=h)
         T = self.temperature(h=h)
-        n = co.STANDARD.ISO2533.N_A * p / co.STANDARD.ISO2533.Rstar / T
+        n = co.STANDARD.ISO_2533_1975.N_A * p / co.STANDARD.ISO_2533_1975.Rstar / T
         return n
 
     def _mean_particle_speed(self, h: Quantity) -> Quantity:
@@ -138,7 +144,7 @@ class ISO2533_1975(StaticAtmosphereModel):
 
         """
         T = self.temperature(h=h)
-        vbar = (8 / np.pi * co.STANDARD.ISO2533.R * T) ** 0.5
+        vbar = (8 / np.pi * co.STANDARD.ISO_2533_1975.R * T) ** 0.5
         return vbar
 
     def _mean_free_path(self, h: Quantity) -> Quantity:
@@ -156,7 +162,7 @@ class ISO2533_1975(StaticAtmosphereModel):
 
         """
         n = self._number_density(h=h)
-        l = 1 / (2 ** 0.5 * np.pi * co.STANDARD.ISO2533.sigma ** 2 * n)
+        l = 1 / (2 ** 0.5 * np.pi * co.STANDARD.ISO_2533_1975.sigma ** 2 * n)
         return l
 
     def _particle_collision_frequency(self, h: Quantity) -> Quantity:
@@ -180,12 +186,12 @@ class ISO2533_1975(StaticAtmosphereModel):
 
     def _speed_of_sound(self, h: Quantity) -> Quantity:
         T = self.temperature(h=h)
-        a = (co.STANDARD.ISO2533.kappa * co.STANDARD.ISO2533.R * T) ** 0.5
+        a = (co.STANDARD.ISO_2533_1975.kappa * co.STANDARD.ISO_2533_1975.R * T) ** 0.5
         return a
 
     def _dynamic_viscosity(self, h: Quantity) -> Quantity:
         T = self.temperature(h=h)
-        mu = co.STANDARD.ISO2533.beta_S * T ** (3 / 2) / (T + co.STANDARD.ISO2533.S)
+        mu = co.STANDARD.ISO_2533_1975.beta_S * T ** (3 / 2) / (T + co.STANDARD.ISO_2533_1975.S)
         return mu
 
     def _thermal_conductivity(self, h: Quantity) -> Quantity:
