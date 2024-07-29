@@ -115,9 +115,7 @@ from carpy.utility import Quantity
 atm = ISO_2533_1975()
 
 # Query the ambient density in this model at 41,000 feet
-# noinspection PyTypeChecker
-print(f"{atm} density at 41,000 feet:",
-      atm.density(h=Quantity(41_000, "ft")))
+print(f"{atm} density at 41,000 feet:", atm.density(h=Quantity(41_000, "ft")))
 ```
 
 You should see the following output:
