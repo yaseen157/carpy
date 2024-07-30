@@ -38,10 +38,9 @@ TABLES[4] = pd.DataFrame(
 )
 
 
-# Pre-compute pressure layers
 def compute_pressure_bases():
-    p_b = np.zeros(len(TABLES[4]))
-    for i in range(p_b.size - 1):
+    pressure_bases = np.zeros(len(TABLES[4]))
+    for i in range(pressure_bases.size - 1):
 
         Tb = TABLES[4]["T"][i]
         dT = np.diff(TABLES[4]["T"][i:i + 2]).item()
@@ -51,17 +50,18 @@ def compute_pressure_bases():
         # If temperature lapse rate is zero
         if beta == 0:
             multiplier = np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / (Tb + dT) * dH))
-            p_b[i + 1] = p_b[i] * multiplier
+            pressure_bases[i + 1] = pressure_bases[i] * multiplier
             continue
 
         # If temperature lapse rate is non-zero
         multiplier = (1 + dT / Tb) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R)
         if i == 0:
-            p_b[i] = co.STANDARD.ISO_2533_1975.p_n / multiplier
-        p_b[i + 1] = p_b[i] * multiplier
-    return p_b
+            pressure_bases[i] = co.STANDARD.ISO_2533_1975.p_n / multiplier
+        pressure_bases[i + 1] = pressure_bases[i] * multiplier
+    return pressure_bases
 
 
+# Pre-compute pressure layers
 p_b = compute_pressure_bases()
 
 

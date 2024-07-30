@@ -9,7 +9,7 @@ from carpy.utility import Quantity, constants as co
 
 class Atmosphere(unittest.TestCase):
 
-    def test_iso2533_1975(self):
+    def test_iso_2533_1975(self):
         static_model = ISO_2533_1975()
         self.assertAlmostEqual(co.STANDARD.ISO_2533_1975.a_n, static_model.speed_of_sound(h=0), places=4)
         # self.assertAlmostEqual(co.STANDARD.ISO_2533_1975.l_n, static_model._mean_free_path())

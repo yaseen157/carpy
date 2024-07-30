@@ -9,11 +9,19 @@ __author__ = "Yaseen Reza"
 # TODO: Decide whether it makes sense to have "class Climate: def __init__(self, atm: StaticAtmosphereModel, ...)"
 
 class StaticAtmosphereModel:
-    """Base class for all reference/standardised models of atmospheric state variables."""
+    """
+    Base class for all reference/standardised models of atmospheric state variables.
+
+    The World Meteorological Organisation defines a standard atmosphere as "a hypothetical vertical distribution of
+    atmospheric temperature, pressure and density."
+    """
     _gas_model: NonReactiveGasModel
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self._gas_model = NonReactiveGasModel()
+
+    def __call__(self, *args, **kwargs):
+        return type(self)(*args, **kwargs)
 
     def _temperature(self, h: Quantity):
         error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
