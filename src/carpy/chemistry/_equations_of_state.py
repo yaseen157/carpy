@@ -25,12 +25,11 @@ class EquationOfState:
             p_c: Critical pressure of the fluid, in Pascal.
             T_c: Critical temperature of the fluid, in Kelvin.
         """
-        if p_c is not None:
-            self._critical_p = Quantity(p_c, "Pa")
-            assert self._critical_p.size == 1, "Was expecting a scalar quantity!"
-        if T_c is not None:
-            self._critical_T = Quantity(T_c, "K")
-            assert self._critical_T.size == 1, "Was expecting a scalar quantity!"
+        p_c = p_c if p_c is not None else np.nan
+        self._critical_p = Quantity(p_c, "Pa")
+
+        T_c = T_c if T_c is not None else np.nan
+        self._critical_T = Quantity(T_c, "K")
 
     def __repr__(self):
         repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
@@ -38,7 +37,7 @@ class EquationOfState:
 
     @property
     def p_c(self) -> Quantity:
-        """Pressure of substance at the critical point."""
+        """Pressure of substance at the effective critical point."""
         return self._critical_p
 
     @p_c.setter
@@ -47,7 +46,7 @@ class EquationOfState:
 
     @property
     def T_c(self) -> Quantity:
-        """Absolute temperature of substance at the critical point."""
+        """Absolute temperature of substance at the effective critical point."""
         return self._critical_T
 
     @T_c.setter
@@ -56,7 +55,7 @@ class EquationOfState:
 
     @property
     def Vm_c(self) -> Quantity:
-        """Molar volume of substance at the critical point."""
+        """Molar volume of substance at the effective critical point."""
         return self._critical_Vm
 
     @Vm_c.setter
