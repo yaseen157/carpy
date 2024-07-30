@@ -239,6 +239,16 @@ class IdealGas(EquationOfState):
 class VanderWaals(EquationOfState):
     """A class implementing the van der Waals equation of state."""
 
+    def __init__(self, p_c=None, T_c=None, a=None, b=None):
+        if p_c is None and T_c is None:
+            if a is not None and b is not None:
+                T_c = (a / b) / ((27 / 8) * co.PHYSICAL.R)
+                p_c = (1 / 8) * co.PHYSICAL.R * T_c / b
+            elif a or b:
+                error_msg = f"Incomplete specification of 'a' and 'b' for {type(self).__name__} equation of state"
+                raise ValueError(error_msg)
+        super().__init__(p_c, T_c)
+
     @property
     def _critical_Vm(self) -> Quantity:
         Vm_c = self.constants["b"] * 3
@@ -274,8 +284,10 @@ class VanderWaals(EquationOfState):
             # Polynomial ax^3 + bx^2 + cx + d = 0
             a, b, c, d = (1, -(1 / 3 + 8 / 3 * T_r.flat[i] / p_r.flat[i]), 3 / p_r.flat[i], -1 / p_r.flat[i])
             roots = np.roots((a, b, c, d))
-            Vm_r = roots[np.isreal(roots)].real
-            Vm.flat[i] = Vm_r * self.Vm_c
+            roots = roots[np.isreal(roots)].real
+            roots[roots <= 0] = np.nan
+
+            Vm.flat[i] = np.nanmax(roots) * self.Vm_c
 
         return Quantity(Vm, "m^{3} mol^{-1}")
 
@@ -338,7 +350,7 @@ class RedlichKwong(EquationOfState):
 
             # Ignore negative solution, non-physical
             roots = roots.real[~np.iscomplex(roots)]
-            roots[roots < 0] = np.nan
+            roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
             molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
@@ -398,7 +410,7 @@ class SoaveRedlichKwong(RedlichKwong):
 
             # Ignore negative solution, non-physical
             roots = roots.real[~np.iscomplex(roots)]
-            roots[roots < 0] = np.nan
+            roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
             molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
@@ -462,7 +474,7 @@ class PengRobinson(SoaveRedlichKwong):
 
             # Ignore negative solution, non-physical
             roots = roots.real[~np.iscomplex(roots)]
-            roots[roots < 0] = np.nan
+            roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
             molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
@@ -506,5 +518,3 @@ class ElliotSureshDonohue(EquationOfState):
         # Y = np.exp(epsilon / k /T) - self._k2
         error_msg = f"The {type(self).__name__} equation of state model is unavailable at this time"
         raise NotImplementedError(error_msg)
-
-# TODO: Figure out how, if at all possible, to get mixes of the equations of state models

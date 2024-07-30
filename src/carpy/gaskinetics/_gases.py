@@ -520,11 +520,3 @@ class NonReactiveGasModel(GasModel):
             U += ui * Yi
         ubar = U / 1.0
         return ubar
-
-
-if __name__ == "__main__":
-    from carpy.chemistry import species
-
-    mygas = NonReactiveGasModel()
-    mygas.X = {PureGasModel(chemical_species=species.oxygen): 20.9, PureGasModel(chemical_species=species.nitrogen): 79}
-    print(mygas.Y)
