@@ -1,5 +1,5 @@
 """Module implementing the basis class for atmospheric modelling."""
-from carpy.chemistry import EquationOfState, IdealGas
+from carpy.gaskinetics import NonReactiveGasModel
 from carpy.utility import Quantity
 
 __all__ = ["StaticAtmosphereModel"]
@@ -10,10 +10,10 @@ __author__ = "Yaseen Reza"
 
 class StaticAtmosphereModel:
     """Base class for all reference/standardised models of atmospheric state variables."""
+    _gas_model: NonReactiveGasModel
 
-    def __init__(self, equation_of_state: EquationOfState = None):
-        self._equation_of_state = IdealGas() if equation_of_state is None else equation_of_state
-        return
+    def __init__(self):
+        self._gas_model = NonReactiveGasModel()
 
     def _temperature(self, h: Quantity):
         error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
@@ -60,12 +60,13 @@ class StaticAtmosphereModel:
         """
         p = self.pressure(h=h)
         T = self.temperature(h=h)
-        Vm = self._equation_of_state.molar_volume(p=p, T=T)
+        Vm = self._gas_model.molar_volume(p=p, T=T)
         return Vm
 
-    def _density(self, h: Quantity):
-        error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
-        raise NotImplementedError(error_msg)
+    def _density(self, h: Quantity) -> Quantity:
+        Vm = self.molar_volume(h=h)
+        rho = self._gas_model.molar_mass / Vm
+        return rho
 
     def density(self, h) -> Quantity:
         """
@@ -80,8 +81,10 @@ class StaticAtmosphereModel:
         return self._density(h=h)
 
     def _speed_of_sound(self, h: Quantity):
-        error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
-        raise NotImplementedError(error_msg)
+        p = self.pressure(h=h)
+        T = self.temperature(h=h)
+        a = self._gas_model.speed_of_sound(p=p, T=T)
+        return a
 
     def speed_of_sound(self, h) -> Quantity:
         """

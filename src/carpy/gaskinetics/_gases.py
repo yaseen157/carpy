@@ -4,7 +4,7 @@ import numpy as np
 from carpy.chemistry import ChemicalSpecies, EquationOfState, IdealGas
 from carpy.utility import Quantity, constants as co
 
-__all__ = ["PureGasModel", "NonReactiveGasModel"]
+__all__ = ["GasModel", "PureGasModel", "NonReactiveGasModel"]
 __author__ = "Yaseen Reza"
 
 
@@ -41,7 +41,7 @@ class GasModel:
             Fluid pressure.
 
         """
-        return self._equation_of_state.pressure(T, Vm)
+        return self.equation_of_state.pressure(T, Vm)
 
     def temperature(self, p, Vm) -> Quantity:
         """
@@ -53,7 +53,7 @@ class GasModel:
             Absolute fluid temperature.
 
         """
-        return self._equation_of_state.temperature(p, Vm)
+        return self.equation_of_state.temperature(p, Vm)
 
     def molar_volume(self, p, T) -> Quantity:
         """
@@ -65,7 +65,7 @@ class GasModel:
             Molar volume.
 
         """
-        return self._equation_of_state.molar_volume(p, T)
+        return self.equation_of_state.molar_volume(p, T)
 
     def compressibility_coefficient_S(self, p, T) -> Quantity:
         """
@@ -92,7 +92,7 @@ class GasModel:
             Isothermal coefficient of compressibility.
 
         """
-        return self._equation_of_state.compressibility_coefficient_T(p=p, T=T)
+        return self.equation_of_state.compressibility_coefficient_T(p=p, T=T)
 
     def compressibility_factor(self, p, T) -> float:
         """
@@ -104,7 +104,7 @@ class GasModel:
             Gas compressibility factor.
 
         """
-        return self._equation_of_state.compressibility_factor(p=p, T=T)
+        return self.equation_of_state.compressibility_factor(p=p, T=T)
 
     def specific_heat_P(self, p, T) -> Quantity:
         """
@@ -133,7 +133,7 @@ class GasModel:
         du_p = np.diff(self.specific_internal_energy(p=p, T=Ts), axis=0)
         dudT_p = (du_p / dT).squeeze()  # Squeeze back down to the original dimension of T
 
-        dVm_p = np.diff(self._equation_of_state.molar_volume(p=p, T=Ts), axis=0)
+        dVm_p = np.diff(self.equation_of_state.molar_volume(p=p, T=Ts), axis=0)
         dnu_p = dVm_p / self.molar_mass
         dnudT_p = (dnu_p / dT).squeeze()  # Squeeze back down to the original dimension of T
 
@@ -214,7 +214,7 @@ class GasModel:
             Isobaric (volumetric) thermal expansion coefficient.
 
         """
-        return self._equation_of_state.thermal_expansion_coefficient_p(p=p, T=T)
+        return self.equation_of_state.thermal_expansion_coefficient_p(p=p, T=T)
 
 
 class PureGasModel(GasModel):
@@ -240,10 +240,10 @@ class PureGasModel(GasModel):
         return co.PHYSICAL.R / self.molar_mass
 
     def _specific_heat_V(self, p, T) -> Quantity:
-        return self._species.specific_heat_V(p=p, T=T)
+        return self.chemical_species.specific_heat_V(p=p, T=T)
 
     def _specific_internal_energy(self, p, T) -> Quantity:
-        return self._species.specific_internal_energy(p=p, T=T)
+        return self.chemical_species.specific_internal_energy(p=p, T=T)
 
     def pressure(self, T, Vm) -> Quantity:
         """
@@ -255,7 +255,7 @@ class PureGasModel(GasModel):
             Fluid pressure.
 
         """
-        return self._equation_of_state.pressure(T, Vm)
+        return self.equation_of_state.pressure(T, Vm)
 
     def temperature(self, p, Vm) -> Quantity:
         """
@@ -267,7 +267,7 @@ class PureGasModel(GasModel):
             Absolute fluid temperature.
 
         """
-        return self._equation_of_state.temperature(p, Vm)
+        return self.equation_of_state.temperature(p, Vm)
 
     def molar_volume(self, p, T) -> Quantity:
         """
@@ -279,7 +279,7 @@ class PureGasModel(GasModel):
             Molar volume.
 
         """
-        return self._equation_of_state.molar_volume(p, T)
+        return self.equation_of_state.molar_volume(p, T)
 
     def compressibility_coefficient_S(self, p, T) -> Quantity:
         """
@@ -306,7 +306,7 @@ class PureGasModel(GasModel):
             Isothermal coefficient of compressibility.
 
         """
-        return self._equation_of_state.compressibility_coefficient_T(p=p, T=T)
+        return self.equation_of_state.compressibility_coefficient_T(p=p, T=T)
 
     def compressibility_factor(self, p, T) -> float:
         """
@@ -318,7 +318,7 @@ class PureGasModel(GasModel):
             Gas compressibility factor.
 
         """
-        return self._equation_of_state.compressibility_factor(p=p, T=T)
+        return self.equation_of_state.compressibility_factor(p=p, T=T)
 
     def specific_heat_P(self, p, T) -> Quantity:
         """
@@ -347,7 +347,7 @@ class PureGasModel(GasModel):
         du_p = np.diff(self._species.specific_internal_energy(p=p, T=Ts), axis=0)
         dudT_p = (du_p / dT).squeeze()  # Squeeze back down to the original dimension of T
 
-        dVm_p = np.diff(self._equation_of_state.molar_volume(p=p, T=Ts), axis=0)
+        dVm_p = np.diff(self.equation_of_state.molar_volume(p=p, T=Ts), axis=0)
         dnu_p = dVm_p / self._species.molar_mass
         dnudT_p = (dnu_p / dT).squeeze()  # Squeeze back down to the original dimension of T
 
@@ -365,7 +365,7 @@ class PureGasModel(GasModel):
             Isochoric specific heat capacity.
 
         """
-        return self._species.specific_heat_V(p=p, T=T)
+        return self.chemical_species.specific_heat_V(p=p, T=T)
 
     def specific_heat_ratio(self, p, T) -> float:
         """
@@ -393,7 +393,7 @@ class PureGasModel(GasModel):
 
         """
         Vm = self.molar_volume(p=p, T=T)
-        nu = Vm / self._species.molar_mass
+        nu = Vm / self.chemical_species.molar_mass
         return nu
 
     def thermal_expansion_coefficient_p(self, p, T) -> Quantity:
@@ -406,15 +406,12 @@ class PureGasModel(GasModel):
             Isobaric (volumetric) thermal expansion coefficient.
 
         """
-        return self._equation_of_state.thermal_expansion_coefficient_p(p=p, T=T)
+        return self.equation_of_state.thermal_expansion_coefficient_p(p=p, T=T)
 
 
 class NonReactiveGasModel(GasModel):
     _equation_of_state: EquationOfState
     _X: dict[PureGasModel, float]
-
-    def __init__(self):
-        return
 
     @property
     def X(self) -> dict[PureGasModel, float]:
@@ -425,8 +422,11 @@ class NonReactiveGasModel(GasModel):
     def X(self, value: dict[PureGasModel, float] | PureGasModel):
         molar_composition = dict([(value, 1.0)]) if isinstance(value, PureGasModel) else value
 
+        assert isinstance(value, dict), f"Expected a {PureGasModel.__name__} object or a dictionary of such objects"
+        assert set(map(type, molar_composition.keys())) == {PureGasModel}, f"Check for inappropriate keys in {value}"
+
         # Verify the equation of states are compatible before proceeding
-        eos_classes = {type(gas.equation_of_state) for gas in molar_composition}
+        eos_classes = {type(gas.equation_of_state) for gas in molar_composition.keys()}
         error_msg = \
             f"{type(self).__name__} composition must have only one type of equation of state (got: {eos_classes})"
         assert len(eos_classes) == 1, error_msg
@@ -480,7 +480,7 @@ class NonReactiveGasModel(GasModel):
             Rbar += co.PHYSICAL.R / species_i.molar_mass * Y_i
         return Rbar
 
-    def _specific_heat_V(self, p, T):
+    def _specific_heat_P(self, p, T):
         raise NotImplementedError
 
     def _specific_internal_energy(self, p, T):
@@ -513,6 +513,7 @@ class NonReactiveGasModel(GasModel):
 
         Returns:
             Specific internal energy.
+
         """
         U = Quantity(0, "J kg^{-1}")
         for (species, Yi) in self.Y.items():
@@ -520,3 +521,20 @@ class NonReactiveGasModel(GasModel):
             U += ui * Yi
         ubar = U / 1.0
         return ubar
+
+    def speed_of_sound(self, p, T) -> Quantity:
+        """
+        Speed of sound in the gas.
+
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Local speed of sound.
+
+        """
+        gamma = self.specific_heat_ratio(p=p, T=T)
+        R = self.specific_gas_constant
+        a = (gamma * R * T) ** 0.5
+        return a

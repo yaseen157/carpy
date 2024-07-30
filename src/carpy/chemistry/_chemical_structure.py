@@ -1,5 +1,6 @@
 """Module enabling the structuring of atoms and subsequent determination of the chemical attributes of these 'forms'."""
 from __future__ import annotations
+from functools import cached_property
 import re
 import warnings
 
@@ -112,7 +113,7 @@ class KineticMethods:
         relative_molecular_mass = Quantity(self.molecular_mass.to("Da"), "g mol^{-1}")
         return relative_molecular_mass
 
-    @property
+    @cached_property
     def theta_rot(self) -> Quantity:
         """
         Characteristic rotational temperature.
@@ -124,18 +125,14 @@ class KineticMethods:
 
         """
         # Characteristic rotational temperature
-        I = np.diagonal(self._inertia_tensor())
-
-        # The inertia tensor may have a zero-inertia term in an unexpected axis because we aren't trying to locate the
-        # principle axes in the method yet. Fix that here (so the highest index term becomes zero if applicable)
-        I = np.sort(I)[::-1]
+        I = np.diagonal(self.inertia_tensor)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # Expect a divide by zero error if inertia tensor has zeros on diagonal
             theta_rot = co.PHYSICAL.hbar ** 2 / (2 * I * co.PHYSICAL.k_B)
         return theta_rot
 
-    @property
+    @cached_property
     def theta_vib(self) -> dict[CovalentBond, Quantity]:
         """
         Characteristic vibrational temperature.
@@ -152,7 +149,7 @@ class KineticMethods:
             theta_vib[bond] = co.PHYSICAL.h * nu / co.PHYSICAL.k_B
         return theta_vib
 
-    @property
+    @cached_property
     def theta_diss(self) -> Quantity:
         """
         Characteristic dissociation temperature.
@@ -274,7 +271,8 @@ class KineticMethods:
 
         return cv
 
-    def _inertia_tensor(self):
+    @cached_property
+    def inertia_tensor(self):
         atom_mass = np.zeros(len(self.atoms))
         atom_xyz = np.zeros((len(self.atoms), 3))
 
@@ -342,40 +340,16 @@ class KineticMethods:
              [Izx, Izy, Izz]]
         )
 
-        # TODO: For a molecule with non-zero products of inertia, determine the principle axis orientation that allow us
-        #  to zero the inertia tensor off-diagonals
-        # I11, I12, I13 = sp.symbols("I11, I12, I13")
-        # I21, I22, I23 = sp.symbols("I21, I22, I23")
-        # I31, I32, I33 = sp.symbols("I31, I32, I33")
-        # lamda = sp.symbols("lamda")
-        #
-        # det_func = (
-        #         (I11 - lamda) * ((I22 - lamda) * (I33 - lamda) - I23 * I32)
-        #         - I12 * (I21 * (I33 - lamda) - I23 * I31)
-        #         + I13 * (I21 * I32 - I31 * (I22 - lamda))
-        # ).subs({
-        #     I11: Ixx, I12: Ixy, I13: Ixz,
-        #     I21: Iyx, I22: Iyy, I23: Iyz,
-        #     I31: Izx, I32: Izy, I33: Izz,
-        # })
-        # eqn = sp.Eq(det_func, 0)
-        # solns = sp.solve(eqn, lamda)
-        #
-        # for soln in solns:
-        #     lamda_soln = complex(soln).real  # simply discard the imaginary part???
-        #
-        #     A = inertia_tensor - np.identity(3) * lamda_soln
-        #     b = np.zeros(3)
-        #     omega = np.linalg.solve(A, b)
-        #     print(omega)
+        # Diagonalise the inertia tensor, i.e. get inertia for the principle axes
+        # Solve for eigenvalues (and eigenvectors)
+        evalues, _ = np.linalg.eig(inertia_tensor)
 
-        # Assert symmetry in the inertia tensor
-        for i in range(3):
-            for j in range(3):
-                if i == j:
-                    continue
-                assert inertia_tensor[i][j] == 0, "non-zero term in product of inertia - molecule is not symmetrical"
+        # If molecule has a non-zero inertia tensor, check to see if we need to roll the array till Izz == 0
+        while np.any(evalues != 0) and np.any(evalues[0:2] == 0):
+            evalues = np.roll(evalues, shift=1)
 
+        # Construct and return inertia tensor from identity matrix
+        inertia_tensor = np.sort(evalues)[::-1] * np.identity(3)
         return Quantity(inertia_tensor, "kg m^{2}")
 
 

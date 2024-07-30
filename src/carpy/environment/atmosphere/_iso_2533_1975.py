@@ -2,34 +2,34 @@
 import numpy as np
 import pandas as pd
 
+from carpy.chemistry import species
+from carpy.gaskinetics import PureGasModel
 from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
 from carpy.utility import Quantity, constants as co
 
 __all__ = ["ISO_2533_1975"]
 __author__ = "Yaseen Reza"
 
-# def get_air_mix():
-#     """
-#     Dry, clean air composition at sea level.
-#
-#     Because Ozone (O3), Sulphur dioxide (SO2), Nitrogen dioxide (NO2) and
-#     Iodine (I2) quantities can vary from time to time or place to place,
-#     their contributions are omitted.
-#     """
-#     from carpy.chemistry import species, ChemicalMixture
-#     composition = dict([
-#         (species.nitrogen, 78.084), (species.oxygen, 20.947_6), (species.argon, 0.934),
-#         (species.carbon_dioxide, 0.031_4),
-#         (species.neon, 1.818e-3), (species.helium, 524.0e-6), (species.krypton, 114.0e-6),
-#         (species.xenon, 8.7e-6), (species.hydrogen, 50.0e-6), (species.dinitrogen_oxide, 50.0e-6),
-#         (species.methane, 0.2e-3)
-#     ])
-#     chemical_mixture = ChemicalMixture()
-#     chemical_mixture.X = composition
-#     return chemical_mixture
+# Dry, clean air composition at sea level.
 
+# Because Ozone (O3), Sulphur dioxide (SO2), Nitrogen dioxide (NO2) and
+# Iodine (I2) quantities can vary from time to time or place to place,
+# their contributions are omitted.
+air_composition = dict([
+    (species.nitrogen, 78.084), (species.oxygen, 20.947_6), (species.argon, 0.934), (species.carbon_dioxide, 0.031_4),
+    (species.neon, 1.818e-3), (species.helium, 524.0e-6), (species.krypton, 114.0e-6), (species.xenon, 8.7e-6),
+    (species.hydrogen, 50.0e-6), (species.dinitrogen_oxide, 50.0e-6), (species.methane, 0.2e-3)
+])
 
 TABLES = dict()
+
+TABLES[2] = pd.DataFrame(
+    data={
+        "species": air_composition.keys(),
+        "content": air_composition.values()
+    }
+)
+
 TABLES[4] = pd.DataFrame(
     data={
         "H": Quantity([-2, 0, 11, 20, 32, 47, 51, 71, 80], "km"),
@@ -69,7 +69,13 @@ class ISO_2533_1975(StaticAtmosphereModel):
     """ISO 2533:1975 Standard Atmosphere model."""
 
     def __init__(self):
-        super().__init__(equation_of_state=None)
+        super().__init__()
+
+        # Define constituent gas composition
+        self._gas_model.X = {
+            PureGasModel(chemical_species=chemical_species): content_fraction
+            for (chemical_species, content_fraction) in dict(TABLES[2].to_records(index=False)).items()
+        }
         return
 
     def __str__(self):
@@ -93,7 +99,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
 
         # Intelligently determine the pressure depending on if the layer had a temperature lapse
         T = self.temperature(h=h)
-        beta[beta == 0] = np.nan  # Save ourselves the embarassment of dividing by zero
+        beta[beta == 0] = np.nan  # Save ourselves the embarrassment of dividing by zero
         multiplier: np.ndarray = np.where(
             np.isnan(beta),
             np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / T * (h - Hb0)).x),  # beta == 0
