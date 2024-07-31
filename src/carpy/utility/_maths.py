@@ -1,180 +1,131 @@
 """A module of maths utilities."""
+import typing
+
 import numpy as np
 
 from carpy.utility._miscellaneous import Hint, cast2numpy
 
-__all__ = ["interp_lin", "interp_exp", "moving_average", "point_diff",
-           "point_curvature"]
+__all__ = ["gradient1d"]
 __author__ = "Yaseen Reza"
 
 
-def interp_lin(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
-               bounded: bool = True) -> Hint.nums:
+def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) -> tuple:
     """
-    A linear interpolation function offering unbounded extrapolation.
+    Returns numerical approximations of 'y' and 'd(y)/dx' given the function 'y=f(x)'.
 
     Args:
-        x: The values which should be fed to the interpolation function.
-        xp: Sorted list of x-values to draw interpolated input from.
-        fp: List of return values to draw interpolated outputs from.
-            bounded: Boolean, selects whether output is bounded by 'fp' values.
-        bounded: If true, limit output by fp limits. Otherwise, extrapolate.
+        func_or_y: Either a callable function with the signature y = f(x[, *args][, **kwargs]), or an array of y values
+            with a shape of at least (2,).
+        x: The value(s) at which the gradient should be computed. If the func_or_y argument is a function, x may take
+            any shape. On the other hand, if func_or_y is an array of values the shape of x must match that of y.
+        args: A tuple of positional arguments to forward to your function (as per the given signature). Optional.
+        kwargs: A dictionary of extra arguments to forward to your function (as per the given signature). Optional.
+        eps: Controls the relative stepsize dx when a function is passed to func_or_y. Optional, defaults to 1e-6.
 
     Returns:
-        np.ndarray: The linearly-interpolated values.
+        A tuple of 'y' and 'd(y)/dx'.
+
+    Notes:
+        If a function is passed to func_or_y, the values of y returned are only approximated (to save compute). If the
+            accuracy of y matters in your use case, compute y beforehand and pass the result in as the first argument.
+            By definition, d(y)/dx is numerically approximate.
 
     """
+    if args is not None:
+        assert isinstance(args, tuple), f"Expected 'args' to be of type tuple (got {type(args)})"
+    if kwargs is not None:
+        assert isinstance(kwargs, dict), f"Expected 'kwargs' to be of type dict (got {type(kwargs)})"
+
     # Recast as necessary
     x = cast2numpy(x)
-    xp = cast2numpy(xp)
-    fp = cast2numpy(fp)
 
-    # Prepare differentials between each point
-    dfp = np.diff(fp)
-    dxp = np.diff(xp)
+    if callable(func_or_y):
 
-    out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
+        # STEP 1: Recast x with x-eps/2 and x+eps/2 to obtain xs
+        eps = 1e-6 if eps is None else eps
+        delta_rel = 1 + eps * np.array([-0.5, 0.5])
+        x_broadcasted = np.broadcast_to(x, (*delta_rel.shape, *x.shape))
+        delta_rel = np.expand_dims(delta_rel, tuple(range(x_broadcasted.ndim - 1))).T
+        x_plusminus_dx = x * delta_rel
+        y_plusminus_dy = np.zeros(x_plusminus_dx.shape)
 
-    for i in range(len(dfp)):
-        myslice = (xp[i] <= x) & (x <= xp[i + 1])
-        out[myslice] = (x[myslice] - xp[i]) * (dfp[i] / dxp[i]) + fp[i]
+        # STEP 2: Compute y
+        if args and kwargs:
+            def wrapped_func(xi):
+                return func_or_y(xi, *args, **kwargs)
+        elif args:
+            def wrapped_func(xi):
+                return func_or_y(xi, *args)
+        elif kwargs:
+            def wrapped_func(xi):
+                return func_or_y(xi, **kwargs)
+        else:
+            def wrapped_func(xi):
+                return func_or_y(xi)
 
-    sliceL, sliceR = x < xp[0], x > xp[-1]
-    if bounded is True:
-        out[sliceL] = fp[0]
-        out[sliceR] = fp[-1]
+        # noinspection PyBroadException
+        try:
+            # Try, check that the passed function supports array arguments
+            y_plusminus_dy = wrapped_func(xi=x_plusminus_dx)
+        except Exception as _:
+            # Except any, compute elements one by one
+            for i in range(x_plusminus_dx.size):
+                y_plusminus_dy.flat[i] = wrapped_func(xi=x.flat[i])
+        finally:
+            # Take an average of the function we ran instead of running function for a 3rd time
+            y = np.mean(y_plusminus_dy, axis=0)
+
+        # STEP 3: Numerical differentiation
+        dy = np.diff(y_plusminus_dy, axis=0)
+        dx = np.diff(x_plusminus_dx, axis=0)
+        gradient = (dy / dx).squeeze()  # Squeeze out the dimension we added
+
+    elif args or kwargs:
+        error_msg = (
+            f"{gradient1d.__name__} was given args/kwargs to pass to 'func_or_y', but "
+            f"{type(func_or_y).__name__} object is not callable"
+        )
+        raise ValueError(error_msg)
+
     else:
-        out[sliceL] = (x[sliceL] - xp[0]) * (dfp / dxp)[0] + fp[0]
-        out[sliceR] = (x[sliceR] - xp[-1]) * (dfp / dxp)[-1] + fp[-1]
+        y = cast2numpy(func_or_y)
+        assert x.shape[0] >= 2, f"Shape of 'x' needs to be at least two in the first dimension (got dims {x.shape})"
+        assert x.shape == y.shape, f"'x' and 'y' do not have the same shape ({x.shape} != {y.shape})"
 
-    return out
+        # Zero-order estimate of the gradient (completely useless)
+        gradient = np.zeros(y.shape)
 
+        # First-order linear correction terms
+        dy = np.diff(y)
+        dx = np.diff(x)
+        m1 = dy / dx  # The slope at points half-way between elements of the x and y arrays (the 'mi' slopes are exact!)
 
-def interp_exp(x: Hint.nums, xp: Hint.nums, fp: Hint.nums,
-               bounded: bool = True) -> Hint.nums:
-    """
-    A linear interpolation function offering unbounded extrapolation.
+        # Second-order quadratic correction terms
+        if dy.shape[0] >= 2:
+            d2y = np.diff(m1)
+            dx2 = np.diff(x[:-1] + 0.5 * dx)
+            m2 = d2y / dx2  # These second order derivatives are located at x[1:-1] (again, this is exact for the array)
+        else:
+            # The rate of change of dy/dx cannot be determined, assumed zero
+            dx2 = m2 = np.zeros((x.shape[0] - 1, *x.shape[1:]))
 
-    Args:
-        x: The values which should be fed to the interpolation function.
-        xp: Sorted list of x-values to draw interpolated input from.
-        fp: List of return values to draw interpolated outputs from.
-            bounded: Boolean, selects whether output is bounded by 'fp' values.
-        bounded: If true, limit output by fp limits. Otherwise, extrapolate.
+        # Third-order cubic correction terms
+        if dy.shape[0] >= 3:
+            d3y = np.diff(m2)
+            dx3 = np.diff(x[1:-1])
+            m3 = d3y / dx3  # Third order derivatives located in the same place first order ones are (and are exact)
+        else:
+            # The rate of change of d2y/dx2 cannot be determined, assumed zero
+            dx3 = m3 = np.zeros((x.shape[0] - 2, *x.shape[1:]))
 
-    Returns:
-        np.ndarray: The exponentially-interpolated values.
+        # Interpolate the missing dy/dx gradients
+        gradient[:-3] = (
+                m1[:-2] - (dx2[:-1] * 1 / 2) * (
+                m2[:-1] - (dx3 * 2 / 3) * m3
+        ))
+        gradient[-3:] = (
+                m1[-3:] + (dx2[-3:] * 1 / 2) * (
+                m2[-3:] + (dx3[-3:] * 2 / 3) * m3[-3:]
+        ))
 
-    """
-    # Recast as necessary
-    x = cast2numpy(x)
-    xp = cast2numpy(xp)
-    fp = cast2numpy(fp)
-
-    # Prepare differentials between each point
-    log_dfp = np.log(fp[1:] / fp[:-1])
-    lin_dxp = xp[1:] - xp[:-1]
-    b = log_dfp / lin_dxp
-    a = fp[:-1] / np.exp(b * xp[:-1])
-
-    out = np.zeros_like(fp, shape=x.shape)  # Shape of x, object style of fp
-
-    for i in range(len(log_dfp)):
-        myslice = (xp[i] <= x) & (x <= xp[i + 1])
-        out[myslice] = a[i] * np.exp(b[i] * x[myslice])
-
-    sliceL, sliceR = x < xp[0], x > xp[-1]
-    if bounded is True:
-        out[sliceL] = fp[0]
-        out[sliceR] = fp[-1]
-    else:
-        out[sliceL] = a[0] * np.exp(b[0] * x[sliceL])
-        out[sliceR] = a[-1] * np.exp(b[-1] * x[sliceR])
-
-    return out
-
-
-def moving_average(x: Hint.nums, w: int = None) -> np.ndarray:
-    """
-    Compute the moving average of an array.
-
-    Args:
-        x: 1D array which should have the moving average applied.
-        w: The size of the moving average window. Optional, defaults to 2.
-
-    Returns:
-        An array of size n-(w-1) (when given an input array x of size n) and a
-            moving average window size of w.
-
-    """
-    # Recast as necessary
-    x = cast2numpy(x)
-    w = 2 if w is None else int(2)
-
-    # https://stackoverflow.com/questions/14313510/how-to-calculate-rolling-moving-average-using-python-numpy-scipy
-    return np.convolve(x, np.ones(w), 'valid') / w
-
-
-def point_diff(y: Hint.num, x: Hint.num = None) -> np.ndarray:
-    """
-    Given coordinate arrays describing discrete points, find the gradient at
-    (and not between!) the points.
-
-    Args:
-        y: Y-values of the discrete points.
-        x: X-values of the discrete points. Optional, assumes the form of
-            range(len(y)) if not specified.
-
-    Returns:
-        The averaged differentials of the array, mapped back to the same shape
-            and same x-ordinates of the original input arrays.
-
-    """
-    # Recast as necessary
-    y = cast2numpy(y)
-    x = np.arange(len(y)) if x is None else cast2numpy(x)
-
-    assert x.shape == y.shape, "Expected homogeneity of array shapes"
-    assert x.ndim == y.ndim == 1, f"Unsupported array dimensions, check for 1D"
-
-    # Differentiation to give the gradients between points described in arrays
-    dydx_mid = np.diff(y) / np.diff(x)
-
-    # Gradient at the points is described by averaging the prior result
-    dydx_pts = np.zeros(x.shape)
-    # dydx_pts[0], dydx_pts[-1] = dydx_mid[0], dydx_mid[-1]  # copy ends
-    dydx_pts[1:-1] = moving_average(dydx_mid, 2)
-    dydx_pts[0], dydx_pts[-1] = dydx_pts[1], dydx_pts[-2]  # copy ends
-
-    return dydx_pts
-
-
-def point_curvature(x: Hint.num, y: Hint.num) -> np.ndarray:
-    """
-    Given arrays describing points in 2D, determine the signed curvature at each
-    point.
-
-    Args:
-        x: 1D array of coordinates, the abscissa; x-coordinate.
-        y: 1D array of coordinates, the ordinates; y-coordinate.
-
-    Returns:
-        An array describing the signed curvature at each point.
-
-    """
-    # Recast as array
-    x = cast2numpy(x)
-    y = cast2numpy(y)
-
-    # Requisite differentations
-    xprime = point_diff(x)
-    xpprime = point_diff(xprime)
-    yprime = point_diff(y)
-    ypprime = point_diff(yprime)
-
-    # Compute
-    numerator = xprime * ypprime - yprime * xpprime
-    denominator = (xprime ** 2 + yprime ** 2) ** (3 / 2)
-    signed_curvature = numerator / denominator
-
-    return signed_curvature
+    return y, gradient

@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from carpy.utility import interp_lin, interp_exp
+from carpy.utility import gradient1d
 from carpy.utility import PathAnchor, Hint, cast2numpy
 from carpy.utility import Quantity
 from carpy.utility import Unicodify
@@ -12,47 +12,30 @@ from carpy.utility import Unicodify
 class Maths(unittest.TestCase):
     """Tests for maths utilities."""
 
-    def test_interp_lin_float(self):
-        """Check the linear interpolator can handle a single scalar."""
-        interp = interp_lin(0.2, [0, 1], [0, 100])
-        self.assertEqual(20, interp, "Failed to interpolate scalar input")
-        return
+    def test_differentiate_scalar(self):
+        # Numerical differentiation of an array
+        x1 = np.linspace(-50, 50)
+        y1 = x1 ** 3 + 3 * x1 - 4
+        dydx_gold = 3 * x1 ** 2 + 3
+        y_out, dydx_test = gradient1d(y1, x1, eps=1e-6)
+        self.assertTrue(np.all(y1 == y_out))  # y_out is simply y1 that was passed in
+        self.assertTrue(np.allclose(dydx_gold, dydx_test, rtol=1e-9))
 
-    def test_interp_lin_array(self):
-        """Check the linear interpolator can handle a vector array."""
-        interp = interp_lin([0.2, 0.3], [0, 1], [0, 100])
-        self.assertTrue(all(np.array([20, 30]) == interp))
-        return
+        # Numerical differentiation of a function
+        f1 = lambda x: x ** 3 + 3 * x - 4
+        y_out, dydx_test = gradient1d(f1, x1, eps=1e-6)
+        self.assertTrue(np.allclose(y1, y_out))  # y_out is an approximation of y1
+        self.assertTrue(np.allclose(dydx_gold, dydx_test, rtol=1e-9))
 
-    def test_interp_lin_quantity(self):
-        """Check the linear interpolator can handle quantities."""
-        interp = interp_lin([0.2, 0.3], [0, 1], Quantity([0, 100], "kg"))
-        # Check value
-        self.assertTrue(all(Quantity([20, 30], "kg") == interp))
-        # Check type
-        self.assertIsInstance(interp, Quantity)
-        return
+        # Partial derivative of a function, using args
+        f1 = lambda x, a: x ** 3 + 3 * x - a
+        y_out, dydx_test = gradient1d(f1, x1, eps=1e-6, args=(4,))
+        self.assertTrue(np.allclose(dydx_gold, dydx_test, rtol=1e-9))
 
-    def test_interp_exp_float(self):
-        """Check the exponential interpolator can handle a single scalar."""
-        interp = interp_exp(0.5, [0, 1], np.exp([0, 1]))
-        self.assertTrue(np.isclose(np.exp(0.5), interp, atol=1e-5))
-        return
+        # Partial derivative of a function, using kwargs
+        y_out, dydx_test = gradient1d(f1, x1, eps=1e-6, kwargs={"a": 4})
+        self.assertTrue(np.allclose(dydx_gold, dydx_test, rtol=1e-9))
 
-    def test_interp_exp_array(self):
-        """Check that the exponential interpolator can handle a vector array."""
-        interp = interp_exp([0.5, 0.75], [0, 1], np.exp([0, 1]))
-        self.assertTrue(all(np.isclose(np.exp([0.5, 0.75]), interp, atol=1e-5)))
-        return
-
-    def test_interp_exp_quantity(self):
-        """Check that the exponential interpolator can handle quantities."""
-        interp = interp_exp([0.5, 0.75], [0, 1], Quantity(np.exp([0, 1]), "kg"))
-        # Check value
-        self.assertTrue(
-            all(np.isclose(np.exp([0.5, 0.75]), np.array(interp), atol=1e-5)))
-        # Check type
-        self.assertIsInstance(interp, Quantity)
         return
 
 

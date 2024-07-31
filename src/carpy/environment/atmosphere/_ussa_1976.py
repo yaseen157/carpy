@@ -230,7 +230,7 @@ class USSA_1976(StaticAtmosphereModel):
         xi = ((z.x - Z_10) * ((co.STANDARD.USSA_1976.r_0 + Z_10) / (co.STANDARD.USSA_1976.r_0 + z.x)))[layer >= 10]
         T[layer >= 10] = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lamda * xi))
 
-        # Layer 12 is undefined
+        # Layer 12 is defined at its base and no further
         T[z.x > max(TABLES[5]["Z"])] = np.nan
         return Quantity(T, "K")
 
@@ -238,5 +238,5 @@ class USSA_1976(StaticAtmosphereModel):
 if __name__ == "__main__":
     atm = USSA_1976()
     print(atm.temperature(
-        np.array([100e4, 500e3, 101e4])
+        np.array([0, 1e3, 1e4])
     ))
