@@ -17,6 +17,11 @@ class ChemicalSpecies:
             structures = (structures,)
         self._structures = structures
 
+    def __repr__(self):
+        structure_formulae = {structure._formula for structure in self._structures}
+        repr_str = f"{type(self).__name__}({'; '.join(structure_formulae)})"
+        return repr_str
+
     @property
     def molar_mass(self) -> Quantity:
         """Molar mass of the species."""

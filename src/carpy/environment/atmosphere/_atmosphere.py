@@ -20,6 +20,10 @@ class StaticAtmosphereModel:
     def __init__(self, *args, **kwargs):
         self._gas_model = NonReactiveGasModel()
 
+    def __getattr__(self, item):
+        # print(f"hooked a call to {self.__repr__()}.{item}!!!")
+        return super().__getattribute__(item)
+
     def __call__(self, *args, **kwargs):
         return type(self)(*args, **kwargs)
 

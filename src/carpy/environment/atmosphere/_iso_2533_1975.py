@@ -87,7 +87,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
         h_broadcasted = np.broadcast_to(h, (*(TABLES[4]["H"]).shape, *h.shape))
         Href_broadcasted = np.expand_dims(TABLES[4]["H"], tuple(range(h_broadcasted.ndim - 1))).T
 
-        i = np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1
+        i = np.clip(np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1, 0, None)  # Prevent negative index
         i_lim = TABLES[4].index[-1]
 
         # Where the index limit has not been reached, find the base parameters of the current layer and the layer above

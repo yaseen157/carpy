@@ -225,6 +225,10 @@ class PureGasModel(GasModel):
         self._equation_of_state = IdealGas() if equation_of_state is None else equation_of_state
         return
 
+    def __repr__(self):
+        repr_str = f"{type(self).__name__}({self.chemical_species}, type:{type(self._equation_of_state).__name__})"
+        return repr_str
+
     @property
     def chemical_species(self) -> ChemicalSpecies:
         """The chemical species with which the gas is composed."""
