@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from carpy.utility._miscellaneous import PathAnchor, Hint
+from carpy.utility._miscellaneous import PathAnchor
 from carpy.utility._vanity import Unicodify
 
 __all__ = ["Quantity", "cast2quantity"]
@@ -324,7 +324,7 @@ class Quantity(np.ndarray):
     This class inherits many properties of classic numpy arrays.
     """
 
-    def __new__(cls, value: Hint.nums, /, units: Union[str, Dimensions] = None):
+    def __new__(cls, value, /, units: Union[str, Dimensions] = None):
         """
         Args:
             value: Any number(s) that you would expect a numpy array to support.

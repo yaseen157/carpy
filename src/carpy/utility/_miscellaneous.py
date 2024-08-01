@@ -35,30 +35,6 @@ def isNone(*args) -> tuple:
     return results if len(args) > 1 else results[0]
 
 
-def collapse_array(scalar_or_vector):
-    """
-    Given a vector (or scalar), collapse any redundant nesting.
-
-    Args:
-        scalar_or_vector: An iterable to collapse.
-
-    Returns:
-        Lower dimensional representation of the input.
-
-    """
-    # If the "scalar_or_vector" is not iterable, simply return it
-    if not isinstance(scalar_or_vector, Hint.iter.__args__):
-        return scalar_or_vector
-
-    # Else it is iterable. Do we lose anything for indexing?
-    if len(scalar_or_vector) == 1:
-        return collapse_array(scalar_or_vector[0])  # Recursively collapse
-
-    # Yes, information is lost with further indexing. Return as is.
-    else:
-        return scalar_or_vector
-
-
 class NumberSets:
 
     @staticmethod
@@ -124,8 +100,7 @@ class NumberSets:
         return casted
 
 
-__all__ += [Hint.__name__, isNone.__name__,
-            collapse_array.__name__, NumberSets.__name__]
+__all__ += [isNone.__name__, NumberSets.__name__]
 
 
 # ============================================================================ #

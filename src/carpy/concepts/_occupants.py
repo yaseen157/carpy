@@ -1,4 +1,4 @@
-from carpy.utility import Hint, NumberSets
+from carpy.utility import NumberSets
 
 __all__ = ["Occupants"]
 
@@ -17,7 +17,7 @@ class Occupants:
         return self.__concept
 
     @property
-    def flightcrew(self) -> Hint.int:
+    def flightcrew(self) -> int:
         """The number of flight crew operating the aircraft in flight."""
         return self._flightcrew
 
@@ -26,7 +26,7 @@ class Occupants:
         self._flightcrew = NumberSets.cast_N(value, safe=True)
 
     @property
-    def cabincrew(self) -> Hint.int:
+    def cabincrew(self) -> int:
         """The number of cabin crew tending to passengers."""
         return self._cabincrew
 
@@ -35,7 +35,7 @@ class Occupants:
         self._cabincrew = NumberSets.cast_N(value, safe=True)
 
     @property
-    def passengers(self) -> Hint.int:
+    def passengers(self) -> int:
         """The number of seated passengers."""
         return self._passengers
 

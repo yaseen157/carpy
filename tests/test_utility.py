@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from carpy.utility import gradient1d
-from carpy.utility import PathAnchor, Hint
+from carpy.utility import PathAnchor
 from carpy.utility import Quantity
 from carpy.utility import Unicodify
 
@@ -41,48 +41,6 @@ class Maths(unittest.TestCase):
 
 class Miscellaneous(unittest.TestCase):
     """Tests for miscellaneous utilities."""
-
-    def test_hint(self):
-        testcases = (
-            (Hint.iter, (
-                (1, 2, 3), [1, 2, 3], np.arange(3)
-            )),
-            (Hint.num, (
-                1, 2.0, np.int32(5), np.float32(6.0)
-            )),
-            (Hint.nums, (
-                (1, 2, 3), [1, 2, 3], np.arange(3),
-                1, 2.0, np.int32(5), np.float32(6.0)
-            )),
-            (Hint.func, (
-                lambda x: print(f"You'll never take me alive! (also {x})"),
-                np.radians, print
-            )),
-            (Hint.set, (
-                {1, 2, 3}, frozenset((1, 2, 3))
-            ))
-        )
-        for hint, tests in testcases:
-            # Unions of multiple types
-            if type(hint) == "typing._UnionGenericAlias":
-                for obj in tests:
-                    self.assertTrue(
-                        expr=isinstance(obj, hint.__args__),
-                        msg=f"Couldn't assert {obj} is instance of {hint}"
-                    )
-            elif hasattr(hint, "__args__"):
-                for obj in tests:
-                    self.assertTrue(
-                        expr=isinstance(obj, hint.__args__),
-                        msg=f"Couldn't assert {obj} is instance of {hint}"
-                    )
-            else:
-                for obj in tests:
-                    self.assertTrue(
-                        expr=isinstance(obj, hint),
-                        msg=f"Couldn't assert {obj} is instance of {hint}"
-                    )
-        return
 
     @staticmethod
     def test_pathing():
