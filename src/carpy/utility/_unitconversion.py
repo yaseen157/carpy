@@ -595,19 +595,19 @@ class Quantity(np.ndarray):
 
     def __pow__(self, power, modulo=None):
 
+        power = np.atleast_1d(power)
+
         if modulo is not None:
             return NotImplemented
 
         if isinstance(power, self.__class__) and str(power.units) != "":
-            errormsg = (
-                "Exponent cannot be a Quantity object with non-negligible units"
-            )
+            errormsg = "Exponent cannot be a Quantity object with non-negligible units"
             raise ValueError(errormsg)
 
-        elif np.isnan(power):
-            return np.nan * self.x
+        assert len(set(power.flat)) == 1, "Quantity objects must only be raised to the power of a scalar"
+        power = power.flat[0]
 
-        value = np.array(super().__pow__(power, modulo))
+        value = np.array(super().__pow__(power))
         units = self.units ** power
         return Quantity(value, units)
 

@@ -9,7 +9,7 @@ import periodictable as pt
 
 from carpy.chemistry._atom import Atom
 from carpy.chemistry._chemical_bonding import CovalentBond
-from carpy.utility import Unicodify, Graphs, Quantity, constants as co
+from carpy.utility import Unicodify, Graphs, Quantity, broadcast_vector, constants as co
 
 __all__ = ["Structure"]
 __author__ = "Yaseen Reza"
@@ -186,9 +186,8 @@ class KineticMethods:
             # If the user has provided a number of temperature values in an array, we don't want to incorrectly
             # broadcast those values in the maths that follows. We take the user's temperature array and broadcast it
             # to a higher dimension:
-            T_broadcasted_user = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
-            T_broadcasted_char = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_user.ndim - 1))).T
-            x = T_broadcasted_char / T_broadcasted_user
+            T_broadcasted, Tcharacteristic_broadcasted = broadcast_vector(T, Tcharacteristic)
+            x = Tcharacteristic_broadcasted / T_broadcasted
             out = x / (np.exp(np.clip(x, None, 709)) - 1)  # clip because x >> 0 results in np.exp overflow error
             # Squeeze the output to remove any dimensions we added from broadcasting
             return out.squeeze()
@@ -239,9 +238,8 @@ class KineticMethods:
             # If the user has provided a number of temperature values in an array, we don't want to incorrectly
             # broadcast those values in the maths that follows. We take the user's temperature array and broadcast it
             # to a higher dimension:
-            T_broadcasted_user = np.broadcast_to(T, (*Tcharacteristic.shape, *T.shape))
-            T_broadcasted_char = np.expand_dims(Tcharacteristic, tuple(range(T_broadcasted_user.ndim - 1))).T
-            x = T_broadcasted_char / 2 / T_broadcasted_user
+            T_broadcasted, Tcharacteristic_broadcasted = broadcast_vector(T, Tcharacteristic)
+            x = Tcharacteristic_broadcasted / 2 / T_broadcasted
             out = (x / np.sinh(np.clip(x, None, 710))) ** 2  # clip because x >> 0 results in np.exp overflow error
             # Squeeze the output to remove any dimensions we added from broadcasting
             return out.squeeze()

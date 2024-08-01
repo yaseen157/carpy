@@ -2,7 +2,7 @@
 import numpy as np
 
 from carpy.chemistry import ChemicalSpecies, EquationOfState, IdealGas
-from carpy.utility import Quantity, constants as co
+from carpy.utility import Quantity, broadcast_vector, constants as co, gradient1d
 
 __all__ = ["GasModel", "PureGasModel", "NonReactiveGasModel"]
 __author__ = "Yaseen Reza"
@@ -120,22 +120,14 @@ class GasModel:
         p = Quantity(p, "Pa")
         T = Quantity(T, "K")
 
-        eps = 1e-4
-        delta_arr = 1 + eps * np.array([-0.5, 0.5])
+        def helper1(x):
+            return self.specific_internal_energy(p=p, T=x)
 
-        # If user provides T in an array, we don't want incorrect broadcasting against delta_err. Broadcast user input
-        # into a higher dimension:
-        T_broadcasted = np.broadcast_to(T, (*delta_arr.shape, *T.shape))
-        delta_arr = np.expand_dims(delta_arr, tuple(range(T_broadcasted.ndim - 1))).T
-        Ts = T * delta_arr
-        dT = np.diff(Ts, axis=0)
+        def helper2(x):
+            return self.equation_of_state.molar_volume(p=p, T=x)
 
-        du_p = np.diff(self.specific_internal_energy(p=p, T=Ts), axis=0)
-        dudT_p = (du_p / dT).squeeze()  # Squeeze back down to the original dimension of T
-
-        dVm_p = np.diff(self.equation_of_state.molar_volume(p=p, T=Ts), axis=0)
-        dnu_p = dVm_p / self.molar_mass
-        dnudT_p = (dnu_p / dT).squeeze()  # Squeeze back down to the original dimension of T
+        _, dudT_p = gradient1d(helper1, T)
+        _, dnudT_p = gradient1d(helper2, T)
 
         # Isobaric specific heat is the constant pressure differential of enthalpy w.r.t temperature
         dHdT_p = dudT_p + p * dnudT_p
@@ -339,13 +331,13 @@ class PureGasModel(GasModel):
         T = Quantity(T, "K")
 
         eps = 1e-4
-        delta_arr = 1 + eps * np.array([-0.5, 0.5])
+        delta_rel = 1 + eps * np.array([-0.5, 0.5])
 
         # If user provides T in an array, we don't want incorrect broadcasting against delta_err. Broadcast user input
         # into a higher dimension:
-        T_broadcasted = np.broadcast_to(T, (*delta_arr.shape, *T.shape))
-        delta_arr = np.expand_dims(delta_arr, tuple(range(T_broadcasted.ndim - 1))).T
-        Ts = T * delta_arr
+
+        T_broadcasted, delta_rel = broadcast_vector(T, delta_rel)
+        Ts = T * delta_rel
         dT = np.diff(Ts, axis=0)
 
         du_p = np.diff(self._species.specific_internal_energy(p=p, T=Ts), axis=0)

@@ -6,7 +6,7 @@ from scipy.integrate import quad as quad_int
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
 from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
-from carpy.utility import Quantity, constants as co
+from carpy.utility import Quantity, broadcast_vector, constants as co
 
 __all__ = []
 __author__ = "Yaseen Reza"
@@ -187,12 +187,10 @@ class USSA_1976(StaticAtmosphereModel):
 
     def _temperature(self, h: Quantity) -> Quantity:
         # Broadcast h into a higher dimension
-        h_broadcasted = np.broadcast_to(h, (*(TABLES[4]["H"]).shape, *h.shape))
-        Href_broadcasted = np.expand_dims(TABLES[4]["H"], tuple(range(h_broadcasted.ndim - 1))).T
+        h_broadcasted, Href_broadcasted = broadcast_vector(h, TABLES[4]["H"])
         # Convert to geometric altitude z and also broadcast
         z = geometric_altitude(h=h)
-        z_broadcasted = np.broadcast_to(z, (*(TABLES[5]["Z"]).shape, *z.shape))
-        Zref_broadcasted = np.expand_dims(TABLES[5]["Z"], tuple(range(z_broadcasted.ndim - 1))).T
+        z_broadcasted, Zref_broadcasted = broadcast_vector(z, TABLES[5]["Z"])
 
         # Selection indices for molecular and kinetic scales. Value of 0 or greater means that indexing system is active
         idxm = np.clip(np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1, 0, None)  # Prevent negative index of tab 4

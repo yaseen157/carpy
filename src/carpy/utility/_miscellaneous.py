@@ -3,7 +3,6 @@ import functools
 import inspect
 import os
 import re
-import typing
 from warnings import warn
 
 import numpy as np
@@ -15,52 +14,128 @@ __author__ = "Yaseen Reza"
 
 
 # ============================================================================ #
+# Decoration
+# ---------------------------------------------------------------------------- #
+def call_count(func):
+    """Decorator to count the number of times a function is called."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        """Function wrapper that counts the number of function calls."""
+        wrapper.call_count += 1
+        return func(*args, **kwargs)
+
+    wrapper.call_count = 0
+    return wrapper
+
+
+def call_depth(func):
+    """
+    Decorator to track the recursive depth of a function call.
+
+    Args:
+        func: Function to track the recursive entries of.
+
+    Returns:
+        Wrapped function.
+
+    Examples:
+
+        # Recursively multiply by two by as many times as desired
+        >>> @call_depth
+        ... def multiply_by_2(x, n_times=1):
+        ...     # If maximum call depth is reached, ascend recursive stack
+        ...     if multiply_by_2.call_depth == n_times:
+        ...         return x
+        ...     return 2 * multiply_by_2(x, n_times)
+
+        >>> print(multiply_by_2(3, n_times=3))
+        24
+
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        """Function wrapper that tracks the depth of function recursion."""
+        wrapper.call_depth += 1
+        result = func(*args, **kwargs)
+        wrapper.call_depth -= 1
+        return result
+
+    wrapper.call_depth = -1
+    return wrapper
+
+
+class classproperty(property):  # noqa: Ignore complaints about case, to make the style of decorator match @property
+    """
+    A decorator to use in place of '@property' when the property should be accessible from the class level.
+
+    Examples:
+
+        >>> class Foo:
+        ...
+        ...     @classproperty
+        ...     def bar(cls):
+        ...         return "baz"
+
+        >>> assert Foo().bar == "baz", "Couldn't locate instance property 'baz'"
+        >>> assert Foo.bar == "baz", "Couldn't locate class property 'baz'"
+
+
+
+    References:
+        https://stackoverflow.com/questions/128573/using-property-on-classmethods
+
+    """
+
+    def __get__(self, owner_self, owner_cls):
+        """Returns an attribute of instance. I don't know why this works. ~ Yaseen"""
+        return self.fget(owner_cls)
+
+
+__all__ += [call_count.__name__, call_depth.__name__]
+
+
+# ============================================================================ #
 # Data types and casting
 # ---------------------------------------------------------------------------- #
-class Hint(object):
-    """A static class of common argument typehints."""
-    int = typing.Union[int, np.integer]
-    real = typing.Union[float, np.inexact]
-    iter = typing.Union[tuple, list, np.ndarray]
-    num = typing.Union[int, real]
-    nums = typing.Union[iter, num]
-    func = typing.Union[typing.Callable]
-    any = typing.Union[typing.Any]
-    set = typing.Union[set, frozenset]
 
-
-def isNone(*args) -> tuple:
+def is_none(*args) -> tuple:
     """True or False for every arg that is None."""
     results = tuple(map(lambda x: x is None, args))
     return results if len(args) > 1 else results[0]
 
 
 class NumberSets:
+    """
+    A class of methods for testing whether a value belongs to a number set (e.g. real, complex), or for casting values
+    as datatypes for said sets.
+    """
 
     @staticmethod
-    def is_C(value, /) -> bool:
+    def is_complex(value, /) -> bool:
         """True if value is of a Python type that allows complex numbers."""
         return np.iscomplex(value)
 
     @staticmethod
-    def is_R(value, /) -> bool:
+    def is_real(value, /) -> bool:
         """True if value is of a Python type that allows real numbers."""
         return np.isfinite(value)
 
     @staticmethod
-    def is_Z(value, /) -> bool:
+    def is_integer(value, /) -> bool:
         """True if value is of a Python type that allows integers."""
         return isinstance(value, (int, np.integer))
 
     @classmethod
-    def cast_R(cls, value, /) -> float:
+    def cast_real(cls, value, /) -> float:
         """Return real number."""
-        if cls.is_R(value):
+        if cls.is_real(value):
             return value
         raise ValueError(f"Couldn't cast '{value}' to float (real number set)")
 
     @classmethod
-    def cast_Z(cls, value, /, *, safe: bool = False) -> int:
+    def cast_integer(cls, value, /, *, safe: bool = False) -> int:
         """
         Return integer number.
 
@@ -68,7 +143,7 @@ class NumberSets:
             ValueError: If 'safe' is True, only permits lossless casting.
 
         """
-        if cls.is_Z(value):
+        if cls.is_integer(value):
             return value
         elif (casted := int(value)) == value:
             return casted
@@ -81,7 +156,7 @@ class NumberSets:
         return casted
 
     @classmethod
-    def cast_N(cls, value, /, *, safe: bool = False) -> int:
+    def cast_natural(cls, value, /, *, safe: bool = False) -> int:
         """
         Return natural number.
 
@@ -89,7 +164,7 @@ class NumberSets:
             ValueError: If 'safe' is True, only permits lossless casting.
 
         """
-        if (casted := cls.cast_Z(value)) >= 0:
+        if (casted := cls.cast_integer(value)) >= 0:
             return casted
 
         if safe:
@@ -100,7 +175,33 @@ class NumberSets:
         return casted
 
 
-__all__ += [isNone.__name__, NumberSets.__name__]
+def broadcast_vector(values, vector) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Broadcast all elements in values over each element of a vector.
+
+    Args:
+        values: An n-dimensional array of values with any shape.
+        vector: A 1-dimensional array of values with shape (n,).
+
+    Returns:
+        A tuple of broadcasted values and vectors such that values has the shape (n, *values.shape), and the vector
+            assumes the shape (n, *(1, ...)). Both the broadcasted values and vector have the same number of dimensions.
+
+    Examples:
+
+
+
+    """
+    # Cast to arrays as necessary
+    values = np.atleast_1d(values)
+    vector = np.atleast_1d(vector)
+    assert vector.ndim == 1, f"Expected vector to be a 1d array (got {vector.ndim=})"
+
+    values_broadcast = np.broadcast_to(values, shape=(*vector.shape, *values.shape))
+    vector_broadcast = np.expand_dims(vector, tuple(range(values_broadcast.ndim-1))).T
+    return values_broadcast, vector_broadcast
+
+__all__ += [is_none.__name__, NumberSets.__name__, broadcast_vector.__name__]
 
 
 # ============================================================================ #
@@ -189,8 +290,7 @@ class PathAnchor:
 
         return current_path
 
-    @classmethod
-    @property
+    @classproperty
     def home_path(cls):
         path = os.path.expanduser("~")
         return path
@@ -221,93 +321,3 @@ class LoadData(object):
 __all__ += [PathAnchor.__name__, LoadData.__name__]
 
 
-# ============================================================================ #
-# Decoration
-# ---------------------------------------------------------------------------- #
-def call_count(func):
-    """Decorator to count the number of times a function is called."""
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        """Function wrapper that counts the number of function calls."""
-        wrapper.call_count += 1
-        return func(*args, **kwargs)
-
-    wrapper.call_count = 0
-    return wrapper
-
-
-def call_depth(func):
-    """
-    Decorator to track the recursive depth of a function call.
-
-    Args:
-        func: Function to track the recursive entries of.
-
-    Returns:
-        Wrapped function.
-
-    Examples:
-
-        # Recursively multiply by two by as many times as desired
-        >>> @call_depth
-        ... def multiply_by_2(x, n_times=1):
-        ...     # If maximum call depth is reached, ascend recursive stack
-        ...     if multiply_by_2.call_depth == n_times:
-        ...         return x
-        ...     return 2 * multiply_by_2(x, n_times)
-
-        >>> print(multiply_by_2(3, n_times=3))
-        24
-
-    """
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        """Function wrapper that tracks the depth of function recursion."""
-        wrapper.call_depth += 1
-        result = func(*args, **kwargs)
-        wrapper.call_depth -= 1
-        return result
-
-    wrapper.call_depth = -1
-    return wrapper
-
-
-def revert2scalar(func):
-    @functools.wraps(func)
-    def with_reverting(*args, **kwargs):
-        """Try to turn x into a scalar (if it is an array, list, or tuple)."""
-
-        # Evaluate the wrapped func
-        output = func(*args, **kwargs)
-
-        if not isinstance(output, tuple):
-            output = (output,)
-
-        # Convert all items in the output to scalar if possible
-        new_output = []
-        for x in output:
-            if isinstance(x, np.ndarray):
-                if x.ndim == 0:
-                    new_output.append(x.item())
-                    continue
-                if sum(x.shape) == 1:
-                    new_output.append(x[0])
-                    continue
-            elif isinstance(x, (list, tuple)):
-                if len(x) == 1:
-                    new_output.append(x[0])
-                    continue
-            new_output.append(x)
-
-        # If there was only one output from the function, return that as scalar
-        if len(new_output) == 1:
-            return new_output[0]
-
-        return tuple(new_output)
-
-    return with_reverting
-
-
-__all__ += [call_count.__name__, call_depth.__name__, revert2scalar.__name__]

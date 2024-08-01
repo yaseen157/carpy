@@ -5,7 +5,7 @@ import pandas as pd
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
 from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
-from carpy.utility import Quantity, constants as co
+from carpy.utility import Quantity, broadcast_vector, constants as co
 
 __all__ = ["ISO_2533_1975"]
 __author__ = "Yaseen Reza"
@@ -84,8 +84,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
 
     def _pressure(self, h: Quantity) -> Quantity:
         # Broadcast h into a higher dimension
-        h_broadcasted = np.broadcast_to(h, (*(TABLES[4]["H"]).shape, *h.shape))
-        Href_broadcasted = np.expand_dims(TABLES[4]["H"], tuple(range(h_broadcasted.ndim - 1))).T
+        h_broadcasted, Href_broadcasted = broadcast_vector(values=h, vector=TABLES[4]["H"])
 
         i = np.clip(np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1, 0, None)  # Prevent negative index
         i_lim = TABLES[4].index[-1]

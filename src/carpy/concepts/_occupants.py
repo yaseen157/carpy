@@ -23,7 +23,7 @@ class Occupants:
 
     @flightcrew.setter
     def flightcrew(self, value):
-        self._flightcrew = NumberSets.cast_N(value, safe=True)
+        self._flightcrew = NumberSets.cast_natural(value, safe=True)
 
     @property
     def cabincrew(self) -> int:
@@ -32,7 +32,7 @@ class Occupants:
 
     @cabincrew.setter
     def cabincrew(self, value):
-        self._cabincrew = NumberSets.cast_N(value, safe=True)
+        self._cabincrew = NumberSets.cast_natural(value, safe=True)
 
     @property
     def passengers(self) -> int:
@@ -41,4 +41,4 @@ class Occupants:
 
     @passengers.setter
     def passengers(self, value):
-        self._passengers = NumberSets.cast_N(value, safe=True)
+        self._passengers = NumberSets.cast_natural(value, safe=True)

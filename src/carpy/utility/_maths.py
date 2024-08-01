@@ -1,6 +1,8 @@
 """A module of maths utilities."""
 import numpy as np
 
+from carpy.utility._miscellaneous import broadcast_vector
+
 __all__ = ["gradient1d"]
 __author__ = "Yaseen Reza"
 
@@ -40,9 +42,8 @@ def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) 
         # STEP 1: Recast x with x-eps/2 and x+eps/2 to obtain xs
         eps = 1e-6 if eps is None else eps
         delta_rel = 1 + eps * np.array([-0.5, 0.5])
-        x_broadcasted = np.broadcast_to(x, (*delta_rel.shape, *x.shape))
-        delta_rel = np.expand_dims(delta_rel, tuple(range(x_broadcasted.ndim - 1))).T
-        x_plusminus_dx = x * delta_rel
+        x_broadcasted, delta_rel = broadcast_vector(x, delta_rel)
+        x_plusminus_dx = x_broadcasted * delta_rel
         y_plusminus_dy = np.zeros(x_plusminus_dx.shape)
 
         # STEP 2: Compute y
