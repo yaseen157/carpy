@@ -1,15 +1,11 @@
 """A module of maths utilities."""
-import typing
-
 import numpy as np
-
-from carpy.utility._miscellaneous import Hint, cast2numpy
 
 __all__ = ["gradient1d"]
 __author__ = "Yaseen Reza"
 
 
-def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) -> tuple:
+def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns numerical approximations of 'y' and 'd(y)/dx' given the function 'y=f(x)'.
 
@@ -37,7 +33,7 @@ def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) 
         assert isinstance(kwargs, dict), f"Expected 'kwargs' to be of type dict (got {type(kwargs)})"
 
     # Recast as necessary
-    x = cast2numpy(x)
+    x = np.atleast_1d(x)
 
     if callable(func_or_y):
 
@@ -88,7 +84,7 @@ def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) 
         raise ValueError(error_msg)
 
     else:
-        y = cast2numpy(func_or_y)
+        y = np.atleast_1d(func_or_y)
         assert x.shape[0] >= 2, f"Shape of 'x' needs to be at least two in the first dimension (got dims {x.shape})"
         assert x.shape == y.shape, f"'x' and 'y' do not have the same shape ({x.shape} != {y.shape})"
 

@@ -234,9 +234,31 @@ class USSA_1976(StaticAtmosphereModel):
         T[z.x > max(TABLES[5]["Z"])] = np.nan
         return Quantity(T, "K")
 
+    def _number_density(self, h: Quantity) -> Quantity:
+        """
+        Computes the number of neutral air particles per unit volume.
+
+        Args:
+            h: Geopotential altitude.
+
+        Returns:
+            The air number density.
+
+        """
+        z = geometric_altitude(h=h)
+
+        np.where
+
+        p = self.pressure(h=h)
+        T = self.temperature(h=h)
+        n = co.STANDARD.ISO_2533_1975.N_A * p / co.STANDARD.ISO_2533_1975.Rstar / T
+        return n
+
 
 if __name__ == "__main__":
     atm = USSA_1976()
     print(atm.temperature(
         np.array([0, 1e3, 1e4])
     ))
+
+    print()

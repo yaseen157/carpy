@@ -1,4 +1,6 @@
 """Module implementing the basis class for atmospheric modelling."""
+import typing
+
 from carpy.gaskinetics import NonReactiveGasModel
 from carpy.utility import Quantity
 
@@ -17,6 +19,11 @@ class StaticAtmosphereModel:
     """
     _gas_model: NonReactiveGasModel
 
+    # Atmospheric profile functions of geometric altitude
+    _temperature: typing.Callable
+    _pressure: typing.Callable
+    _dynamic_viscosity: typing.Callable
+
     def __init__(self, *args, **kwargs):
         self._gas_model = NonReactiveGasModel()
 
@@ -26,10 +33,6 @@ class StaticAtmosphereModel:
 
     def __call__(self, *args, **kwargs):
         return type(self)(*args, **kwargs)
-
-    def _temperature(self, h: Quantity):
-        error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
-        raise NotImplementedError(error_msg)
 
     def temperature(self, h) -> Quantity:
         """
@@ -42,10 +45,6 @@ class StaticAtmosphereModel:
         """
         h = Quantity(h, "m")
         return self._temperature(h=h)
-
-    def _pressure(self, h: Quantity):
-        error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
-        raise NotImplementedError(error_msg)
 
     def pressure(self, h) -> Quantity:
         """
@@ -108,10 +107,6 @@ class StaticAtmosphereModel:
 
         """
         return self._speed_of_sound(h=h)
-
-    def _dynamic_viscosity(self, h: Quantity):
-        error_msg = f"Sorry, the {type(self).__name__} atmosphere model has not yet implemented this parameter."
-        raise NotImplementedError(error_msg)
 
     def dynamic_viscosity(self, h) -> Quantity:
         """

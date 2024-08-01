@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from carpy.utility import gradient1d
-from carpy.utility import PathAnchor, Hint, cast2numpy
+from carpy.utility import PathAnchor, Hint
 from carpy.utility import Quantity
 from carpy.utility import Unicodify
 
@@ -84,63 +84,6 @@ class Miscellaneous(unittest.TestCase):
                     )
         return
 
-    def test_cast2numpy(self):
-        # Hashables
-        testcases = {
-            -1: np.array([-1]), 0: np.array([0]), 1: np.array([1]),
-            0.0: np.array([0.0]),
-            1 + 2j: np.array([1 + 2j]),
-            np.int32(3): np.array([3]),
-            np.float32(4): np.array([4]),
-            (2, 3): np.array([2, 3]),
-            frozenset((2, 3)): np.array([2, 3]),
-        }
-        # Test hashables
-        for testcase, goldresult in testcases.items():
-            casting = cast2numpy(testcase)
-            # Check the value came through alright
-            self.assertTrue(
-                expr=all(casting == goldresult),
-                msg=f"Failed to cast {testcase} with correct value"
-            )
-            # Check that the datatype matches
-            self.assertIsInstance(
-                obj=casting,
-                cls=type(goldresult),
-                msg=f"Failed to cast {testcase} with correct type"
-            )
-
-        # Unhashables
-        testcases = [
-            ([2, 3], np.array([2, 3])), ({2, 3}, np.array([2, 3])),
-            ({"a": 1, "b": {"c": 2}},
-             {"a": np.array([1]), "b": {"c": np.array([2])}}),
-            (np.array(-6), np.array([-6]))
-        ]
-
-        # Test unhashables
-        for testcase, goldresult in testcases:
-            casting = cast2numpy(testcase)
-            # Check the value came through alright
-            if not isinstance(testcase, dict):
-                self.assertTrue(
-                    expr=all(casting == goldresult),
-                    msg=f"Failed to cast {testcase} with correct value"
-                )
-            else:
-                self.assertTrue(
-                    expr=(casting == goldresult),
-                    msg=f"Failed to cast {testcase} with correct value"
-                )
-            # Check that the datatype matches
-            self.assertIsInstance(
-                obj=casting,
-                cls=type(goldresult),
-                msg=f"Failed to cast {testcase} with correct type"
-            )
-
-        return
-
     @staticmethod
     def test_pathing():
         anchor = PathAnchor()
@@ -153,7 +96,7 @@ class UnitConversion(unittest.TestCase):
 
     def test_instantiation(self):
         """Verify Quantity can be instantiated with many arguments."""
-        testcases = (1, (1,), {1}, [1], np.array(1), np.array([1]))
+        testcases = (1, (1,), [1], np.array(1), np.array([1]))
 
         # No unit instantiation should just return an array, no questions asked
         for testcase in testcases:

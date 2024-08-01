@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.optimize import minimize_scalar
 
-from carpy.utility import Quantity, cast2numpy, constants as co, gradient1d
+from carpy.utility import Quantity, constants as co, gradient1d
 
 __all__ = ["EquationOfState", "IdealGas", "VanderWaals", "RedlichKwong", "SoaveRedlichKwong", "PengRobinson"]
 __author__ = "Yaseen Reza"
@@ -64,19 +64,19 @@ class EquationOfState:
 
     def p_r(self, p) -> float:
         """Reduced pressure, i.e. p / p_c"""
-        p = cast2numpy(p)
+        p = np.atleast_1d(p)
         p_r = (p / self.p_c).x
         return p_r
 
     def T_r(self, T) -> float:
         """Reduced temperature, i.e. T / T_c"""
-        T = cast2numpy(T)
+        T = np.atleast_1d(T)
         T_r = (T / self.T_c).x
         return T_r
 
     def Vm_r(self, Vm) -> float:
         """Reduced volume, i.e. Vm / Vm_c"""
-        Vm = cast2numpy(Vm)
+        Vm = np.atleast_1d(Vm)
         Vm_r = (Vm / self.Vm_c).x
         return Vm_r
 

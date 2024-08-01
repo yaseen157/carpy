@@ -9,7 +9,7 @@ import periodictable as pt
 
 from carpy.chemistry._atom import Atom
 from carpy.chemistry._chemical_bonding import CovalentBond
-from carpy.utility import Unicodify, Graphs, Quantity, constants as co, cast2numpy
+from carpy.utility import Unicodify, Graphs, Quantity, constants as co
 
 __all__ = ["Structure"]
 __author__ = "Yaseen Reza"
@@ -230,7 +230,7 @@ class KineticMethods:
         """
         # Recast as necessary
         _ = p  # Does nothing!
-        T = cast2numpy(T)
+        T = np.atleast_1d(T)
         if np.any(T == 0):
             error_msg = f"It is insensible to compute the heat capacity at 0 K, please check input temperatures"
             raise ValueError(error_msg)

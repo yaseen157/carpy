@@ -29,46 +29,6 @@ class Hint(object):
     set = typing.Union[set, frozenset]
 
 
-def cast2numpy(scalar_or_vector: Hint.any, /, dtype=None) -> np.ndarray:
-    """
-    Args:
-        scalar_or_vector: Scalar or vector numerical argument to be recast.
-        dtype: Datatype to cast as. Optional, defaults to None.
-
-    Returns:
-        The input argument recast as an array (if not already array like).
-
-    Raises:
-        ValueError: Couldn't determine a way to cast input as an array.
-
-    """
-    type_transforms = {
-        (int, float, complex): lambda x: np.array([x]),
-        (np.integer, np.inexact): lambda x: np.array([x]),
-        (tuple, list, range): lambda x: np.array(x),
-        (set, frozenset): lambda x: np.array([xi for xi in x]),
-        (dict,): lambda x: {k: cast2numpy(v) for k, v in x.items()},
-        (map, filter): lambda x: np.array(list(x)),
-        (np.ndarray,): lambda x: x if x.shape != () else x[None],  # +1 dim.
-        (pd.Series,): lambda x: np.array(x)
-    }
-    # Look for and try to apply a transform
-    for types, transformer in type_transforms.items():
-
-        if not isinstance(scalar_or_vector, types):
-            continue  # Try a different transformer
-
-        # No dtype specified, do not attempt to apply any casting rules
-        if dtype is None:
-            return transformer(scalar_or_vector)
-        else:
-            return transformer(scalar_or_vector).astype(dtype=dtype)
-
-    # We tried all that we could
-    errormsg = f"Couldn't cast '{type(scalar_or_vector)}' to numpy array"
-    raise ValueError(errormsg)
-
-
 def isNone(*args) -> tuple:
     """True or False for every arg that is None."""
     results = tuple(map(lambda x: x is None, args))
@@ -164,7 +124,7 @@ class NumberSets:
         return casted
 
 
-__all__ += [Hint.__name__, cast2numpy.__name__, isNone.__name__,
+__all__ += [Hint.__name__, isNone.__name__,
             collapse_array.__name__, NumberSets.__name__]
 
 

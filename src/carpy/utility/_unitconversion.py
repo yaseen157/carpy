@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from carpy.utility._miscellaneous import cast2numpy, PathAnchor, Hint
+from carpy.utility._miscellaneous import PathAnchor, Hint
 from carpy.utility._vanity import Unicodify
 
 __all__ = ["Quantity", "cast2quantity"]
@@ -331,7 +331,7 @@ class Quantity(np.ndarray):
             units: Any argument the 'Units' class of this module supports.
         """
         # Recast as necessary
-        value = cast2numpy(value, dtype=np.float64)
+        value = np.atleast_1d(value)
         units = units if isinstance(units, Dimensions) else Dimensions(units)
 
         # If the value is a quantity, raise error to user on recasted dimensions
