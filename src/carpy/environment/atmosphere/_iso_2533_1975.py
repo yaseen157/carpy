@@ -12,7 +12,7 @@ import pandas as pd
 
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
-from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
+from carpy.environment.atmosphere import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
 __all__ = ["ISO_2533_1975"]
@@ -110,7 +110,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
         multiplier: np.ndarray = np.where(
             np.isnan(beta),
             np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / T * (h - Hb0)).x),  # beta == 0
-            (1 + beta / Tb0 * (h - Hb0)) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R).x
+            (1 + beta / Tb0 * (h - Hb0).x) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R).x
             # beta != 0
         )
         p = p_b[i] * multiplier

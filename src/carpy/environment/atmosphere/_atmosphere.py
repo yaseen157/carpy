@@ -12,10 +12,21 @@ __author__ = "Yaseen Reza"
 
 class StaticAtmosphereModel:
     """
-    Base class for all reference/standardised models of atmospheric state variables.
+    Base class for all reference/standardised models of atmospheric state variables. Constituent methods are always
+    functions of geopotential altitude.
 
     The World Meteorological Organisation defines a standard atmosphere as "a hypothetical vertical distribution of
     atmospheric temperature, pressure and density."
+
+    Notes:
+        Base methods for molar volume, density, and speed of sound depend on the definition of a 'non-reactive gas
+        model'. As such, each model derived from this class must either specify a composition for the private gas model
+        attribute, or redefine the aforementioned base methods without reference to the model.
+
+        The model's attribution is kept private as not all models will make use of the model, and in some cases, the
+        model may not accurately reflect the composition of gases in the atmosphere if they are deemed to change with,
+        for example, altitude.
+
     """
     _gas_model: NonReactiveGasModel
 

@@ -12,7 +12,7 @@ import pandas as pd
 
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
-from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
+from carpy.environment.atmosphere import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
 __all__ = ["USSA_1976"]
@@ -221,12 +221,14 @@ class USSA_1976(StaticAtmosphereModel):
         multiplier: np.ndarray = np.where(
             np.isnan(Lm),
             np.exp(-(co.STANDARD.USSA_1976.g_0 / Rspecific / Tm_b[i] * (h - Hb)).x),  # beta == 0
-            (1 + Lm / Tm_b[i] * (h - Hb)) ** -(co.STANDARD.ISO_2533_1975.g_n / Lm / co.STANDARD.ISO_2533_1975.R).x
+            (1 + Lm / Tm_b[i] * (h - Hb).x) ** -(co.STANDARD.ISO_2533_1975.g_n / Lm / co.STANDARD.ISO_2533_1975.R).x
             # beta != 0
         )
         p = P_b[i] * multiplier
 
-        if np.any(h > 84_852):
+        select_threshold = h > 84_852
+        if np.any(select_threshold):
+            p[select_threshold] = np.nan
             warn_msg = f"The requested altitude(s) exceed the profile currently implemented (got h > 84,852 metres)"
             warnings.warn(message=warn_msg, category=RuntimeWarning)
 

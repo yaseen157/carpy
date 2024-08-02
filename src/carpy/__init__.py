@@ -8,7 +8,9 @@ information, examples, and tutorials on usage.
 carpy is distributed under the GNU GPLv3 License. A full copy of the license
 should be present alongside the source code on GitHub.
 """
-# The version number of the "entire" package is specified here
+import importlib as _importlib
+
+# The version number of the *entire* package is defined here
 __version__ = "0.1.0"
 
 # ============================================================================ #
@@ -51,12 +53,11 @@ def w() -> None:
 
 # ============================================================================ #
 
-import importlib as _importlib
-
 submodules = [
     "airworthiness",
     "chemistry",
     "concepts",
+    "environment",
     "gaskinetics",
     "utility",
     "visual"

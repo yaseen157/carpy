@@ -594,18 +594,24 @@ class Quantity(np.ndarray):
         return other.__divmod__(self)
 
     def __pow__(self, power, modulo=None):
-
-        power = np.atleast_1d(power)
-
         if modulo is not None:
             return NotImplemented
 
-        if isinstance(power, self.__class__) and str(power.units) != "":
-            errormsg = "Exponent cannot be a Quantity object with non-negligible units"
+
+        power = np.atleast_1d(power)
+
+        # If you are raising to a power that is a quantity object, that quantity object's units must be zero
+        my_class = self.__class__
+        if isinstance(power, my_class) and str(power.units) != "":
+            errormsg = (
+                f"Cannot raise {my_class.__name__} object to the power of another {my_class.__name__} object that is "
+                f"not dimensionless"
+            )
             raise ValueError(errormsg)
 
+        # If the values of self or power are all nan, return a nan array of the appropriate shape
         elif np.all(np.isnan(self)) or np.all(np.isnan(power)):
-            return np.nan
+            return np.broadcast_to(np.nan, np.broadcast_shapes(self.shape, power.shape))
 
         finite_powers = set(power[np.isfinite(power)].flat)
         assert len(finite_powers) == 1, "Quantity objects must only be raised to the power of a scalar, not an array"
