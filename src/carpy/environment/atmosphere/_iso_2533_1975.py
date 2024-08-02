@@ -1,4 +1,12 @@
-"""Module implementing the ISO 2533-1975 standard atmosphere."""
+"""
+Module implementing the ISO 2533-1975 standard atmosphere.
+
+Notes:
+    Where possible, this module draws the values for constants from the standard instead of computing values on the fly.
+
+"""
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -101,6 +109,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
         beta[beta == 0] = np.nan  # Save ourselves the embarrassment of dividing by zero
         multiplier: np.ndarray = np.where(
             np.isnan(beta),
+            # TODO: Verify /T doesn't actually mean /T_b ?
             np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / T * (h - Hb0)).x),  # beta == 0
             (1 + beta / Tb0 * (h - Hb0)) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R).x
             # beta != 0
@@ -109,7 +118,10 @@ class ISO_2533_1975(StaticAtmosphereModel):
         return Quantity(p, "Pa")
 
     def _temperature(self, h: Quantity) -> Quantity:
-        T = np.interp(h, TABLES[4]["H"], TABLES[4]["T"])
+        T = np.interp(h, TABLES[4]["H"], TABLES[4]["T"], right=np.nan)
+        if np.any(np.isnan(T)):
+            warn_msg = f"The requested altitude(s) exceed the profile defined by this model (got h > 80 km)"
+            warnings.warn(message=warn_msg, category=RuntimeWarning)
         return Quantity(T, "K")
 
     def _density(self, h: Quantity) -> Quantity:

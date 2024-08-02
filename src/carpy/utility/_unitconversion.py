@@ -604,8 +604,12 @@ class Quantity(np.ndarray):
             errormsg = "Exponent cannot be a Quantity object with non-negligible units"
             raise ValueError(errormsg)
 
-        assert len(set(power.flat)) == 1, "Quantity objects must only be raised to the power of a scalar"
-        power = power.flat[0]
+        elif np.all(np.isnan(self)) or np.all(np.isnan(power)):
+            return np.nan
+
+        finite_powers = set(power[np.isfinite(power)].flat)
+        assert len(finite_powers) == 1, "Quantity objects must only be raised to the power of a scalar, not an array"
+        power = finite_powers.pop()
 
         value = np.array(super().__pow__(power))
         units = self.units ** power

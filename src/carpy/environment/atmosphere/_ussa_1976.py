@@ -1,7 +1,14 @@
-"""Module implementing the U.S. Standard Atmosphere as defined in 1976."""
+"""
+Module implementing the U.S. Standard Atmosphere as defined in 1976.
+
+Notes:
+    Where possible, this module draws the values for constants from the standard instead of computing values on the fly.
+
+"""
+import warnings
+
 import numpy as np
 import pandas as pd
-from scipy.integrate import quad as quad_int
 
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
@@ -12,8 +19,8 @@ __all__ = []
 __author__ = "Yaseen Reza"
 
 air_composition = dict([
-    (species.nitrogen, .78084), (species.oxygen, .209_476), (species.argon, .009_34),
-    (species.carbon_dioxide, .000_0314), (species.neon, .000_018_18), (species.helium, .000_005_24),
+    (species.nitrogen, .780_84), (species.oxygen, .209_476), (species.argon, .009_34),
+    (species.carbon_dioxide, .000_314), (species.neon, .000_018_18), (species.helium, .000_005_24),
     (species.krypton, .000_001_14), (species.xenon, .000_000_087), (species.methane, .000_002),
     (species.hydrogen, .000_000_5)
 ])
@@ -30,14 +37,14 @@ TABLES[3] = pd.DataFrame(
 TABLES[4] = pd.DataFrame(
     data={
         "H": Quantity([0, 11, 20, 32, 47, 51, 71, 84.8520], "km"),
-        "L": Quantity([-6.5, 0.0, 1.0, 2.8, 0.0, -2.8, -2.0, None], "K km^{-1}")
+        "L": Quantity([-6.5, 0.0, 1.0, 2.8, 0.0, -2.8, -2.0, np.nan], "K km^{-1}")
     }
 )
 
 TABLES[5] = pd.DataFrame(
     data={
         "Z": Quantity([86, 91, 110, 120, 500, 1_000], "km"),
-        "L": Quantity([0.0, None, 12.0, None, None, None], "K km^{-1}")
+        "L": Quantity([0.0, np.nan, 12.0, np.nan, np.nan, np.nan], "K km^{-1}")
     },
     index=range(7, 13)  # indices 7 through 12 inclusive
 )
@@ -68,7 +75,15 @@ def geometric_altitude(h):
 
     """
     h = Quantity(h, "m")
-    z = co.STANDARD.USSA_1976.r_0 * h / (co.STANDARD.USSA_1976.r_0 - h)
+
+    selection = (denominator := co.STANDARD.USSA_1976.r_0 - h) <= 0
+    if np.any(selection):
+        denominator[selection] = np.nan
+        warn_msg = f"Invalid values for geopotential altitude encountered (h > radius of Earth)"
+        warnings.warn(message=warn_msg, category=RuntimeWarning)
+
+    z = co.STANDARD.USSA_1976.r_0 * h / denominator
+
     return z
 
 
@@ -87,12 +102,14 @@ def molecular_weight_ratio(h):
     return M
 
 
-# Temporary model to compute M0
-gas_model = StaticAtmosphereModel()._gas_model  # Steal a generic gas model from
-gas_model.X = {
-    PureGasModel(chemical_species=chemical_species): content_fraction
-    for (chemical_species, content_fraction) in dict(TABLES[3].to_records(index=False)).items()
-}
+# Shortly after equation 21, a molar mass for sea-level air is given. We use this as the preferred molar mass for
+#   computations as it produces results that more closely match the data tables in the standard than those using molar
+#   mass computed by this library's gas models. This seems in part due to differences in the values used for atomic mass
+molar_masses = [28.0134, 31.9988, 39.948, 44.00995, 20.183, 4.0026, 83.8, 131.3, 16.04303, 2.01594]
+M_0 = Quantity(
+    sum([molar_masses[i] * x for i, x in enumerate(air_composition.values())]),
+    "kg kmol^{-1}"
+)
 
 
 def compute_bases_molecular():
@@ -111,7 +128,7 @@ def compute_bases_molecular():
         temperature_bases[i + 1] = temperature_bases[i] + dH * Lm
 
         # Compute the pressure in the layer above
-        Rspecific = co.STANDARD.USSA_1976.Rstar / gas_model.molar_mass
+        Rspecific = co.STANDARD.USSA_1976.Rstar / M_0
         if Lm != 0:  # Equation (33a)
             multiplier = temperature_bases[i] / (temperature_bases[i] + Lm * dH)
             multiplier **= co.STANDARD.USSA_1976.g_0 / Rspecific / Lm
@@ -177,13 +194,43 @@ class USSA_1976(StaticAtmosphereModel):
     def __init__(self):
         super().__init__()
 
-        # Override the built-in model
-        self._gas_model = gas_model
+        # Define constituent gas composition
+        self._gas_model.X = {
+            PureGasModel(chemical_species=chemical_species): content_fraction
+            for (chemical_species, content_fraction) in dict(TABLES[3].to_records(index=False)).items()
+        }
         return
 
     def __str__(self):
         rtn_str = f"U.S. Standard Atmosphere 1976"
         return rtn_str
+
+    def _pressure(self, h: Quantity) -> Quantity:
+        # Broadcast h into a higher dimension
+        h_broadcasted, Href_broadcasted = broadcast_vector(values=h, vector=TABLES[4]["H"])
+
+        i = np.clip(np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1, 0, None)  # Prevent negative index
+        i_lim = TABLES[4].index[-1]
+
+        # Where the index limit has not been reached, find the base parameters of the current layer and the layer above
+        Hb = TABLES[4]["H"].to_numpy()[i]
+        Lm = np.where(i == i_lim, np.nan, TABLES[4]["L"].to_numpy()[i])
+        Rspecific = co.STANDARD.USSA_1976.Rstar / M_0
+
+        Lm[Lm == 0] = np.nan  # Save ourselves the embarrassment of dividing by zero
+        multiplier: np.ndarray = np.where(
+            np.isnan(Lm),
+            np.exp(-(co.STANDARD.USSA_1976.g_0 / Rspecific / Tm_b[i] * (h - Hb)).x),  # beta == 0
+            (1 + Lm / Tm_b[i] * (h - Hb)) ** -(co.STANDARD.ISO_2533_1975.g_n / Lm / co.STANDARD.ISO_2533_1975.R).x
+            # beta != 0
+        )
+        p = P_b[i] * multiplier
+
+        if np.any(h > 84_852):
+            warn_msg = f"The requested altitude(s) exceed the profile currently implemented (got h > 84,852 metres)"
+            warnings.warn(message=warn_msg, category=RuntimeWarning)
+
+        return Quantity(p, "Pa")
 
     def _temperature(self, h: Quantity) -> Quantity:
         # Broadcast h into a higher dimension
@@ -195,9 +242,11 @@ class USSA_1976(StaticAtmosphereModel):
         # Selection indices for molecular and kinetic scales. Value of 0 or greater means that indexing system is active
         idxm = np.clip(np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1, 0, None)  # Prevent negative index of tab 4
         idxk = np.sum(z_broadcasted > Zref_broadcasted, axis=0) - 1  # Index of table 5 if it used default indices
+        idxk[np.isnan(z)] = len(TABLES[5]) - 1 # If z was invalid, set the layer to end index
         # Combine into an index that is consistent with the layer numbers in the standard
         idxm_limit = TABLES[4].index[-1]
         layer = np.where(idxk < 0, idxm, idxk + idxm_limit)  # Table 4 and 5 combined index
+
 
         # Compute the molecular temperature where it is applicable in the geopotential regions
         dH = h.x - np.where(layer < idxm_limit, TABLES[4]["H"].to_numpy()[np.clip(idxm, 0, None)], np.nan)
@@ -229,7 +278,11 @@ class USSA_1976(StaticAtmosphereModel):
         T[layer >= 10] = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lamda * xi))
 
         # Layer 12 is defined at its base and no further
-        T[z.x > max(TABLES[5]["Z"])] = np.nan
+        if np.any(selection := z.x > max(TABLES[5]["Z"])):
+            T[selection] = np.nan
+            warn_msg = f"The requested altitude(s) exceed the profile defined by this model (got z > 1,000 km)"
+            warnings.warn(message=warn_msg, category=RuntimeWarning)
+
         return Quantity(T, "K")
 
     def _number_density(self, h: Quantity) -> Quantity:
@@ -243,20 +296,17 @@ class USSA_1976(StaticAtmosphereModel):
             The air number density.
 
         """
+        # Default to the sea-level number density
+        N_0 = co.STANDARD.USSA_1976.P_0 / (co.STANDARD.USSA_1976.k * co.STANDARD.USSA_1976.T_0)
+        N = np.ones(h.shape) * N_0
+
+        # Adjustment by the molecular weight ratio
+        M_M0 = molecular_weight_ratio(h=h)
+        N *= (1 / M_M0)  # As the molecular weight ratio decreases, N increases
+
         z = geometric_altitude(h=h)
+        if np.any(z > 86e3):
+            error_msg = "Cannot yet compute total number density above 86 km geometric altitudes"
+            raise NotImplementedError(error_msg)
 
-        np.where
-
-        p = self.pressure(h=h)
-        T = self.temperature(h=h)
-        n = co.STANDARD.ISO_2533_1975.N_A * p / co.STANDARD.ISO_2533_1975.Rstar / T
-        return n
-
-
-if __name__ == "__main__":
-    atm = USSA_1976()
-    print(atm.temperature(
-        np.array([0, 1e3, 1e4])
-    ))
-
-    print()
+        return N

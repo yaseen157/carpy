@@ -177,7 +177,7 @@ class NumberSets:
 
 def broadcast_vector(values, vector) -> tuple[np.ndarray, np.ndarray]:
     """
-    Broadcast all elements in values over each element of a vector.
+    Broadcast copies of array of values over each element of a vector.
 
     Args:
         values: An n-dimensional array of values with any shape.
@@ -185,11 +185,24 @@ def broadcast_vector(values, vector) -> tuple[np.ndarray, np.ndarray]:
 
     Returns:
         A tuple of broadcasted values and vectors such that values has the shape (n, *values.shape), and the vector
-            assumes the shape (n, *(1, ...)). Both the broadcasted values and vector have the same number of dimensions.
+            assumes the shape (n, *(1, ...)). Both the broadcasted arrays have the same number of dimensions making it
+            easy to check each element in the vector against all values.
 
     Examples:
 
+        >>> A = np.array([[1, 7], [3, -4]])
+        >>> b = np.array([5, 0])
 
+        # Broadcast copies of A over each element in vector b.
+        >>> A_broadcasted, b_broadcasted = broadcast_vector(A, b)
+
+        # Check which elements of A are greater than each element in b
+        >>> print(A_broadcasted > b_broadcasted)
+            array([[[False,  True],     # A > b[0]
+                    [False, False]],
+
+                   [[ True,  True],     # A > b[1]
+                    [ True, False]]])
 
     """
     # Cast to arrays as necessary
