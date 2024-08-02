@@ -109,7 +109,6 @@ class ISO_2533_1975(StaticAtmosphereModel):
         beta[beta == 0] = np.nan  # Save ourselves the embarrassment of dividing by zero
         multiplier: np.ndarray = np.where(
             np.isnan(beta),
-            # TODO: Verify /T doesn't actually mean /T_b ?
             np.exp(-(co.STANDARD.ISO_2533_1975.g_n / co.STANDARD.ISO_2533_1975.R / T * (h - Hb0)).x),  # beta == 0
             (1 + beta / Tb0 * (h - Hb0)) ** -(co.STANDARD.ISO_2533_1975.g_n / beta / co.STANDARD.ISO_2533_1975.R).x
             # beta != 0
