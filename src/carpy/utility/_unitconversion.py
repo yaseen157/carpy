@@ -392,7 +392,10 @@ class Quantity(np.ndarray):
         self.units = getattr(obj, "units", None)
 
     def __repr__(self):
-        return f"{super().__repr__()[:-1]}, units='{self.units}')"
+        if str(self.units) != "":
+            return f"{super().__repr__()[:-1]}, units='{self.units}')"
+        return f"{super().__repr__()[:-1]})"
+
 
     def __format__(self, format_spec):
         if self.size == 1 or format_spec == "":
