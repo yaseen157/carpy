@@ -211,6 +211,6 @@ class ISO_2533_1975(StaticAtmosphereModel):
         return mu
 
     def _thermal_conductivity(self, h: Quantity) -> Quantity:
-        T = self.temperature(h=h)
+        T = self.temperature(h=h).x  # Empirical formula does not demand consistency/propagation of units
         lamda = 2.648_151e-3 * T ** (3 / 2) / (T + 245.4 * 10 ** -(12 / T))
-        return lamda
+        return Quantity(lamda, "W m^{-1} K^{-1}")

@@ -15,7 +15,7 @@ from carpy.gaskinetics import PureGasModel
 from carpy.environment.atmosphere._atmosphere import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
-__all__ = []
+__all__ = ["USSA_1976"]
 __author__ = "Yaseen Reza"
 
 air_composition = dict([
