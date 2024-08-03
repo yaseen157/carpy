@@ -12,10 +12,10 @@ import pandas as pd
 
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
-from carpy.environment.atmosphere import StaticAtmosphereModel
+from carpy.environment.atmospheres import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
-__all__ = ["ISO_2533_1975"]
+__all__ = ["ISO_2533_1975", "ISA"]
 __author__ = "Yaseen Reza"
 
 # Dry, clean air composition at sea level.
@@ -79,11 +79,14 @@ class ISO_2533_1975(StaticAtmosphereModel):
     def __init__(self):
         super().__init__()
 
-        # Define constituent gas composition
+        # Define sea-level constituent gas composition
         self._gas_model.X = {
             PureGasModel(chemical_species=chemical_species): content_fraction
             for (chemical_species, content_fraction) in dict(TABLES[2].to_records(index=False)).items()
         }
+
+        # Define planet
+        self._planet = "Earth"
         return
 
     def __str__(self):
@@ -214,3 +217,5 @@ class ISO_2533_1975(StaticAtmosphereModel):
         T = self.temperature(h=h).x  # Empirical formula does not demand consistency/propagation of units
         lamda = 2.648_151e-3 * T ** (3 / 2) / (T + 245.4 * 10 ** -(12 / T))
         return Quantity(lamda, "W m^{-1} K^{-1}")
+
+ISA = ISO_2533_1975

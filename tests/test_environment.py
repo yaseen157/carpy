@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from carpy.environment.atmosphere import ISO_2533_1975, USSA_1976
+from carpy.environment.atmospheres import ISO_2533_1975, USSA_1976
 from carpy.utility import Quantity, constants as co
 
 

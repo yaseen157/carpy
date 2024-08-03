@@ -1,4 +1,4 @@
-"""Module implementing the basis class for atmospheric modelling."""
+"""Module implementing the basis class for modelling static atmospheres."""
 import typing
 
 from carpy.gaskinetics import NonReactiveGasModel
@@ -29,6 +29,7 @@ class StaticAtmosphereModel:
 
     """
     _gas_model: NonReactiveGasModel
+    _planet: str = None
 
     # Atmospheric profile functions of geometric altitude
     _temperature: typing.Callable

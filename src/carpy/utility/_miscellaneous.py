@@ -75,7 +75,7 @@ class classproperty(property):  # noqa: Ignore complaints about case, to make th
         >>> class Foo:
         ...
         ...     @classproperty
-        ...     def bar(cls):
+        ...     def bar(self):
         ...         return "baz"
 
         >>> assert Foo().bar == "baz", "Couldn't locate instance property 'baz'"
@@ -93,7 +93,7 @@ class classproperty(property):  # noqa: Ignore complaints about case, to make th
         return self.fget(owner_cls)
 
 
-__all__ += [call_count.__name__, call_depth.__name__]
+__all__ += [call_count.__name__, call_depth.__name__, classproperty.__name__]
 
 
 # ============================================================================ #
@@ -211,8 +211,9 @@ def broadcast_vector(values, vector) -> tuple[np.ndarray, np.ndarray]:
     assert vector.ndim == 1, f"Expected vector to be a 1d array (got {vector.ndim=})"
 
     values_broadcast = np.broadcast_to(values, shape=(*vector.shape, *values.shape))
-    vector_broadcast = np.expand_dims(vector, tuple(range(values_broadcast.ndim-1))).T
+    vector_broadcast = np.expand_dims(vector, tuple(range(values_broadcast.ndim - 1))).T
     return values_broadcast, vector_broadcast
+
 
 __all__ += [is_none.__name__, NumberSets.__name__, broadcast_vector.__name__]
 
@@ -296,15 +297,14 @@ class PathAnchor:
         if ascended is False:
             error_msg = (
                 f"{type(self).__name__} does not appear to have spawned inside "
-                f"an explicitly defined module - a more appropriate call would "
-                f"be made with 'self.{type(self).library_path.fget.__name__}'"
+                f"an explicitly defined package. Couldn't locate '__init__.py'!"
             )
             warn(message=error_msg, category=RuntimeWarning)
 
         return current_path
 
     @classproperty
-    def home_path(cls):
+    def home_path(self):
         path = os.path.expanduser("~")
         return path
 
@@ -332,5 +332,3 @@ class LoadData(object):
 
 
 __all__ += [PathAnchor.__name__, LoadData.__name__]
-
-

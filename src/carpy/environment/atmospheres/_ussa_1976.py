@@ -12,7 +12,7 @@ import pandas as pd
 
 from carpy.chemistry import species
 from carpy.gaskinetics import PureGasModel
-from carpy.environment.atmosphere import StaticAtmosphereModel
+from carpy.environment.atmospheres import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
 __all__ = ["USSA_1976"]
@@ -194,11 +194,14 @@ class USSA_1976(StaticAtmosphereModel):
     def __init__(self):
         super().__init__()
 
-        # Define constituent gas composition
+        # Define sea-level constituent gas composition
         self._gas_model.X = {
             PureGasModel(chemical_species=chemical_species): content_fraction
             for (chemical_species, content_fraction) in dict(TABLES[3].to_records(index=False)).items()
         }
+
+        # Define planet
+        self._planet = "Earth"
         return
 
     def __str__(self):
