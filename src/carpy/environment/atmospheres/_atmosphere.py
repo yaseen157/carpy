@@ -8,8 +8,6 @@ __all__ = ["StaticAtmosphereModel"]
 __author__ = "Yaseen Reza"
 
 
-# TODO: Decide whether it makes sense to have "class Climate: def __init__(self, atm: StaticAtmosphereModel, ...)"
-
 class StaticAtmosphereModel:
     """
     Base class for all reference/standardised models of atmospheric state variables. Constituent methods are always

@@ -16,19 +16,25 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-![CARPy](./docs/source/_static/carpy.svg)
-<h2 align="center"><p>Consolidated Aircraft Recipes in Python</p></h2>
-<p align="center">Yaseen Reza</p>
+<img style="float: right; padding-left:20px;" src="docs/source/_static/carpy.svg" width="180" height="160"/>
+<h1 align="center"><p>Consolidated Aircraft Recipes in Python</p></h1>
+<h4 align="center">by: Yaseen Reza</h4>
+
+---
+
+
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-395/)
+[![Python Version](https://img.shields.io/badge/python-3.10_--_3.12-blue.svg)](https://www.python.org/downloads/)
 [![PyPI Version](https://badge.fury.io/py/carpy.svg)](https://badge.fury.io/py/carpy)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
+![Jupyter Badge](https://img.shields.io/badge/jupyter-notebook-orange.svg)
 
 CARPy is an open source project for those interested in the methodology and
 approach to the conceptual-level design of fixed-wing aircraft. This library
 provides its users with access to a variety of design tools for conceptual
-analysis - CARPy is designed to complement and not substitute a comprehensive
-and detailed study of a vehicle concept.
+analysis - CARPy is designed to complement, not substitute, the comprehensive
+and detailed study of vehicle concepts.
 
 - [Source Code](https://github.com/yaseen157/carpy)
 - [Jupyter Notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source)
@@ -38,21 +44,23 @@ Users will find:
 
 - Virtual (design) atmospheres
 - Hassle-free conversions between systems of units
-- Constraint Analysis Methods
+- `[WorkInProgress]` Constraint Analysis Methods
 - `[WorkInProgress]` Propulsion models and Engine Performance Decks
-- *...and much more* `[WorkInProgress]`
+- *...and much more*
+
+CARPy is continually tested to ensure you have the most stable code. Users encountering any issues should raise a GitHub
+issue, or better yet, consider contributing to the project.\
+**Continuous Integration Status** (CircleCI):\
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
 
 For a detailed description of the library, please consult the documentation. To
 get started, follow the instructions below.
-
-**Continuous Integration Status** (CircleCI):\
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
 
 ## ✔️ Getting Started
 
 ### Installation
 
-`carpy` is written for (and tested in) Python version 3.10.
+`carpy` is written for (and tested in) Python version 3.10+.
 
 On most systems you should be able to simply open an operating system terminal
 and at the command prompt type
@@ -122,10 +130,9 @@ You should see the following output:
     ISO 2533:1975 Standard Atmosphere density at 41,000 feet: 0.28740209 kg m⁻³
 
 You can learn more about `CARPy`'s capabilities through the exemplary
-[notebooks](./docs/source/).
+[notebooks](docs/source/).
 
 ## 🐍 Acknowledgements
 
-The library was authored by:
-
-- Yaseen Reza
+This project would not have been possible without the careful supervision of Dr.András Sóbester and the support of my
+close colleagues and friends - you know who you are!

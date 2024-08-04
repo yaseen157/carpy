@@ -1,4 +1,10 @@
-"""Module implementing the U.S. Department of Defence Handbook 310's atmosphere profiles."""
+"""
+Module implementing the U.S. Department of Defence Handbook 310's atmosphere profiles.
+
+References:
+    MIL-HDBK-310 Global Climatic Data for Developing Military Products
+
+"""
 import os
 import re
 

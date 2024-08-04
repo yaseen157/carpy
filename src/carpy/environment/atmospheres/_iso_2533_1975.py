@@ -4,6 +4,9 @@ Module implementing the ISO 2533-1975 standard atmosphere.
 Notes:
     Where possible, this module draws the values for constants from the standard instead of computing values on the fly.
 
+References:
+    ISO 2533:1975 Standard Atmosphere.
+
 """
 import warnings
 
@@ -217,5 +220,6 @@ class ISO_2533_1975(StaticAtmosphereModel):
         T = self.temperature(h=h).x  # Empirical formula does not demand consistency/propagation of units
         lamda = 2.648_151e-3 * T ** (3 / 2) / (T + 245.4 * 10 ** -(12 / T))
         return Quantity(lamda, "W m^{-1} K^{-1}")
+
 
 ISA = ISO_2533_1975

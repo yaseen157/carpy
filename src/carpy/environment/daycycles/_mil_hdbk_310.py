@@ -1,4 +1,10 @@
-"""A module implementing several diurnal cycles for climatic elements, as prescribed in the MIL-HDBK-310 tables."""
+"""
+A module implementing several diurnal cycles for climatic elements, as prescribed in the MIL-HDBK-310 tables.
+
+References:
+    MIL-HDBK-310 Global Climatic Data for Developing Military Products
+
+"""
 import os
 
 import numpy as np

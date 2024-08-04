@@ -30,11 +30,11 @@ def timecode_to_datetime(value: str | dt.time) -> dt.time:
 
     # If the setting value is a string, use ISO 8601 unambiguous (solar time) context to parse the string
     iso8601 = re.compile(r"""
-            (\d{2})          # Match  hh
+            ^T?     (\d{2})  # Match  hh
             (?: (:?)(\d{2})  # Match :mm
             (?: (:?)(\d{2})  # Match :ss
             (?:  \. (\d{3})  # Match .sss
-            )?)?)?
+            )?)?)?$
             """, flags=re.VERBOSE)
 
     if (match := iso8601.match(value)) is None:
@@ -78,6 +78,8 @@ class DiurnalCycle:
         Args:
             t_oneday: The length of time in one solar day, measured in Earth seconds. Optional, defaults to the length
                 of one Earth day.
+            solar_offset: The time datum from which the 't_elapsed' argument in this class' methods counts. Users can
+                provide an ISO 8601 compatible timecode, or a datetime.time object. Optional, defaults to 10 am.
 
         """
         # Define the duration of one dirunal cycle in Earth seconds
@@ -88,7 +90,10 @@ class DiurnalCycle:
             self._oneday = t_oneday
 
         # Set the solar offset, if one is present
-        self.solar_offset = solar_offset
+        if solar_offset is None:
+            self.solar_offset = dt.time(hour=10)
+        else:
+            self.solar_offset = solar_offset
 
     @property
     def solar_offset(self) -> dt.time:
@@ -98,6 +103,11 @@ class DiurnalCycle:
     @solar_offset.setter
     def solar_offset(self, value: dt.time | str):
         self._offset_dt = timecode_to_datetime(value=value)
+        return
+
+    @solar_offset.deleter
+    def solar_offset(self):
+        self._offset_dt = dt.time(hour=10)
         return
 
     def solar_hour(self, t_elapsed, solar_offset: dt.time | str = None) -> float:

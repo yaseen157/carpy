@@ -4,6 +4,9 @@ Module implementing the U.S. Standard Atmosphere as defined in 1976.
 Notes:
     Where possible, this module draws the values for constants from the standard instead of computing values on the fly.
 
+References:
+    U.S. Standard Atmosphere 1976.
+
 """
 import warnings
 
@@ -247,11 +250,10 @@ class USSA_1976(StaticAtmosphereModel):
         # Selection indices for molecular and kinetic scales. Value of 0 or greater means that indexing system is active
         idxm = np.clip(np.sum(h_broadcasted > Href_broadcasted, axis=0) - 1, 0, None)  # Prevent negative index of tab 4
         idxk = np.sum(z_broadcasted > Zref_broadcasted, axis=0) - 1  # Index of table 5 if it used default indices
-        idxk[np.isnan(z)] = len(TABLES[5]) - 1 # If z was invalid, set the layer to end index
+        idxk[np.isnan(z)] = len(TABLES[5]) - 1  # If z was invalid, set the layer to end index
         # Combine into an index that is consistent with the layer numbers in the standard
         idxm_limit = TABLES[4].index[-1]
         layer = np.where(idxk < 0, idxm, idxk + idxm_limit)  # Table 4 and 5 combined index
-
 
         # Compute the molecular temperature where it is applicable in the geopotential regions
         dH = h.x - np.where(layer < idxm_limit, TABLES[4]["H"].to_numpy()[np.clip(idxm, 0, None)], np.nan)
