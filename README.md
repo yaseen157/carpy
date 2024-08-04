@@ -20,10 +20,6 @@
 <h1 align="center"><p>Consolidated Aircraft Recipes in Python</p></h1>
 <h4 align="center">by: Yaseen Reza</h4>
 
----
-
-
-
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python Version](https://img.shields.io/badge/python-3.10_--_3.12-blue.svg)](https://www.python.org/downloads/)
 [![PyPI Version](https://badge.fury.io/py/carpy.svg)](https://badge.fury.io/py/carpy)

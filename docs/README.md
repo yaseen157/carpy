@@ -2,8 +2,6 @@
 
 # CARPy Documentation
 
----
-
 Users of the library can find the following documentation in this directory:
 
 - `source` contains library docs and assets.
@@ -16,8 +14,9 @@ Users of the library can find the following documentation in this directory:
 >
 > If you have cloned this project and are making an editable install of the contained library, the iPython backend of
 > Jupyter notebooks may not be able to locate CARPy. If this is the case, have a go at running the `ipynb_wizard.py`
-> file. It configures the iPython kernel to effectively run the following code at the start of each notebook - and of
-> course, you are welcome to ignore the wizard and use this template yourself:
+> file that can be found in this folder. So long as it can find where CARPy is located, it configures the iPython kernel
+> to effectively run the following code at the start of each notebook - and of course, you are welcome to ignore the
+> wizard and use this template yourself:
 > ```python
 > import sys
 > 
