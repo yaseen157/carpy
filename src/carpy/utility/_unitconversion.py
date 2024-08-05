@@ -22,10 +22,17 @@ dataframes["prefixes"] = dataframes["prefixes"].with_columns(pl.col("Symbol").fi
 
 
 class UnitOfMeasurement:
-    """A unit object is used to record the dimensionality, scale, and other properties of a unit."""
+    """
+    A unit object is used to record the dimensionality, scale, and other properties of a unit.
+
+    A simple set of maths operators are overloaded in this class to allow users to compare the dimensionality of one
+    unit to another. For example, an object of this class representing horsepower will cleanly divide by another
+    representing watts and return a dimensionless unit of measurement object. This does mean that class data on the
+    original arguments of instantiation are lost, however, this is by design and believed to be more useful.
+    """
     _memo_ids = {}
     _memo_dims = {}
-    _memo_conv = {}
+    _memo_func = {}
     _re = re.compile(r"([^^]+)(?:\^(?<=\^){?([^{}]+)}?)?")
     _sibase = ["kg", "m", "s", "A", "K", "mol", "cd"]  # MKS (metre, kilogram, second) system of quantities
     _si_ext = _sibase + ["rad", "sr"]  # angular quantities included
@@ -33,18 +40,17 @@ class UnitOfMeasurement:
 
     def __new__(cls, symbols: str = None, /):
         """
-        Return an instance of the class, and memoize the unit pattern
+        Return an instance of the class, and memoize the unit pattern.
 
         Args:
             symbols: Symbols that represent units and measurement quantities.
 
         """
-        # Set as empty string to skip the coming for-loop
-        if symbols is None:
-            symbols = ""
+        if symbols is None or symbols == "":
+            return super(UnitOfMeasurement, cls).__new__(cls)  # Nothing to do but return right away
 
         # Identify each constituent symbol with logical comparisons to defined units and systems in the dataframes
-        for symbol in symbols.split(" "):
+        for symbol in symbols.split():
 
             # If we already know what the symbol is supposed to be, don't bother with the polars dataframe lookup
             if symbol in cls._memo_ids:
@@ -86,10 +92,6 @@ class UnitOfMeasurement:
                 }
                 for suffix_id in valid_suffixes:
                     valid_combinations.append((prefix_id, suffix_id))
-            else:
-                # clean-up namespace
-                del inferred_suffix, inferred_combinations
-                del prefix_system, dimension_table, valid_prefixes, valid_suffixes
 
             if len(valid_combinations) == 0:
                 error_msg = f"Could not determine what unit of measurement {symbol} means in {' '.join(symbols)}"
@@ -99,16 +101,20 @@ class UnitOfMeasurement:
                 error_msg = f"Could not deconflict multiple potential meanings of the unit of measurement {symbol}"
                 raise RuntimeError(error_msg)
 
-            # Unpack and memoise the ids (prefix_id, suffix_id) and an array representing dimensionality
+            # Unpack and memoise the ids (prefix_id, suffix_id)
             (prefix_id, suffix_id), = valid_combinations
-            dimension_row = dataframes["dimensions"][suffix_id]
             (symbol_no_power, _), = cls._re.findall(symbol)
-            prefix_exp = dataframes["prefixes"][prefix_id]["Exponent"].item()
             cls._memo_ids[symbol_no_power], = valid_combinations
+
+            # Memoize an array representing dimensionality
+            dimension_row = dataframes["dimensions"][suffix_id]
             cls._memo_dims[symbol_no_power], = dimension_row[cls._si_ext].to_numpy()
 
             # Memoize conversions to and from SI
+            prefix_exp = dataframes["prefixes"][prefix_id]["Exponent"].item()
             if dimension_row["System"].item() == "SI":
+                if dimension_row["Symbol(s)"].item() == "g":
+                    prefix_exp -= 3  # Naturally, correct for the fact that "g" is not SI but "kg" is!
 
                 def to_si(value, symbol_power):
                     return value * (10.0 ** prefix_exp) ** symbol_power
@@ -141,19 +147,23 @@ class UnitOfMeasurement:
                 def from_si(value, symbol_power):
                     return value / factor / (10.0 ** prefix_exp) ** symbol_power
 
-            cls._memo_conv[symbol_no_power] = {"to_si": to_si, "from_si": from_si}
+            cls._memo_func[symbol_no_power] = {"to_si": to_si, "from_si": from_si}
 
         return super(UnitOfMeasurement, cls).__new__(cls)
 
     def __init__(self, symbols: str, /):
-        # Set as empty string to skip the coming for-loop
-        if symbols is None:
-            symbols = ""
-
-        # Record the exponent associated with the units
+        """
+        Args:
+            symbols: Symbols that represent units and measurement quantities.
+        """
+        # Spawn a fresh dictionary for tracking symbols and their units
         self._symbols_powers = dict()
 
-        for symbol in symbols.split(" "):
+        if symbols is None or symbols == "":
+            return  # Nothing to be done, just leave
+
+        # Record the exponent associated with the units
+        for symbol in symbols.split():
             (symbol_no_power, power), = self._re.findall(symbol)
             power = RationalNumber(*map(float, power.split("/"))) if power else 1
             if symbol_no_power in self._symbols_powers:
@@ -168,12 +178,92 @@ class UnitOfMeasurement:
             score_exp = -self._symbols_powers[sym] * sym_dims[score_qtyidx]  # Exponent of first nonzero dim
             return score_exp, score_qtyidx
 
-        self._symbols_powers = {k: self._symbols_powers[k] for k in sorted(self._symbols_powers, key=symbol_sorter)}
+        self._symbols_powers = {
+            k: self._symbols_powers[k] for k in sorted(self._symbols_powers, key=symbol_sorter)
+            if self._symbols_powers[k] != 0  # Scrub any units that have a power of zero
+        }
         return
 
     def __repr__(self):
         units, = self.args
         return units
+
+    def __eq__(self, other):
+        """Equality should hold true if dimensionality is equal."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
+            raise TypeError(error_msg)
+
+        return np.all(self._dimensions == other._dimensions)
+
+    def __mul__(self, other):
+        """Multiplication of powers means adding them together."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
+            raise TypeError(error_msg)
+
+        new_dims = self._dimensions + other._dimensions
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
+
+    def __pow__(self, power, modulo=None):
+        """Units raised to a power means multiplying the units dimensional power by the encumbent power."""
+        cls = type(self)
+        if not isinstance(power, (int, float, np.floating, np.integer)):
+            error_msg = f"{cls.__name__} must be raised to the power of a numeric type, not {type(power).__name__} type"
+            raise TypeError(error_msg)
+
+        new_dims = self._dimensions * power
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __rtruediv__(self, other):
+        return self.__truediv__(other)
+
+    def __truediv__(self, other):
+        """Division of powers means subtracting other powers from self."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
+            raise TypeError(error_msg)
+
+        new_dims = self._dimensions - other._dimensions
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
+
+    @property
+    def _dimensions(self) -> np.ndarray:
+        """Return an array, where each term represents the dimensional power of a quantity."""
+        if self.is_dimensionless:
+            return np.zeros(len(self._si_ext))
+
+        stacked_dims = np.vstack([
+            self._memo_dims[symbol] * power
+            for (symbol, power) in self._symbols_powers.items()
+        ]).sum(axis=0)
+        return stacked_dims
+
+    @property
+    def args(self) -> tuple[str]:
+        """An args tuple that could be used to instantiate a new object with identical units."""
+        instantiable_string = " ".join([
+            f"{symbol}" if power == 1 else f"{symbol}^{power}"
+            for (symbol, power) in self._symbols_powers.items()
+        ])
+        return (instantiable_string,)
+
+    @property
+    def is_dimensionless(self) -> bool:
+        """Returns true if the unit has no dimensions, not even a ratio of dimensions."""
+        return not bool({})
 
     def to_si(self, values):
         """Convert values in the instance's units of measure, to the equivalent values in SI equivalent base units."""
@@ -185,7 +275,7 @@ class UnitOfMeasurement:
 
         # In general
         for (symbol, power) in self._symbols_powers.items():
-            transfer_func = self._memo_conv[symbol].get("to_si")
+            transfer_func = self._memo_func[symbol].get("to_si")
             if not callable(transfer_func):
                 raise NotImplementedError("Cannot convert unit to SI equivalent")
             values = transfer_func(values, power)
@@ -206,7 +296,7 @@ class UnitOfMeasurement:
 
         # In general
         for (symbol, power) in self._symbols_powers.items():
-            transfer_func = self._memo_conv[symbol].get("from_si")
+            transfer_func = self._memo_func[symbol].get("from_si")
             if not callable(transfer_func):
                 raise NotImplementedError("Cannot convert unit from SI equivalent")
             values = transfer_func(values, power)
@@ -218,16 +308,11 @@ class UnitOfMeasurement:
         return values
 
     @property
-    def args(self) -> tuple[str]:
-        """An args tuple that could be used to instantiate a new object with identical units."""
-        instantiable_string = " ".join([
-            f"{symbol}" if power == 1 else f"{symbol}^{power}"
-            for (symbol, power) in self._symbols_powers.items()
-        ])
-        return (instantiable_string,)
-
-    @property
     def units_si(self) -> str:
+
+        if self.is_dimensionless:
+            return ""
+
         dim_powers = np.vstack([self._memo_dims[k] * v for (k, v) in self._symbols_powers.items()]).sum(axis=0)
         si_string = " ".join([
             f"{symbol}" if power == 1 else f"{symbol}^{power}"
@@ -249,7 +334,10 @@ class Quantity(np.ndarray):
         values = np.atleast_1d(values)
 
         # From the units, determine the SI equivalent quantity representation
-        unit_of_measurement = UnitOfMeasurement(units)
+        if isinstance(units, UnitOfMeasurement):
+            unit_of_measurement = units
+        else:
+            unit_of_measurement = UnitOfMeasurement(units)
         values_SI = unit_of_measurement.to_si(values)
 
         # Subclass ourselves to np.ndarray
@@ -319,43 +407,61 @@ class Quantity(np.ndarray):
 
     def __abs__(self):
         """Absolute value."""
-        return
+        return super(Quantity, self).__abs__()
 
     def __add__(self, other):
         """Addition."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u == other.u, f"Illegal operation, adding {cls.__name__} objects with dissimilar units"
+        return super(Quantity, self).__add__(other)
 
     def __ceil__(self):
         """Ceiling function."""
-        return
+        return np.ceil(self)
 
     def __divmod__(self, other):
         """Division quotient, remainder."""
-        return
+        return self.__floordiv__(other), self.__mod__(other)
 
     def __eq__(self, other):
         """Equality."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            if self.u != other.u:
+                return False
+        return self.x == other
 
     def __float__(self):
         """Cast as float."""
-        return
+        return self.astype(dtype=float)
 
     def __floor__(self):
         """Floor function."""
-        return
+        return np.floor(self)
 
     def __floordiv__(self, other):
         """self // other, floored division quotient."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x // other.x
+            new_units = self.u / other.u
+            return cls(new_value, new_units)
+        return super(Quantity, self).__floordiv__(other)
 
     def __ge__(self, other):
         """Greater than or equal to."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+        return super(Quantity, self).__ge__(other)
 
     def __gt__(self, other):
         """Greater than."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+        return super(Quantity, self).__gt__(other)
 
     def __int__(self):
         """Cast as integer."""
@@ -363,26 +469,37 @@ class Quantity(np.ndarray):
 
     def __le__(self, other):
         """Less than or equal to."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+        return super(Quantity, self).__le__(other)
 
     def __lt__(self, other):
         """Less than."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+        return super(Quantity, self).__lt__(other)
 
     def __mod__(self, other):
         """Modulo."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x - (self.x // other.x) * other.x
+            new_units = self.u / other.u
+            return cls(new_value, new_units)
+        return super(Quantity, self).__mod__(other)
 
     def __mul__(self, other):
         """Multiplication."""
         return
 
     def __neg__(self):
-        """Negation"""
-        return
+        """Negation."""
+        return super(Quantity, self).__neg__()
 
     def __pow__(self, power):
-        """self raised to a power"""
+        """Self raised to a power."""
         return
 
     def __radd__(self, other):
@@ -407,7 +524,7 @@ class Quantity(np.ndarray):
 
     def __round__(self, n=None):
         """Round function."""
-        return
+        return np.round(self, decimals=n)
 
     def __rpow__(self, other):
         """Reverse raise power."""
@@ -423,11 +540,19 @@ class Quantity(np.ndarray):
 
     def __sub__(self, other):
         """Subtraction."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u == other.u, f"Illegal operation, subtracting {cls.__name__} objects with dissimilar units"
+        return super(Quantity, self).__sub__(other)
 
     def __truediv__(self, other):
         """True division."""
-        return
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x / other.x
+            new_units = self.u / other.u
+            return cls(new_value, new_units)
+        return super(Quantity, self).__truediv__(other)
 
     def __trunc__(self):
         """Truncate."""
@@ -441,19 +566,27 @@ class Quantity(np.ndarray):
         """For maths purposes, display SI."""
         repr1 = super(Quantity, self).__repr__()
         repr2 = self._carpy_units.units_si
+        repr2 = "no_unit" if repr2 == "" else repr2
         return f"{repr1.rstrip()[:-1]}, {repr2})"
 
     def __str__(self):
         """For display purposes, display whatever the original unit was."""
         rtn_str1 = self._carpy_units.to_uom(self.x).__str__()
         rtn_str2, = self._carpy_units.args
-        return f"{rtn_str1} {rtn_str2}"
+        if rtn_str2:
+            return f"{rtn_str1} {rtn_str2}"
+        return rtn_str1
 
     def to(self, units: str) -> np.ndarray:
         """Return a numpy array in the chosen units."""
         new_uom = UnitOfMeasurement(units)
         new_value = new_uom.to_uom(self.x)
         return new_value
+
+    @property
+    def u(self) -> UnitOfMeasurement:
+        """Return the units of measurement integral to the definition of the Quantity."""
+        return self._carpy_units
 
     @property
     def x(self) -> np.ndarray:

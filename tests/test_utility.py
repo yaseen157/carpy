@@ -101,6 +101,8 @@ class UnitConversion(unittest.TestCase):
             ((288.15, "K"), (288.15, "K")),
             ((288.15, "K"), (15.0, "degC")),
             ((288.15, "K"), (59.0, "degF")),
+            # Mass
+            ((1, "kg"), (1e3, "g")),
             # Power
             ((1, "nW"), (1e-9, "W")),
             ((1, "uW"), (1e-6, "W")),
@@ -117,7 +119,7 @@ class UnitConversion(unittest.TestCase):
             ((1, "bar"), (1e5, "Pa")),
             ((1, "bar"), (750.06157585, "mmHg")),
             ((1, "atm"), (29.92125558, "inHg")),
-            # # Homonuclear
+            # Homonuclear
             ((1, "mm^{2}"), (1e-6, "m^{2}")),
 
         )
@@ -138,15 +140,47 @@ class UnitConversion(unittest.TestCase):
     def test_operations(self):
         """Methods to ensure that Quantity objects can do basic maths things."""
 
-        mass = Quantity(85, "kg")
+        mass = Quantity(85.4, "kg")
         velocity = Quantity([[-3.6], [0], [0]], "kph")  # 1 metre per second
 
         # Absolute value
         value = abs(velocity)
-        self.assertEqual(value, 1)
+        self.assertEqual(value[0], 1)
+        self.assertIsInstance(value[0], Quantity)
+
+        # Addition
+        value = mass + mass
+        self.assertEqual(value, 170.8)
         self.assertIsInstance(value, Quantity)
 
-        print(mass, velocity)
+        value = mass + 60
+        self.assertEqual(value, 145.4)
+        self.assertIsInstance(value, Quantity)
+
+        # Ceiling
+        value = np.ceil(mass)
+        self.assertEqual(value, 86)
+        self.assertIsInstance(value, Quantity)
+
+        # Divmod
+        value = divmod(mass, mass)
+        self.assertEqual(value[0], 1)  # divides once
+        self.assertEqual(value[1], 0)  # with no remainder
+        self.assertIsInstance(value[0], Quantity)
+        self.assertIsInstance(value[1], Quantity)
+
+        value = divmod(mass, 5)
+        self.assertEqual(value[0], 17)
+        self.assertAlmostEqual(value[1], 0.4, places=6)
+        self.assertIsInstance(value[0], Quantity)
+        self.assertIsInstance(value[1], Quantity)
+
+        # Equality
+        self.assertTrue(mass == mass)
+        self.assertTrue(mass == 85.4)
+        self.assertFalse(mass == 2 * mass)
+        self.assertFalse(np.any(mass == velocity))
+
         return
 
 

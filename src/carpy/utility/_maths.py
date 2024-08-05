@@ -18,7 +18,7 @@ class RationalNumber:
         if p == 0:
             return 0
         elif NumberSets.is_integer(p) and abs(q) == 1:
-            return p / q
+            return int(p / q)
 
         obj = super(RationalNumber, cls).__new__(cls)
         return obj
