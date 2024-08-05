@@ -121,6 +121,9 @@ class GasModel:
         T = Quantity(T, "K")
 
         def helper1(x):
+            import cProfile
+            from pstats import SortKey
+            cProfile.runctx("self.specific_internal_energy(p=p, T=x)", locals(), globals(), sort=SortKey.TIME)
             return self.specific_internal_energy(p=p, T=x)
 
         def helper2(x):
@@ -128,9 +131,10 @@ class GasModel:
 
         _, dudT_p = gradient1d(helper1, T)
         _, dnudT_p = gradient1d(helper2, T)
+        dVmdT_p = dnudT_p / self.molar_mass
 
         # Isobaric specific heat is the constant pressure differential of enthalpy w.r.t temperature
-        dHdT_p = dudT_p + p * dnudT_p
+        dHdT_p = dudT_p + p * dVmdT_p
         return dHdT_p
 
     def _specific_heat_V(self, p, T):
@@ -515,6 +519,7 @@ class NonReactiveGasModel(GasModel):
         for (species, Yi) in self.Y.items():
             ui = species.specific_internal_energy(p=p, T=T)
             U += ui * Yi
+
         ubar = U / 1.0
         return ubar
 

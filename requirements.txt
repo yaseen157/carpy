@@ -3,12 +3,13 @@ setuptools>=67.0.0
 
 # Development/Deployment
 Cantera
+fastexcel
 fsspec
 matplotlib
 numpy
-openpyxl
 pandas
 periodictable
+polars
 pytest
 python-metar
 pyyaml

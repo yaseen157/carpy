@@ -3,14 +3,44 @@ import unittest
 
 import numpy as np
 
-from carpy.utility import gradient1d
+from carpy.utility import RationalNumber, gradient1d
 from carpy.utility import PathAnchor
-from carpy.utility import Quantity
+from carpy.utility import UnitOfMeasurement, Quantity
 from carpy.utility import Unicodify
 
 
 class Maths(unittest.TestCase):
     """Tests for maths utilities."""
+
+    def test_rationalnums(self):
+        num1 = RationalNumber(1, 3)
+        num2 = RationalNumber(-8, 3)
+        self.assertGreater(abs(num1), 0)
+        self.assertGreater(abs(num2), 0)
+        self.assertEqual(num1 + num2, -7 / 3)
+        self.assertEqual(num1 + 2, 7 / 3)
+        self.assertEqual(np.ceil(num1), 1)
+        self.assertEqual(np.ceil(num2), -2)
+        self.assertEqual(divmod(num2, num1), (-8, 0))
+        self.assertEqual(num1, 1 / 3)
+        self.assertEqual(num2, -8 / 3)
+        self.assertEqual(num1 // 2, 0)
+        self.assertEqual(num2 // 2, -2)
+        self.assertGreaterEqual(num1, 0)
+        self.assertGreaterEqual(num1, 1 / 3)
+        self.assertGreater(num1, 0)
+        self.assertEqual(int(num1), 0)
+        self.assertEqual(int(num2), -2)
+        self.assertLessEqual(num2, 0)
+        self.assertLessEqual(num2, -8 / 3)
+        self.assertLess(num2, 0)
+        self.assertEqual(num1 * num2, -8 / 9)
+        self.assertEqual(2 * num1, 2 / 3)
+        self.assertEqual(-num1, -1 / 3)
+        self.assertEqual(num2 ** 2, 64 / 9)
+        self.assertAlmostEqual((num1 ** num1) ** 3, num1, places=5)
+        self.assertEqual(num1 ** (num2 - num1), 27)
+        self.assertEqual(num2 / num1, -8)
 
     def test_differentiate_scalar(self):
         # Numerical differentiation of an array
@@ -87,22 +117,36 @@ class UnitConversion(unittest.TestCase):
             ((1, "bar"), (1e5, "Pa")),
             ((1, "bar"), (750.06157585, "mmHg")),
             ((1, "atm"), (29.92125558, "inHg")),
-            # Homonuclear
-            ((1, "mm^{2}"), (1e-6, "m^{2}"))
+            # # Homonuclear
+            ((1, "mm^{2}"), (1e-6, "m^{2}")),
 
         )
         # Test conversions
         for ((arg_val, arg_unit), (gold_val, tgt_unit)) in testcases:
             self.assertTrue(
                 expr=np.isclose(
-                    Quantity(arg_val, arg_unit).to(tgt_unit),
-                    gold_val
+                    UnitOfMeasurement(arg_unit).to_si(arg_val),
+                    UnitOfMeasurement(tgt_unit).to_si(gold_val)
                 ),
                 msg=(
                     f"Failed to convert {arg_val} {arg_unit} to "
                     f"{gold_val} {tgt_unit}"
                 )
             )
+        return
+
+    def test_operations(self):
+        """Methods to ensure that Quantity objects can do basic maths things."""
+
+        mass = Quantity(85, "kg")
+        velocity = Quantity([[-3.6], [0], [0]], "kph")  # 1 metre per second
+
+        # Absolute value
+        value = abs(velocity)
+        self.assertEqual(value, 1)
+        self.assertIsInstance(value, Quantity)
+
+        print(mass, velocity)
         return
 
 
