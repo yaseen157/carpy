@@ -89,7 +89,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
         }
 
         # Define planet
-        self._planet = "Earth"
+        self._celestial_body = "Earth"
         return
 
     def __str__(self):
@@ -218,8 +218,8 @@ class ISO_2533_1975(StaticAtmosphereModel):
 
     def _thermal_conductivity(self, h: Quantity) -> Quantity:
         T = self.temperature(h=h).x  # Empirical formula does not demand consistency/propagation of units
-        lamda = 2.648_151e-3 * T ** (3 / 2) / (T + 245.4 * 10 ** -(12 / T))
-        return Quantity(lamda, "W m^{-1} K^{-1}")
+        lambda_ = 2.648_151e-3 * T ** (3 / 2) / (T + 245.4 * 10 ** -(12 / T))
+        return Quantity(lambda_, "W m^{-1} K^{-1}")
 
 
 ISA = ISO_2533_1975

@@ -27,7 +27,7 @@ class StaticAtmosphereModel:
 
     """
     _gas_model: NonReactiveGasModel
-    _planet: str = None
+    _celestial_body: str = None
 
     # Atmospheric profile functions of geometric altitude
     _temperature: typing.Callable

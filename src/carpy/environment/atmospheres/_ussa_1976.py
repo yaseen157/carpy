@@ -174,9 +174,9 @@ def compute_Tbases_kinetic():
 
     # Layer 12 base: 1,000 km geometric altitude
     Z_10, Z_12 = TABLES[5]["Z"][[10, 12]]
-    lamda = Lk_9 / (co.STANDARD.USSA_1976.T_inf.x - T_10)
+    lambda_ = Lk_9 / (co.STANDARD.USSA_1976.T_inf.x - T_10)
     xi = (Z_12 - Z_10) * ((co.STANDARD.USSA_1976.r_0 + Z_10) / (co.STANDARD.USSA_1976.r_0 + Z_12))
-    T_12 = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lamda * xi)).item()
+    T_12 = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lambda_ * xi)).item()
 
     temperature_bases = np.array([T_7, T_8, T_9, T_10, T_11, T_12])
     return temperature_bases
@@ -204,7 +204,7 @@ class USSA_1976(StaticAtmosphereModel):
         }
 
         # Define planet
-        self._planet = "Earth"
+        self._celestial_body = "Earth"
         return
 
     def __str__(self):
@@ -280,9 +280,9 @@ class USSA_1976(StaticAtmosphereModel):
 
         # Layer 10 and 11 are not distinct mathematically
         Z_10 = TABLES[5]["Z"][10]
-        lamda = Lk_9 / (co.STANDARD.USSA_1976.T_inf.x - T_10)
+        lambda_ = Lk_9 / (co.STANDARD.USSA_1976.T_inf.x - T_10)
         xi = ((z.x - Z_10) * ((co.STANDARD.USSA_1976.r_0 + Z_10) / (co.STANDARD.USSA_1976.r_0 + z.x)))[layer >= 10]
-        T[layer >= 10] = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lamda * xi))
+        T[layer >= 10] = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lambda_ * xi))
 
         # Layer 12 is defined at its base and no further
         if np.any(selection := z.x > max(TABLES[5]["Z"])):

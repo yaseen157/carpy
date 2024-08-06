@@ -71,7 +71,7 @@ class DiurnalCycle:
     """Base class for modelling daily changes in conditions."""
     _offset_dt: dt.time
     _oneday: Quantity
-    _planet: str = None
+    _celestial_body: str = None
 
     def __init__(self, t_oneday=None, solar_offset: dt.time | str = None):
         """
@@ -85,7 +85,7 @@ class DiurnalCycle:
         # Define the duration of one dirunal cycle in Earth seconds
         if t_oneday is None:
             self._oneday = Quantity(24, "hr")
-            self._planet = "Earth"
+            self._celestial_body = "Earth"
         else:
             self._oneday = t_oneday
 
