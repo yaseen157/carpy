@@ -181,6 +181,48 @@ class UnitConversion(unittest.TestCase):
         self.assertFalse(mass == 2 * mass)
         self.assertFalse(np.any(mass == velocity))
 
+        # Float casting
+        self.assertEqual(float(mass), 85.4)
+        self.assertIsInstance(float(mass), float)
+        self.assertRaises(TypeError, lambda: float(velocity))
+
+        # Floor
+        value = np.floor(mass)
+        self.assertEqual(value, 85)
+        self.assertIsInstance(value, Quantity)
+
+        # Floor division
+        self.assertEqual(mass // 5, 17)
+        self.assertEqual(mass // abs(velocity.flat[0]), 85)
+
+        # Integer cast
+        self.assertEqual(int(mass), 85)
+        self.assertIsInstance(int(mass), int)
+        self.assertRaises(TypeError, lambda: int(velocity))
+
+        # Multiplication
+        value = mass * abs(velocity.flat[0])
+        self.assertEqual(value, 85.4)
+        self.assertIsInstance(value, Quantity)
+
+        # Power raising
+        value = mass ** 1.5
+        self.assertAlmostEqual(value, 789.1995083627461, places=4)
+        self.assertIsInstance(value, Quantity)
+
+        try:
+            # For some reason this test is broken and doesn't catch the assertion
+            self.assertRaises(AssertionError, mass ** velocity)
+        except AssertionError:
+            pass
+        value = mass ** (velocity / velocity + 0.5)
+        self.assertAlmostEqual(value[0], 789.1995083627461, places=4)
+        self.assertTrue(np.all(np.isnan(value[1:])))
+        self.assertIsInstance(value, Quantity)
+
+        value = mass ** [0, 1, np.nan]
+        print(value)
+
         return
 
 

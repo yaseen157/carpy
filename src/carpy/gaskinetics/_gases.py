@@ -121,9 +121,9 @@ class GasModel:
         T = Quantity(T, "K")
 
         def helper1(x):
-            import cProfile
-            from pstats import SortKey
-            cProfile.runctx("self.specific_internal_energy(p=p, T=x)", locals(), globals(), sort=SortKey.TIME)
+            # import cProfile
+            # from pstats import SortKey
+            # cProfile.runctx("self.specific_internal_energy(p=p, T=x)", locals(), globals(), sort=SortKey.TIME)
             return self.specific_internal_energy(p=p, T=x)
 
         def helper2(x):
@@ -496,7 +496,7 @@ class NonReactiveGasModel(GasModel):
             Isochoric specific heat capacity.
 
         """
-        CV = Quantity(0, "J kg^{-1} K^{-1}")
+        CV, p, T = np.broadcast_arrays(Quantity(0, "J kg^{-1} K^{-1}"), p, T)
         for (species, Yi) in self.Y.items():
             cvi = species.specific_heat_V(p=p, T=T)
             CV += cvi * Yi
@@ -515,7 +515,7 @@ class NonReactiveGasModel(GasModel):
             Specific internal energy.
 
         """
-        U = Quantity(0, "J kg^{-1}")
+        U, p, T = np.broadcast_arrays(Quantity(0, "J kg^{-1}"), p, T)
         for (species, Yi) in self.Y.items():
             ui = species.specific_internal_energy(p=p, T=T)
             U += ui * Yi

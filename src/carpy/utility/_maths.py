@@ -291,10 +291,10 @@ def gradient1d(func_or_y, x, args: tuple = None, kwargs: dict = None, eps=None) 
         try:
             # Try, check that the passed function supports array arguments
             y_plusminus_dy = wrapped_func(xi=x_plusminus_dx)
-        except Exception as _:
+        except (Exception) as _:
             # Except any, compute elements one by one
             for i in range(x_plusminus_dx.size):
-                y_plusminus_dy.flat[i] = wrapped_func(xi=x.flat[i])
+                y_plusminus_dy.flat[i] = wrapped_func(xi=x_plusminus_dx.flat[i])
         finally:
             # Take an average of the function we ran instead of running function for a 3rd time
             y = np.mean(y_plusminus_dy, axis=0)

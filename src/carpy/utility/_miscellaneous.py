@@ -125,7 +125,10 @@ class NumberSets:
     @staticmethod
     def is_integer(value, /) -> bool:
         """True if value is of a Python type that allows integers."""
-        return int(value) == value
+        try:
+            return int(value) == value
+        except ValueError:
+            return False
 
     @classmethod
     def cast_real(cls, value, /) -> float:

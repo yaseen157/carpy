@@ -134,12 +134,7 @@ class KineticMethods:
 
     @cached_property
     def theta_vib(self) -> dict[CovalentBond, Quantity]:
-        """
-        Characteristic vibrational temperature.
-
-        Each bond is assigned its own dissociation temperature
-
-        """
+        """Characteristic vibrational temperature."""
         # Characteristic vibrational temperature
         theta_vib = dict()
         for bond in self.bonds:

@@ -176,7 +176,7 @@ def compute_Tbases_kinetic():
     Z_10, Z_12 = TABLES[5]["Z"][[10, 12]]
     lamda = Lk_9 / (co.STANDARD.USSA_1976.T_inf.x - T_10)
     xi = (Z_12 - Z_10) * ((co.STANDARD.USSA_1976.r_0 + Z_10) / (co.STANDARD.USSA_1976.r_0 + Z_12))
-    T_12 = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lamda * xi)).x
+    T_12 = (co.STANDARD.USSA_1976.T_inf - (co.STANDARD.USSA_1976.T_inf - T_10) * np.exp(- lamda * xi)).item()
 
     temperature_bases = np.array([T_7, T_8, T_9, T_10, T_11, T_12])
     return temperature_bases
