@@ -121,9 +121,6 @@ class GasModel:
         T = Quantity(T, "K")
 
         def helper1(x):
-            # import cProfile
-            # from pstats import SortKey
-            # cProfile.runctx("self.specific_internal_energy(p=p, T=x)", locals(), globals(), sort=SortKey.TIME)
             return self.specific_internal_energy(p=p, T=x)
 
         def helper2(x):

@@ -162,7 +162,7 @@ def compute_Tbases_kinetic():
     Tc = 263.1905
     A = -76.3232
     a = Quantity(-19.9429, "km")
-    T_9 = np.round(Tc + A * (1 - (dZ / a) ** 2) ** 0.5, 3).item()  # three decimal places
+    T_9 = np.round(Tc + A * np.clip(1 - (dZ / a) ** 2, 0, None) ** 0.5, 3).item()  # three decimal places
 
     # Layer 10 base
     dZ = np.diff(TABLES[5]["Z"][[9, 10]]).item()
@@ -272,7 +272,7 @@ class USSA_1976(StaticAtmosphereModel):
         Tc = 263.1905
         A = -76.3232
         a = Quantity(-19.9429, "km")
-        T[layer == 8] = Tc + A * (1 - (dZ[layer == 8] / a) ** 2) ** 0.5
+        T[layer == 8] = Tc + A * np.clip(1 - (dZ[layer == 8] / a) ** 2, 0, None) ** 0.5
 
         # Layer 9 is linear
         Lk_9 = TABLES[5]["L"][9]
@@ -317,3 +317,10 @@ class USSA_1976(StaticAtmosphereModel):
             raise NotImplementedError(error_msg)
 
         return N
+
+    def _speed_of_sound(self, h: Quantity) -> Quantity:
+        # Take the start of 1.2.2 "Equilibirum Assumptions" literally, a perfect gas with constant specific heat ratio
+        T = self.temperature(h=h)
+        Rspecific = co.STANDARD.USSA_1976.Rstar / M_0
+        a = (1.4 * Rspecific * T) ** 0.5
+        return a

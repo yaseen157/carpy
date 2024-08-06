@@ -17,7 +17,7 @@ anchor = PathAnchor()
 filename = "quantities.xlsx"
 filepath = os.path.join(anchor.directory_path, "data", filename)
 dataframes = pl.read_excel(filepath, sheet_id=0)
-
+dataframes["dimensions"] = dataframes["dimensions"].with_row_index("id")  # Add a reliable way to get original id
 # The "null" prefix should be treated as an empty string and not missing data lol
 dataframes["prefixes"] = dataframes["prefixes"].with_columns(pl.col("Symbol").fill_null(pl.lit("")))
 
@@ -71,26 +71,49 @@ class UnitOfMeasurement:
             inferred_combinations = [
                 (prefix_id, re.match(rf"{prefix}(\w+)", symbol).groups()[0], prefix_system)
                 for (prefix_id, prefix) in valid_prefixes.items()
-                for prefix_system in dataframes["prefixes"].filter(pl.col("Symbol") == prefix)["System"]
+                for prefix_system in (
+                    dataframes["prefixes"]["System"][i]
+                    for (i, x) in enumerate(dataframes["prefixes"]["Symbol"] == prefix)
+                    if x  # x is a boolean
+                )
             ]
+            # The below code is commented out because while filter is a recommended method, its 10x slower than tuple
+            # comprehension for some reason right now...
+            # inferred_combinations = [
+            #     (prefix_id, re.match(rf"{prefix}(\w+)", symbol).groups()[0], prefix_system)
+            #     for (prefix_id, prefix) in valid_prefixes.items()
+            #     for prefix_system in dataframes["prefixes"].filter(pl.col("Symbol") == prefix)["System"]
+            # ]
 
             # Valid suffixes are the actual units of quantity measurement
             valid_combinations = []
             for (prefix_id, inferred_suffix, prefix_system) in inferred_combinations:
 
-                # If the prefix inferred the use of a system, restrict the search space of valid units to that system
-                dimension_table = dataframes["dimensions"].with_row_index("id")  # Add a reliable way to get original id
-                if prefix_system is not None:
-                    dimension_table = dimension_table.filter(pl.col("System") == prefix_system)
-                elif prefix_system != "Bel":
-                    dimension_table = dimension_table.filter(pl.col("System") != "Bel")
-
-                # Tabulate suffixes
                 valid_suffixes = {
-                    dimension_table["id"][reduced_index]: inferred_suffix
-                    for (reduced_index, suffix) in enumerate(dimension_table["Symbol(s)"])
-                    if inferred_suffix in suffix.split(",")
+                    id: inferred_suffix for (id, symbols) in enumerate(dataframes["dimensions"]["Symbol(s)"])
+                    # If the inferred suffix is actually in the Symbol(s) and
+                    if inferred_suffix in symbols.split(",") and (
+                        # Filter by the known system. If I don't know, it's definitely not Bel (that *needs* a prefix!)
+                        (dataframes["dimensions"]["System"][id] == prefix_system) if prefix_system is not None
+                        else (dataframes["dimensions"]["System"][id] != "Bel")
+                    )
                 }
+
+                # Below code is also commented out because it appears to be slow when using polars filters...
+                # # If the prefix inferred the use of a system, restrict the search space of valid units to that system
+                # dimension_table = dataframes["dimensions"]
+                # if prefix_system is not None:
+                #     dimension_table = dimension_table.filter(pl.col("System") == prefix_system)
+                # elif prefix_system != "Bel":
+                #     dimension_table = dimension_table.filter(pl.col("System") != "Bel")
+                #
+                # # Tabulate suffixes
+                # valid_suffixes = {
+                #     dimension_table["id"][reduced_index]: inferred_suffix
+                #     for (reduced_index, suffix) in enumerate(dimension_table["Symbol(s)"])
+                #     if inferred_suffix in suffix.split(",")
+                # }
+
                 for suffix_id in valid_suffixes:
                     valid_combinations.append((prefix_id, suffix_id))
 
