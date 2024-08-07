@@ -276,19 +276,24 @@ class WGS84:
         return Quantity(-484.16685e-6)
 
     @cached_property
-    def inv_f(self) -> Quantity:
+    def f(self) -> Quantity:
         """Flattening parameter of the world ellipsoid."""
-        return Quantity(1 / 298.257_223_563)
+        return 1 / self.inv_f
+
+    @cached_property
+    def inv_f(self) -> Quantity:
+        """Inverse flattening parameter of the world ellipsoid."""
+        return Quantity(298.257_223_563)
 
     @cached_property
     def e(self) -> Quantity:
         """Eccentricity parameter of the world ellipsoid."""
-        return (self.inv_f * (2 - self.inv_f)) ** 0.5
+        return (1 - (self.b / self.a) ** 2) ** 0.5
 
     @cached_property
     def b(self) -> Quantity:
         """Ellipsoidal polar radius."""
-        return self.a * (1 - self.e ** 2) ** 0.5
+        return self.a * (1 - self.f)
 
     @cached_property
     def r45(self) -> Quantity:

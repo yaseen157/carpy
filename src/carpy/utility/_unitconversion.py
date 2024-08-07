@@ -579,15 +579,15 @@ class Quantity(np.ndarray):
 
     def __rdivmod__(self, other):
         """Reverse divmod."""
-        return self.__divmod__(other)
+        raise NotImplementedError
 
     def __rfloordiv__(self, other):
         """Reverse floor division."""
-        return self.__floordiv__(other)
+        raise NotImplementedError
 
     def __rmod__(self, other):
         """Reverse modulo."""
-        return self.__rmod__(other)
+        raise NotImplementedError
 
     def __rmul__(self, other):
         """Reverse multiplication."""
@@ -599,11 +599,11 @@ class Quantity(np.ndarray):
 
     def __rpow__(self, other):
         """Reverse raise power."""
-        return self.__pow__(other)
+        raise NotImplementedError
 
     def __rsub__(self, other):
         """Reverse subtraction."""
-        return self.__sub__(other)
+        return -self.__sub__(other)
 
     def __rtruediv__(self, other):
         """Reverse true division."""

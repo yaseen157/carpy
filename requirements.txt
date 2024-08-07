@@ -2,23 +2,24 @@
 setuptools>=67.0.0
 
 # Development/Deployment
-Cantera
-fastexcel
-fsspec
+# Cantera
+fastexcel  # Used by polars to read excel
+# fsspec
 matplotlib
 numpy
 pandas
 periodictable
 polars
 pytest
-python-metar
+# python-metar
+pyvista[jupyter]
 pyyaml
 requests
 scipy
-sectionproperties
-sympy
+# sectionproperties
+# sympy
 
 # Optional
 notebook
-windrose
-cartopy
+# windrose
+# cartopy
