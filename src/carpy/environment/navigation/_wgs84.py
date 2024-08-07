@@ -138,7 +138,7 @@ class EllipsoidalFixedFrame:
         x_hat, y_hat, z_hat = np.vstack(cls.orient_enu(lat=lat, lon=lon)).T
         return x_hat, y_hat, z_hat
 
-    def _dENU(self, lat, lon, alt, dlat, dlon, dalt):
+    def _dENU(self, lat, lon, alt, dlat, dlon, dalt) -> tuple:
         """
         Differential in ENU frame for small changes in planetodetic frame.
 
@@ -146,9 +146,11 @@ class EllipsoidalFixedFrame:
             https://en.wikipedia.org/wiki/Geographic_coordinate_conversion
 
         """
+        dlon, dlat, dalt = map(np.atleast_1d, (dlon, dlat, dalt))
+
         mat = np.array([(self.N_curvature(lat=lat) + alt) * np.cos(lat), self.M_curvature(lat - 0), 1]) * np.identity(3)
-        dENU = mat @ np.array([[dlon], [dlat], [dalt]])
-        return dENU
+        dE, dN, dU = mat @ np.array([dlon, dlat, dalt])
+        return dE, dN, dU
 
 
 class WGS84(EllipsoidalFixedFrame):
@@ -157,7 +159,7 @@ class WGS84(EllipsoidalFixedFrame):
         super().__init__(a=co.STANDARD.WGS84.a, b=co.STANDARD.WGS84.b)
         return
 
-    def _planetodetic_to_XYZ(self, lat, lon, alt) -> tuple[float, float, float]:
+    def _planetodetic_to_XYZ(self, lat, lon, alt) -> tuple:
         """
         Return position vector in planetocentric space R = (X, Y, Z) given planetodetic coordinates.
 
@@ -185,19 +187,3 @@ class WGS84(EllipsoidalFixedFrame):
         Z = ((1 - self.e_sq) * N_phi + alt) * sin_phi
 
         return X, Y, Z
-
-
-if __name__ == "__main__":
-    lats = np.linspace(-np.pi, np.pi, 30)
-    lons = np.linspace(-np.pi, np.pi, 30)
-
-    LATS, LONS = np.meshgrid(lats, lons)
-
-    X, Y, Z = WGS84()._planetodetic_to_XYZ(lat=LATS, lon=LONS, alt=0)
-
-    import pyvista as pv
-
-    points = np.vstack((X.flat, Y.flat, Z.flat)).T
-
-    mesh = pv.PolyData(points)
-    mesh.plot(point_size=10, style="points")

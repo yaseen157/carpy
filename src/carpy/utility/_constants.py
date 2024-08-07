@@ -306,6 +306,37 @@ wgs84 = WGS84()
 
 
 # ---------------------------------------------------------------------------- #
+# Constants from Mars geodesy/cartography working group
+
+class MarsGCWG:
+    """
+    Constants used in modelling the shape and parameters of the red planet.
+    """
+
+    @cached_property
+    def a(self) -> Quantity:
+        """
+        Semi-major axis for oblate spheroid modelling.
+
+        References:
+            Mars geodesy/cartography working group recommendations on mars cartographic constants and coordinate systems
+
+        """
+        return Quantity(3396.19, "km")
+
+    @cached_property
+    def b(self) -> Quantity:
+        """
+        Semi-minor axis for oblate spheroid modelling.
+
+        References:
+            Mars geodesy/cartography working group recommendations on mars cartographic constants and coordinate systems
+
+        """
+        return Quantity(3376.20, "km")
+
+
+# ---------------------------------------------------------------------------- #
 # Constants from ISO 2533:1975
 
 
