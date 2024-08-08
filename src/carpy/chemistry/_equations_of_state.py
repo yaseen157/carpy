@@ -1,4 +1,6 @@
 """A module defining several equations of state for fluids."""
+import typing
+
 import numpy as np
 from scipy.optimize import minimize_scalar
 
@@ -18,6 +20,9 @@ class EquationOfState:
     _critical_p: Quantity
     _critical_T: Quantity
     _critical_Vm: Quantity
+    _pressure: typing.Callable
+    _temperature: typing.Callable
+    _molar_volume: typing.Callable
 
     def __init__(self, p_c, T_c):
         """
@@ -80,10 +85,6 @@ class EquationOfState:
         Vm_r = (Vm / self.Vm_c).x
         return Vm_r
 
-    def _pressure(self, T: Quantity, Vm: Quantity):
-        error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
-        raise NotImplementedError(error_msg)
-
     def pressure(self, T, Vm) -> Quantity:
         """
         Args:
@@ -98,10 +99,6 @@ class EquationOfState:
         Vm = Quantity(Vm, "m^{3} mol^{-1}")
         return self._pressure(T=T, Vm=Vm)
 
-    def _temperature(self, p: Quantity, Vm: Quantity):
-        error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
-        raise NotImplementedError(error_msg)
-
     def temperature(self, p, Vm) -> Quantity:
         """
         Args:
@@ -115,10 +112,6 @@ class EquationOfState:
         p = Quantity(p, "Pa")
         Vm = Quantity(Vm, "m^{3} mol^{-1}")
         return self._temperature(p=p, Vm=Vm)
-
-    def _molar_volume(self, p: Quantity, T: Quantity):
-        error_msg = f"Sorry, {type(self).__name__} has not implemented this thermodynamic state variable's function"
-        raise NotImplementedError(error_msg)
 
     def molar_volume(self, p, T) -> Quantity:
         """

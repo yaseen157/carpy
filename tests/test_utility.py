@@ -221,7 +221,6 @@ class UnitConversion(unittest.TestCase):
         self.assertIsInstance(value, Quantity)
 
         value = mass ** [0, 1, np.nan]
-        print(value)
 
         return
 

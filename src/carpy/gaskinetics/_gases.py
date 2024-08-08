@@ -1,4 +1,6 @@
 """Module containing the class structure for modelling pure gases."""
+import typing
+
 import numpy as np
 
 from carpy.chemistry import ChemicalSpecies, EquationOfState, IdealGas
@@ -12,6 +14,8 @@ class GasModel:
     _equation_of_state: EquationOfState
     _molar_mass: Quantity
     _specific_gas_constant: Quantity
+    _specific_heat_V: typing.Callable
+    _specific_internal_energy: typing.Callable
 
     def __repr__(self):
         repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
@@ -106,7 +110,7 @@ class GasModel:
         """
         return self.equation_of_state.compressibility_factor(p=p, T=T)
 
-    def specific_heat_P(self, p, T) -> Quantity:
+    def specific_heat_p(self, p, T) -> Quantity:
         """
         Args:
             p: Pressure, in Pascal.
@@ -134,11 +138,6 @@ class GasModel:
         dHdT_p = dudT_p + p * dVmdT_p
         return dHdT_p
 
-    def _specific_heat_V(self, p, T):
-        _ = p, T
-        error_msg = f"{type(self).__name__} object {self} has no method for isochoric specific heat capacity"
-        raise NotImplementedError(error_msg)
-
     def specific_heat_V(self, p, T) -> Quantity:
         """
         Args:
@@ -161,15 +160,10 @@ class GasModel:
             Ratio of specific heats.
 
         """
-        cp = self.specific_heat_P(p=p, T=T)
+        cp = self.specific_heat_p(p=p, T=T)
         cv = self.specific_heat_V(p=p, T=T)
         gamma = (cp / cv).x
         return gamma
-
-    def _specific_internal_energy(self, p, T):
-        _ = p, T
-        error_msg = f"{type(self).__name__} object {self} has no method for specific internal energy"
-        raise NotImplementedError(error_msg)
 
     def specific_internal_energy(self, p, T) -> Quantity:
         """
@@ -317,7 +311,7 @@ class PureGasModel(GasModel):
         """
         return self.equation_of_state.compressibility_factor(p=p, T=T)
 
-    def specific_heat_P(self, p, T) -> Quantity:
+    def specific_heat_p(self, p, T) -> Quantity:
         """
         Args:
             p: Pressure, in Pascal.
@@ -374,7 +368,7 @@ class PureGasModel(GasModel):
             Ratio of specific heats.
 
         """
-        cp = self.specific_heat_P(p=p, T=T)
+        cp = self.specific_heat_p(p=p, T=T)
         cv = self.specific_heat_V(p=p, T=T)
         gamma = (cp / cv).x
         return gamma
@@ -409,6 +403,7 @@ class PureGasModel(GasModel):
 class NonReactiveGasModel(GasModel):
     _equation_of_state: EquationOfState
     _X: dict[PureGasModel, float]
+    _specific_heat_p: typing.Callable
 
     @property
     def X(self) -> dict[PureGasModel, float]:
@@ -476,12 +471,6 @@ class NonReactiveGasModel(GasModel):
         for (species_i, Y_i) in self.Y.items():
             Rbar += co.PHYSICAL.R / species_i.molar_mass * Y_i
         return Rbar
-
-    def _specific_heat_P(self, p, T):
-        raise NotImplementedError
-
-    def _specific_internal_energy(self, p, T):
-        raise NotImplementedError
 
     def specific_heat_V(self, p, T) -> Quantity:
         """

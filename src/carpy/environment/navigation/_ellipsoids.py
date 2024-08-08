@@ -11,35 +11,58 @@ __author__ = "Yaseen Reza"
 
 class ReferenceEllipsoid:
     """Base class providing methods to fixed-frame ellipsoids"""
+    _GM: Quantity
     _a: Quantity
     _b: Quantity
+    _omega: Quantity
 
-    def __init__(self, a, b):
+    def __init__(self, GM, a, b, omega):
+        self._GM = Quantity(GM, "m^3 s^-2")
         self._a = Quantity(a, "m")
         self._b = Quantity(b, "m")
+        self._omega = Quantity(omega, "rad s^{-1}")
         return
 
     @property
+    def GM(self) -> Quantity:
+        """Standard gravitational parameter. Computed as the product of the gravitational constant G and body mass M."""
+        return self._GM
+
+    @property
     def a(self) -> Quantity:
-        """Ellipsoidal semi-major axis."""
+        """Ellipsoidal semi-major (equatorial) axis."""
         return self._a
 
     @property
     def b(self) -> Quantity:
-        """Ellipsoidal semi-minor (typically polar) axis."""
+        """Ellipsoidal semi-minor (polar) axis."""
         return self._b
 
     @property
+    def omega(self) -> Quantity:
+        """Angular velocity of the Earth's rotation."""
+        return self._omega
+
+    @property
     def e_sq(self):
-        """Square of the eccentricity parameter of the ellipsoid."""
-        one_minus_f = (self.b / self.a)
-        e_sq = 1 - one_minus_f ** 2
+        """Square of the first eccentricity parameter."""
+        e_sq = self.f * (2 - self.f)
         return e_sq
 
     @property
+    def E(self):
+        """Linear eccentricity."""
+        return (self.a ** 2 - self.b ** 2) ** 0.5
+
+    @property
     def e(self):
-        """Eccentricity of the ellipsoid."""
-        return self.e_sq ** 0.5
+        """First numerical eccentricity."""
+        return self.E / self.a
+
+    @property
+    def e_prime(self):
+        """Second numerical eccentricity."""
+        return self.E / self.b
 
     @property
     def f(self):
@@ -61,14 +84,14 @@ class ReferenceEllipsoid:
         mu_phi = nu_phi * (1 - e_sq) / (1 - e_sq * np.sin(lat) ** 2)
         return mu_phi
 
-    def LLA_to_XYZ(self, lat, lon, alt):
+    def lla_to_xyz(self, lat, lon, alt):
         """
-        Transform from the spatial ellipsoidal coordintes (phi, lambda, h) of the local ellipsoid into the cartesian
-        coordinates (X, Y, Z) of the local system.
+        Given the geographic/planetodetic spatial ellipsoidal coordinates (phi, lambda, h), compute and return the
+        equivalent position in rectangular coordinates (x, y, z).
 
         Args:
-            lat: Spatial ellipsoidal coordinate phi, representing latitude, in radians.
-            lon: Spatial ellipsoidal coordinate lambda, representing longitude, in radians.
+            lat: Spatial ellipsoidal coordinate phi, representing geographic latitude, in radians.
+            lon: Spatial ellipsoidal coordinate lambda, representing geographic longitude, in radians.
             alt: Geometric height above the ellipsoid, h.
 
         Returns:
@@ -85,43 +108,44 @@ class ReferenceEllipsoid:
         # Prime vertical radius of curvature (function of phi)
         nu_phi = self.nu(lat=lat)
 
-        X = (nu_phi + alt) * cos_phi * cos_lmd
-        Y = (nu_phi + alt) * cos_phi * sin_lmd
-        Z = (nu_phi * (1 - self.e_sq) + alt) * sin_phi
+        x = (nu_phi + alt) * cos_phi * cos_lmd
+        y = (nu_phi + alt) * cos_phi * sin_lmd
+        z = (nu_phi * (1 - self.e_sq) + alt) * sin_phi
 
-        return X, Y, Z
+        return x, y, z
 
-    def XYZ_to_LLA(self, X, Y, Z):
+    def xyz_to_lla(self, x, y, z):
         """
-        Transform from the cartesian coordinates (X, Y, Z) of the local system into the spatial ellipsoidal coordinates
-        (phi, lambda, h) of the local ellipsoid.
+        Transform from the cartesian coordinates (x, y, z) of the local system into the equivalent position in
+        geographic/planetodetic spatial ellipsoidal coordinates (phi, lambda, h).
 
         Args:
-            X: Position in cartesian space, x-aligned.
-            Y: Position in cartesian space, y-aligned.
-            Z: Position in cartesian space, z-aligned.
+            x: Position in cartesian space, x-aligned.
+            y: Position in cartesian space, y-aligned.
+            z: Position in cartesian space, z-aligned.
 
         Returns:
             A tuple of phi and lambda arguments, and the ellipsoid height h.
 
         References:
-            https://www.icao.int/NACC/Documents/Meetings/2014/ECARAIM/REF08-Doc9674.pdf, Appendix D-1.
+            WGS 84 Implementation Manual. International Civil Aviation Organisation, 1998. Accessed: Aug. 08, 2024.
+                [Online]. Available: https://www.icao.int/safety/pbn/Documentation/EUROCONTROL/Eurocontrol%20WGS%2084%20Implementation%20Manual.pdf
 
         """
-        X, Y, Z = np.broadcast_arrays(X, Y, Z, subok=True)
+        x, y, z = np.broadcast_arrays(x, y, z, subok=True)
 
-        r = (X ** 2 + Y ** 2 + Z ** 2) ** 0.5
+        r = (x ** 2 + y ** 2 + z ** 2) ** 0.5
         if np.any(select := (r <= 43e3)):
             warn_msg = f"Cartesian coordinates within 43 kilometres of the Earth's centre cannot be mapped to ellipsoid"
             warnings.warn(message=warn_msg, category=RuntimeWarning)
-            X[select] = np.nan
-            Y[select] = np.nan
-            Z[select] = np.nan
+            x[select] = np.nan
+            y[select] = np.nan
+            z[select] = np.nan
 
-        w = (X ** 2 + Y ** 2) ** 0.5
+        w = (x ** 2 + y ** 2) ** 0.5
         l = self.e_sq / 2
         m = (w / self.a) ** 2
-        n = ((1 - self.e ** 2) * Z / self.b) ** 2
+        n = ((1 - self.e ** 2) * z / self.b) ** 2
         i = -(2 * l ** 2 + m + n) / 2
         k = l ** 2 * (l ** 2 - m - n)
         mnl2 = m * n * l ** 2
@@ -130,13 +154,35 @@ class ReferenceEllipsoid:
         beta = i / 3 - (q + D) ** (1 / 3) - (q - D) ** (1 / 3)
         t = ((beta ** 2 - k) ** 0.5 - (beta + i) / 2) ** 0.5 - np.sin(m - n) * ((beta - i) / 2) ** 0.5
         w1 = w / (t + l)
-        z1 = (1 - self.e_sq) * Z / (t - l)
+        z1 = (1 - self.e_sq) * z / (t - l)
 
         lat = np.arctan2(z1, ((1 - self.e_sq) * w1))
-        lon = 2 * np.arctan2((w - X), Y)
-        alt = np.sin(t - 1 + l) * ((w - w1) ** 2 + (Z - z1) ** 2) ** 0.5
+        lon = 2 * np.arctan2((w - x), y)
+        alt = np.sin(t - 1 + l) * ((w - w1) ** 2 + (z - z1) ** 2) ** 0.5
 
         return lat, lon, alt
+
+    def centrifugal_potential(self, lat, lon, alt):
+        """
+        Given the geographic/planetodetic spatial ellipsoidal coordinates (phi, lambda, h), compute and return the
+        centrifugal potential.
+
+        Args:
+            lat: Spatial ellipsoidal coordinate phi, representing geographic latitude, in radians.
+            lon: Spatial ellipsoidal coordinate lambda, representing geographic longitude, in radians.
+            alt: Geometric height above the ellipsoid, h.
+
+        Returns:
+            Centrifugal potential.
+
+        """
+        # Compute distance to axis of rotation (z-axis)
+        x, y, _ = self.lla_to_xyz(lat=lat, lon=lon, alt=alt)
+        d_z = (x ** 2 + y ** 2) ** 0.5
+
+        # Compute centrifugal potential
+        Phi = 0.5 * (self.omega * d_z) ** 2
+        return Phi
 
     # @staticmethod
     # def enu_to_ned(e_hat, n_hat, u_hat) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -248,5 +294,10 @@ class WGS84(ReferenceEllipsoid):
     """Reference ellipsoid of the Earth, per the WGS84 specification."""
 
     def __init__(self):
-        super().__init__(a=co.STANDARD.WGS84.a, b=co.STANDARD.WGS84.b)
+        super().__init__(
+            GM=co.STANDARD.WGS84.GM,
+            a=co.STANDARD.WGS84.a,
+            b=co.STANDARD.WGS84.b,
+            omega=co.STANDARD.WGS84.omega
+        )
         return

@@ -265,7 +265,16 @@ class UnitOfMeasurement:
         return self.__mul__(other)
 
     def __rtruediv__(self, other):
-        return self.__truediv__(other)
+        """Division of powers means subtracting self powers from other."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
+            raise TypeError(error_msg)
+
+        new_dims = other.dims - self.dims
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
 
     def __truediv__(self, other):
         """Division of powers means subtracting other powers from self."""
@@ -287,10 +296,10 @@ class UnitOfMeasurement:
         In order, each index of the output array corresponds with the base dimensional units listed in self._si_ext.
         """
         if not self._symbols_powers:
-            return np.zeros(len(self._si_ext))
-
-        stacked_dims = np.vstack([self._memo_dims[k] * v for (k, v) in self._symbols_powers.items()]).sum(axis=0)
-        return stacked_dims
+            dims = np.zeros(len(self._si_ext))
+        else:
+            dims = np.vstack([self._memo_dims[k] * v for (k, v) in self._symbols_powers.items()]).sum(axis=0)
+        return dims
 
     @property
     def args(self) -> tuple[str]:
@@ -492,7 +501,7 @@ class Quantity(np.ndarray):
         """Equality."""
         cls = type(self)
         if isinstance(other, cls):
-            if self.u.dims != other.u.dims:
+            if np.any(self.u.dims != other.u.dims):
                 return False
         return self.x == other
 
