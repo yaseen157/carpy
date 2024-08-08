@@ -231,8 +231,7 @@ class UnitOfMeasurement:
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be compared (got {type(other).__name__})"
             raise TypeError(error_msg)
-
-        return np.all(self._dimensions == other._dimensions)
+        raise NotImplementedError
 
     def __mul__(self, other):
         """Multiplication of powers means adding them together."""
@@ -241,7 +240,7 @@ class UnitOfMeasurement:
             error_msg = f"Illegal operation, only {cls.__name__} objects may be multiplied (got {type(other).__name__})"
             raise TypeError(error_msg)
 
-        new_dims = self._dimensions + other._dimensions
+        new_dims = self.dims + other.dims
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
@@ -257,7 +256,7 @@ class UnitOfMeasurement:
         if np.isnan(power):
             return cls(None)
 
-        new_dims = self._dimensions * power
+        new_dims = self.dims * power
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
@@ -275,14 +274,18 @@ class UnitOfMeasurement:
             error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
             raise TypeError(error_msg)
 
-        new_dims = self._dimensions - other._dimensions
+        new_dims = self.dims - other.dims
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
 
     @property
-    def _dimensions(self) -> np.ndarray:
-        """Return an array, where each term represents the dimensional power of a quantity."""
+    def dims(self) -> np.ndarray:
+        """
+        Return an array, where each term represents the dimensional power of a quantity.
+
+        In order, each index of the output array corresponds with the base dimensional units listed in self._si_ext.
+        """
         if not self._symbols_powers:
             return np.zeros(len(self._si_ext))
 
@@ -301,7 +304,7 @@ class UnitOfMeasurement:
     @property
     def is_dimensionless(self) -> bool:
         """Returns true if representing a dimensionless quantity. Radians are ratios by definition and ignored here."""
-        if np.all(self._dimensions[:len(self._sibase)] == 0):
+        if np.all(self.dims[:len(self._sibase)] == 0):
             return True
         return False
 
@@ -359,7 +362,7 @@ class UnitOfMeasurement:
 
     @property
     def units_si(self) -> str:
-        dim_powers = self._dimensions
+        dim_powers = self.dims
         si_string = " ".join([
             f"{symbol}" if power == 1 else f"{symbol}^{power}"
             for (symbol, power) in zip(self._si_ext, dim_powers)
@@ -442,8 +445,15 @@ class Quantity(np.ndarray):
         )
 
         # Finally, reintroduce the units
-        if results and isinstance(results[0], Quantity):
-            results[0]._carpy_units = self._carpy_units
+        for i, result in enumerate(results):
+
+            if not isinstance(results[i], Quantity):
+                continue  # Only bother with Quantity objects
+
+            if ufunc.__name__ in ["arcsin", "arccos", "arctan", "arctan2"]:
+                results[i]._carpy_units = UnitOfMeasurement("rad")
+            else:
+                results[i]._carpy_units = self.u
 
         return results[0] if len(results) == 1 else results
 
@@ -459,7 +469,7 @@ class Quantity(np.ndarray):
         """Addition."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Illegal operation, adding {cls.__name__} objects with dissimilar units"
+            assert np.all(self.u.dims == other.u.dims), f"Cannot add arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__add__(other)
 
     def __ceil__(self):
@@ -474,7 +484,7 @@ class Quantity(np.ndarray):
         """Equality."""
         cls = type(self)
         if isinstance(other, cls):
-            if self.u != other.u:
+            if self.u.dims != other.u.dims:
                 return False
         return self.x == other
 
@@ -499,14 +509,14 @@ class Quantity(np.ndarray):
         """Greater than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__ge__(other)
 
     def __gt__(self, other):
         """Greater than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__gt__(other)
 
     def __int__(self):
@@ -517,14 +527,14 @@ class Quantity(np.ndarray):
         """Less than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__le__(other)
 
     def __lt__(self, other):
         """Less than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"can't compare magnitude of {cls.__name__} objects with dissimilar units"
+            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__lt__(other)
 
     def __mod__(self, other):
@@ -613,7 +623,7 @@ class Quantity(np.ndarray):
         """Subtraction."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Illegal operation, subtracting {cls.__name__} objects with dissimilar units"
+            assert np.all(self.u.dims == other.u.dims), f"Cannot subtract arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__sub__(other)
 
     def __truediv__(self, other):
