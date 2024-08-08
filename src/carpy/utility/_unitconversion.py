@@ -382,6 +382,14 @@ class Quantity(np.ndarray):
         # Recast the values to a numpy array
         values = np.atleast_1d(values)
 
+        # If values were unicode or string, attempt to recast as float
+        if values.dtype.kind in {"U", "S"}:
+            try:
+                values = values.astype(np.float64)
+            except ValueError:
+                error_msg = f"Expected numerical values for {cls.__name__} object (got {values.dtype.type} type)"
+                raise ValueError(error_msg)
+
         # From the units, determine the SI equivalent quantity representation
         if isinstance(units, UnitOfMeasurement):
             unit_of_measurement = units

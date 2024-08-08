@@ -5,7 +5,6 @@ References:
 import os
 import re
 
-from math import factorial
 import numpy as np
 
 from carpy.utility import PathAnchor, Quantity, is_none
@@ -131,7 +130,7 @@ def load_gfc(filename: str):
 
     func = spherical_harmonic_factory(GM=gravity_constant, R=radius, C=C, S=S)
     print("Done")
-    print(func(r := 6378e3, 0, lat := np.pi / 4), float(func(r, 0, lat) - func(r - 1, 0, lat)))
+    print(func(r := 6378e3, 0, lat := np.pi / 4), float(func(r + 1, 0, lat) - func(r, 0, lat)))
     print(gravity_constant / (Quantity(r, "m") ** 2))
     print()
 
