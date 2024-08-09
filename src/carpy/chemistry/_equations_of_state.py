@@ -316,9 +316,9 @@ class RedlichKwong(EquationOfState):
             T = temperatures.flat[i]
 
             par_a = p * T ** 0.5
-            par_b = (-co.PHYSICAL.R * T ** (3 / 2)).x
-            par_c = a.x + b.x * par_b - b.x ** 2 * par_a
-            par_d = -(a * b).x
+            par_b = (-co.PHYSICAL.R * T ** (3 / 2)).item()
+            par_c = a.item() + b.item() * par_b - b.item() ** 2 * par_a
+            par_d = -(a * b).item()
             roots = np.roots((par_a, par_b, par_c, par_d))
 
             # Ignore negative solution, non-physical

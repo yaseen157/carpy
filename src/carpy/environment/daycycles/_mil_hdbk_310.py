@@ -11,9 +11,9 @@ import numpy as np
 import pandas as pd
 
 from carpy.environment.daycycles import DiurnalCycle
-from carpy.utility import PathAnchor, Quantity, classproperty
+from carpy.utility import PathAnchor, Quantity
 
-__all__ = ["Mil310hot", "Mil310basic", "Mil310cold", "Mil310coastal"]
+__all__ = ["MH310hot", "MH310basic", "MH310cold", "MH310coast"]
 __author__ = "Yaseen Reza"
 
 # Load the handbook data
@@ -47,7 +47,7 @@ def cycle_factory(dataframe: pd.DataFrame):
     return cycle_instance
 
 
-class Mil310hot:
+class MH310hot:
     """
     MIL-HDBK-310 diurnal cycles for the "hot" regional type.
 
@@ -58,8 +58,8 @@ class Mil310hot:
     the world. Therefore, two cycles are provided to describe these diverse climatic conditions."
     """
 
-    @classproperty
-    def hot_dry(self):
+    @staticmethod
+    def hot_dry() -> DiurnalCycle:
         """
         Returns:
             Hot and dry diurnal cycle model, for the hot regional type.
@@ -67,8 +67,8 @@ class Mil310hot:
         """
         return cycle_factory(dataframe=dataframes["hot_hot-dry"])
 
-    @classproperty
-    def hot_humid(self):
+    @staticmethod
+    def hot_humid() -> DiurnalCycle:
         """
         Returns:
             Hot and humid diurnal cycle model, for the hot regional type.
@@ -77,7 +77,7 @@ class Mil310hot:
         return cycle_factory(dataframe=dataframes["hot_hot-dry"])
 
 
-class Mil310basic:
+class MH310basic:
     """
     MIL-HDBK-310 diurnal cycles for the "basic" regional type.
 
@@ -101,8 +101,8 @@ class Mil310basic:
     A detailed description for each cycle has been lifted from the handbook and provided in the appropriate docstring.
     """
 
-    @classproperty
-    def humid_variable(self):
+    @staticmethod
+    def humid_variable() -> DiurnalCycle:
         """
         The variable high humidity cycle occurs in the tropics in open areas with clear skies or intermittent
         cloudiness, with consequent daily control of temperature and humidity by the solar radiation cycle. Items will
@@ -114,8 +114,8 @@ class Mil310basic:
         """
         return cycle_factory(dataframe=dataframes["basic_humid-variable"])
 
-    @classproperty
-    def humid_constant(self):
+    @staticmethod
+    def humid_constant() -> DiurnalCycle:
         """
         The constant high humidity cycle is the result of conditions in heavily forested areas in the tropics under
         thick cloud cover, which tends to produce near constancy of temperature, solar radiation, and humidity near the
@@ -127,8 +127,8 @@ class Mil310basic:
         """
         return cycle_factory(dataframe=dataframes["basic_humid-constant"])
 
-    @classproperty
-    def hot(self):
+    @staticmethod
+    def hot() -> DiurnalCycle:
         """
         These conditions occur in sections of the United States, Mexico, northern Africa, southwestern Asia, India,
         Pakistan, and southern Spain in the Northern Hemisphere, and smaller sections of South America, southern Africa,
@@ -140,8 +140,8 @@ class Mil310basic:
         """
         return cycle_factory(dataframe=dataframes["basic_hot"])
 
-    @classproperty
-    def cold(self):
+    @staticmethod
+    def cold() -> DiurnalCycle:
         """
         Extensive basic cold areas occur only in the Northern Hemisphere, in the northern United States, the coast of
         Alaska, southern Canada, the coast of southern Greenland, northern Europe, the Soviet Union, and Central Asia.
@@ -153,8 +153,8 @@ class Mil310basic:
         """
         return cycle_factory(dataframe=dataframes["basic_cold"])
 
-    @classproperty
-    def cold_wet(self):
+    @staticmethod
+    def cold_wet() -> DiurnalCycle:
         """
         Basic cold-wet conditions occur throughout the colder, humid sections of the basic regional type adjoining the
         areas of basic cold conditions. Cold-wet conditions, as defined here, may occur in any part of the basic type
@@ -170,7 +170,7 @@ class Mil310basic:
         return cycle_factory(dataframe=dataframes["basic_cold-wet"])
 
 
-class Mil310cold:
+class MH310cold:
     """
     MIL-HDBK-310 diurnal cycles for the "cold" regional type.
 
@@ -183,8 +183,8 @@ class Mil310cold:
     Hemispheres."
     """
 
-    @classproperty
-    def cold(self):
+    @staticmethod
+    def cold() -> DiurnalCycle:
         """
         Returns:
             Cold diurnal cycle model, for the cold regional type.
@@ -193,7 +193,7 @@ class Mil310cold:
         return cycle_factory(dataframe=dataframes["cold_cold"])
 
 
-class Mil310coastal:
+class MH310coast:
     """
     MIL-HDBK-310 diurnal cycles for the "coastal" regional type.
 
@@ -209,8 +209,8 @@ class Mil310coastal:
     A detailed description for each cycle has been lifted from the handbook and provided in the appropriate docstring.
     """
 
-    @classproperty
-    def hot(self):
+    @staticmethod
+    def hot() -> DiurnalCycle:
         """
         Daily cycle of temperature and other elements associated with the 1% high temperature value for the
         coastal/ocean regional type.
@@ -221,8 +221,8 @@ class Mil310coastal:
         """
         return cycle_factory(dataframe=dataframes["coastal_hot"])
 
-    @classproperty
-    def hot_humid(self):
+    @staticmethod
+    def hot_humid() -> DiurnalCycle:
         """
         Daily cycle of relative humidity and temperature (including solar radiation) associated with the 1% high
         relative humidity with high temperature value for the coastal/ocean regional type.
@@ -233,8 +233,8 @@ class Mil310coastal:
         """
         return cycle_factory(dataframe=dataframes["coastal_hot-humid"])
 
-    @classproperty
-    def hot_dry(self):
+    @staticmethod
+    def hot_dry() -> DiurnalCycle:
         """
         Daily cycle of relative humidity and temperature (including solar radiation) associated with the 1% low relative
         humidity with high temperature value for the coastal/ocean regional type.
