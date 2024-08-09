@@ -476,34 +476,78 @@ class Quantity(np.ndarray):
         if ufunc.nout == 1:
             results = (results,)
 
-        # If the user has specific arrays they want to return results to
+        # If the user has specific arrays they want to return results to, we should respect this and not turn those
+        #   objects into Quantity objects
         results = tuple(
             (np.asarray(result).view(Quantity) if output is None else output)
             for result, output in zip(results, outputs)
         )
-        # By default, the new Quantity objects must have at least an empty unit of measurement
+        # By default, any new Quantity objects created must have at least an empty unit of measurement
         for i, result in enumerate(results):
             if isinstance(result, Quantity):
                 results[i]._carpy_units = UnitOfMeasurement(None)
 
         # Finally, reintroduce the units (if possible)...
+        # If all the results are not Quantities (because the user specified their output explicitly), do no unit checks
+        if all([isinstance(result, Quantity) is False for result in results]):
+            pass
+
         # https://numpy.org/doc/stable/reference/ufuncs.html#available-ufuncs
-        if len(inputs) == 2 and isinstance(inputs[0], Quantity) and isinstance(inputs[1], Quantity):
+        elif len(inputs) == 2:
 
-            # Basic addition and subtraction should not alter units
-            if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
-                assert inputs[0].u and inputs[1].u, f"Expected to have inputs with similar units (got {inputs=})"
-                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+            if isinstance(inputs[0], Quantity) and isinstance(inputs[1], Quantity):
 
-            elif ufunc.__name__ in ["multiply", "matmul"]:
-                results[0]._carpy_units = inputs[0].u * inputs[1].u
+                # Basic addition and subtraction should not alter units
+                if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                    assert inputs[0].u and inputs[1].u, f"Expected to have inputs with similar units (got {inputs=})"
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
 
-            elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
-                results[0]._carpy_units = inputs[0].u / inputs[1].u
+                elif ufunc.__name__ in ["multiply", "matmul"]:
+                    results[0]._carpy_units = inputs[0].u * inputs[1].u
 
-            # Special trigonometric function that maintains sign needs two inputs to contribute to the output
-            elif ufunc.__name__ in ["arctan2"]:
-                results[0]._carpy_units = inputs[0].u / inputs[1].u * UnitOfMeasurement("rad")
+                elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                    results[0]._carpy_units = inputs[0].u / inputs[1].u
+
+                # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+                elif ufunc.__name__ in ["arctan2"]:
+                    results[0]._carpy_units = inputs[0].u / inputs[1].u * UnitOfMeasurement("rad")
+
+            elif isinstance(inputs[0], Quantity):
+
+                # Basic addition and subtraction should not alter units
+                if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                    # No need to warn of incompatible units this time
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["multiply", "matmul"]:
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                    results[0]._carpy_units = inputs[0].u / UnitOfMeasurement(None)
+
+                # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+                elif ufunc.__name__ in ["arctan2"]:
+                    # Assume that inputs[1], if it existed, would've removed a [m] dimension
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement("rad m^-1")
+
+            else:
+
+                # Basic addition and subtraction should not alter units
+                if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                    # No need to warn of incompatible units this time
+                    results[0]._carpy_units = inputs[1].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["multiply", "matmul"]:
+                    results[0]._carpy_units = inputs[1].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                    # Units on the deonominator get inverted
+                    results[0]._carpy_units = UnitOfMeasurement(None) / inputs[1].u
+
+                # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+                elif ufunc.__name__ in ["arctan2"]:
+                    # Assume that inputs[0], if it existed, would've added a [m] dimension
+                    results[0]._carpy_units = UnitOfMeasurement("rad m") / inputs[1].u
 
         elif len(inputs) == 1:
 
@@ -579,7 +623,10 @@ class Quantity(np.ndarray):
             new_value = self.x // other.x
             new_units = self.u / other.u
             return cls(new_value, new_units)
-        return super(Quantity, self).__floordiv__(other)
+        # Otherwise...
+        new_value = self.x // other
+        new_units = self.u / UnitOfMeasurement(None)
+        return cls(new_value, new_units)
 
     def __ge__(self, other):
         """Greater than or equal to."""
@@ -595,9 +642,50 @@ class Quantity(np.ndarray):
             assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__gt__(other)
 
+    def __iadd__(self, other):
+        """Inplace addition."""
+        return self + other
+
+    def __iand__(self, other):
+        raise NotImplementedError
+
+    def __ifloordiv__(self, other):
+        raise NotImplementedError
+
+    def __ilshift__(self, other):
+        raise NotImplementedError
+
+    def __imatmul__(self, other):
+        raise NotImplementedError
+
+    def __imod__(self, other):
+        raise NotImplementedError
+
+    def __imul__(self, other):
+        """Inplace multiplication."""
+        return self * other
+
     def __int__(self):
         """Cast as integer."""
         return int(self.x)
+
+    def __ipow__(self, other):
+        """Inplace exponentiation"""
+        return self ** other
+
+    def __isub__(self, other):
+        """Inplace subtraction."""
+        return self - other
+
+    def __irshift__(self, other):
+        raise NotImplementedError
+
+    def __itruediv__(self, other):
+        """Inplace true division."""
+        return self / other
+
+    def __ixor__(self, other):
+        raise NotImplementedError
 
     def __le__(self, other):
         """Less than or equal to."""
@@ -620,7 +708,10 @@ class Quantity(np.ndarray):
             new_value = self.x - (self.x // other.x) * other.x
             new_units = self.u / other.u
             return cls(new_value, new_units)
-        return super(Quantity, self).__mod__(other)
+        # Otherwise...
+        new_value = self.x % other
+        new_units = self.u * UnitOfMeasurement(None)
+        return cls(new_value, new_units)
 
     def __mul__(self, other):
         """Multiplication."""
@@ -629,7 +720,10 @@ class Quantity(np.ndarray):
             new_value = self.x * other.x
             new_units = self.u * other.u
             return cls(new_value, new_units)
-        return super(Quantity, self).__mul__(other)
+        # Otherwise...
+        new_value = self.x * other
+        new_units = self.u * UnitOfMeasurement(None)
+        return cls(new_value, new_units)
 
     def __neg__(self):
         """Negation."""
@@ -709,7 +803,10 @@ class Quantity(np.ndarray):
             new_value = self.x / other.x
             new_units = self.u / other.u
             return cls(new_value, new_units)
-        return super(Quantity, self).__truediv__(other)
+        # Otherwise...
+        new_value = self.x / other
+        new_units = self.u / UnitOfMeasurement(None)
+        return cls(new_value, new_units)
 
     def __trunc__(self):
         """Truncate."""
@@ -722,12 +819,19 @@ class Quantity(np.ndarray):
     def __repr__(self):
         """For maths purposes, display SI."""
         repr1 = super(Quantity, self).__repr__()
-        repr2 = self._carpy_units.units_si
-        repr2 = "no_unit" if repr2 == "" else repr2
+        if self._carpy_units is None:
+            repr2 = None
+        else:
+            repr2 = self._carpy_units.units_si
+            repr2 = "no_unit" if repr2 == "" else repr2
         return f"{repr1.rstrip()[:-1]}, {repr2})"
 
     def __str__(self):
         """For display purposes, display whatever the original unit was."""
+        # No units object set for some reason
+        if self._carpy_units is None:
+            return super(Quantity, self).__str__()
+        # Else, units object is defined
         rtn_str1 = self._carpy_units.to_uom(self.x).__str__()
         rtn_str2, = self._carpy_units.args
         if rtn_str2:
