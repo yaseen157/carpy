@@ -3,7 +3,6 @@ import importlib as _importlib
 
 from ._atmosphere import *
 
-
 # Map atmosphere objects that can be imported to their respective files of origin
 available_atmospheres = {
     "ISO_2533_1975": "_iso_2533_1975",
@@ -20,6 +19,7 @@ def __dir__():
 
 
 def __getattr__(name):
+    print("getting", name)
     if name in available_atmospheres:
         file = available_atmospheres[name]
         return getattr(_importlib.import_module(f'carpy.environment.atmospheres.{file}'), name)

@@ -219,7 +219,6 @@ class SHGravModel(GravFieldModel):
                 Harmonic Models,” Jan. 2013, doi: https://doi.org/10.2312/GFZ.b103-0902-26.
 
         """
-        gravitational_potential = np.zeros(rad.shape)
         R = self.r_body
         P_nm = self.normLengendre(lat=lat)
         C_nm, S_nm = self.normCS
@@ -228,6 +227,7 @@ class SHGravModel(GravFieldModel):
         # Flatten all but last two dimensions
         P_nm = P_nm.reshape(P_nm.size // (max_degree + 1) ** 2, max_degree + 1, max_degree + 1)
 
+        gravitational_potential = np.zeros(rad.size)
         for degree_n in range(max_degree + 1):  # degree of spherical harmonic
             for order_m in range(degree_n + 1):  # order of spherical harmonic
 
@@ -239,7 +239,7 @@ class SHGravModel(GravFieldModel):
                 )))
 
         gravitational_potential = self.GM / R * gravitational_potential
-        return gravitational_potential
+        return gravitational_potential.reshape(rad.shape)
 
 
 class EGM96(SHGravModel):

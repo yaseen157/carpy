@@ -46,12 +46,6 @@ class CelestialBody:
         # Compute potential
         attractive_potential = self.gravitational_field_model.attraction_potential(rad=rad, lon=lon, lat=lat_bar)
         centrifugal_potential = self.ellipsoid.centrifugal_potential(lat=lat, lon=lon, alt=alt)
-
-        # TODO: Figure out a nice way of eliminating "units" of radians and steradians when operations are done to the
-        #   Quantity that involve length dimensions. For example, F = m r omega with units [Pa] = [kg] [m] [rad s^-1]
-        #   should see that the radian, which almost describes an absence of length dimensions, should disappear when
-        #   multiplied by a length dimension. Similarly, lengths shouldn't cancel if operated on by arcsin, arccos,
-        #   arctan without creating radians in the process.
         potential = attractive_potential + centrifugal_potential
 
         return potential
@@ -71,8 +65,3 @@ class Earth(CelestialBody):
         # Superclass call
         super().__init__(ellipsoid=ellipsoid, gravitational_field_model=gravitational_field_model)
         return
-
-
-if __name__ == "__main__":
-    planet = Earth()
-    print(planet.potential(np.radians([[0], [1]]), 0, 0))

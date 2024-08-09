@@ -49,6 +49,13 @@ class UnitOfMeasurement:
         """
         if symbols is None or symbols == "":
             return super(UnitOfMeasurement, cls).__new__(cls)  # Nothing to do but return right away
+        elif isinstance(symbols, str):
+            pass  # Safe option, do nothing
+        elif isinstance(symbols, np.ndarray):
+            assert symbols.dtype.kind in {"U", "S"}, f"{cls.__name__} was expecting type 'str', got {symbols.dtype}"
+        else:
+            error_msg = f"{cls.__name__} was expecting to be instantiated with a string type"
+            raise TypeError(error_msg)
 
         # Identify each constituent symbol with logical comparisons to defined units and systems in the dataframes
         for symbol in symbols.split():
@@ -225,22 +232,31 @@ class UnitOfMeasurement:
         units, = self.args
         return units
 
-    def __eq__(self, other):
-        """Equality should hold true if dimensionality is equal."""
+    def __and__(self, other):
+        """Logical and asserts compatibility of units for operators requiring similar dims. Any no-unit returns true."""
         cls = type(self)
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be compared (got {type(other).__name__})"
             raise TypeError(error_msg)
-        raise NotImplementedError
+
+        # Do logical and
+        if np.all(self.dims == other.dims):
+            return True
+        # If logical and returned false, was it the fault of radians or steradians?
+        elif np.all((self.dims == other.dims)[:len(self._sibase)]):
+            return True
+        return False
 
     def __mul__(self, other):
-        """Multiplication of powers means adding them together."""
+        """Multiplication of units causes the powers to add together."""
         cls = type(self)
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be multiplied (got {type(other).__name__})"
             raise TypeError(error_msg)
 
-        new_dims = self.dims + other.dims
+        # Generate new dimensionality, ignoring radian and steradian contribution
+        new_dims = np.zeros(len(self._si_ext))
+        new_dims[:len(self._sibase)] = (self.dims + other.dims)[:len(self._sibase)]
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
@@ -265,25 +281,29 @@ class UnitOfMeasurement:
         return self.__mul__(other)
 
     def __rtruediv__(self, other):
-        """Division of powers means subtracting self powers from other."""
+        """Division of units means subtracting own unit's powers from the other."""
         cls = type(self)
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
             raise TypeError(error_msg)
 
-        new_dims = other.dims - self.dims
+        # Generate new dimensionality, ignoring radian and steradian contribution
+        new_dims = np.zeros(len(self._si_ext))
+        new_dims[:len(self._sibase)] = (other.dims + self.dims)[:len(self._sibase)]
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
 
     def __truediv__(self, other):
-        """Division of powers means subtracting other powers from self."""
+        """Division of units means subtracting other powers from self's units."""
         cls = type(self)
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
             raise TypeError(error_msg)
 
-        new_dims = self.dims - other.dims
+        # Generate new dimensionality, ignoring radian and steradian contribution
+        new_dims = np.zeros(len(self._si_ext))
+        new_dims[:len(self._sibase)] = (self.dims - other.dims)[:len(self._sibase)]
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
@@ -427,7 +447,7 @@ class Quantity(np.ndarray):
             https://numpy.org/doc/stable/user/basics.subclassing.html
 
         """
-        # If types of self are detected in the inputs, swap it for the original np.ndarray type
+        # If types of Quantity are detected in the inputs, swap it for the original np.ndarray type
         args = []
         for input_ in inputs:
             if isinstance(input_, Quantity):
@@ -435,7 +455,7 @@ class Quantity(np.ndarray):
             else:
                 args.append(input_)
 
-        # Same for the outputs (?)
+        # Same for the outputs
         outputs = out
         if outputs:
             out_args = []
@@ -456,21 +476,60 @@ class Quantity(np.ndarray):
         if ufunc.nout == 1:
             results = (results,)
 
+        # If the user has specific arrays they want to return results to
         results = tuple(
             (np.asarray(result).view(Quantity) if output is None else output)
             for result, output in zip(results, outputs)
         )
-
-        # Finally, reintroduce the units
+        # By default, the new Quantity objects must have at least an empty unit of measurement
         for i, result in enumerate(results):
+            if isinstance(result, Quantity):
+                results[i]._carpy_units = UnitOfMeasurement(None)
 
-            if not isinstance(results[i], Quantity):
-                continue  # Only bother with Quantity objects
+        # Finally, reintroduce the units (if possible)...
+        # https://numpy.org/doc/stable/reference/ufuncs.html#available-ufuncs
+        if len(inputs) == 2 and isinstance(inputs[0], Quantity) and isinstance(inputs[1], Quantity):
 
-            if ufunc.__name__ in ["arcsin", "arccos", "arctan", "arctan2"]:
-                results[i]._carpy_units = UnitOfMeasurement("rad")
-            else:
-                results[i]._carpy_units = self.u
+            # Basic addition and subtraction should not alter units
+            if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                assert inputs[0].u and inputs[1].u, f"Expected to have inputs with similar units (got {inputs=})"
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            elif ufunc.__name__ in ["multiply", "matmul"]:
+                results[0]._carpy_units = inputs[0].u * inputs[1].u
+
+            elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                results[0]._carpy_units = inputs[0].u / inputs[1].u
+
+            # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+            elif ufunc.__name__ in ["arctan2"]:
+                results[0]._carpy_units = inputs[0].u / inputs[1].u * UnitOfMeasurement("rad")
+
+        elif len(inputs) == 1:
+
+            # Carry units over
+            if ufunc.__name__ in ["negative", "positive", "absolute", "fabs"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            # Halve units
+            elif ufunc.__name__ in ["sqrt"]:
+                results[0]._carpy_units = inputs[0].u ** 0.5
+
+            # Double units
+            elif ufunc.__name__ in ["square"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            # Third units
+            elif ufunc.__name__ in ["cbrt"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            # Trigonometric functions with an output should return the input with an added angular dimension
+            elif ufunc.__name__ in ["arcsin", "arccos", "arctan"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement("rad")
+
+            # One way conversion (the other ways involve nasty assignment using non-SI unit of "degree"
+            elif ufunc.__name__ in ["radians", "deg2rad"]:
+                results[0]._carpy_units = UnitOfMeasurement("rad")
 
         return results[0] if len(results) == 1 else results
 
@@ -486,7 +545,7 @@ class Quantity(np.ndarray):
         """Addition."""
         cls = type(self)
         if isinstance(other, cls):
-            assert np.all(self.u.dims == other.u.dims), f"Cannot add arrays with units {self.u} and {other.u}"
+            assert self.u and other.u, f"Cannot add arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__add__(other)
 
     def __ceil__(self):
@@ -526,14 +585,14 @@ class Quantity(np.ndarray):
         """Greater than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__ge__(other)
 
     def __gt__(self, other):
         """Greater than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__gt__(other)
 
     def __int__(self):
@@ -544,14 +603,14 @@ class Quantity(np.ndarray):
         """Less than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__le__(other)
 
     def __lt__(self, other):
         """Less than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert np.all(self.u.dims == other.u.dims), f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__lt__(other)
 
     def __mod__(self, other):
@@ -640,7 +699,7 @@ class Quantity(np.ndarray):
         """Subtraction."""
         cls = type(self)
         if isinstance(other, cls):
-            assert np.all(self.u.dims == other.u.dims), f"Cannot subtract arrays with units {self.u} and {other.u}"
+            assert self.u and other.u, f"Cannot subtract arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__sub__(other)
 
     def __truediv__(self, other):
