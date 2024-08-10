@@ -7,6 +7,10 @@ from carpy.environment.navigation._gravfields import GravFieldModel, EGM96s
 __all__ = ["CelestialBody", "Earth"]
 
 
+# TODO: Migrate contents of Celestials into an "Environment" class that sits under carpy/environment. That environment
+#   class is what will get instantiated with a Reference ellipsoid, gravitational field model, and an atmosphere model.
+#   Users should be able to attach optional extras like diurnal cycles, weather, custom atmospheres, epochs, etc.
+
 class CelestialBody:
 
     def __init__(self, ellipsoid: ReferenceEllipsoid, gravitational_field_model: GravFieldModel):
