@@ -49,6 +49,20 @@ TABLES[4] = pd.DataFrame(
 )
 
 
+def geopotential_altitude(z):
+    """
+    Args:
+        z: Geometric altitude, in metres.
+
+    Returns:
+        Geopotential altitude.
+
+    """
+    z = Quantity(z, "m")
+    h = co.STANDARD.ISO_2533_1975.r * z / (co.STANDARD.ISO_2533_1975.r + z)
+    return h
+
+
 def compute_pressure_bases():
     pressure_bases = np.zeros(len(TABLES[4]))
     for i in range(pressure_bases.size - 1):
@@ -87,16 +101,16 @@ class ISO_2533_1975(StaticAtmosphereModel):
             PureGasModel(chemical_species=chemical_species): content_fraction
             for (chemical_species, content_fraction) in dict(TABLES[2].to_records(index=False)).items()
         }
-
-        # Define planet
-        self._celestial_body = "Earth"
         return
 
     def __str__(self):
         rtn_str = f"ISO 2533:1975 Standard Atmosphere"
         return rtn_str
 
-    def _pressure(self, h: Quantity) -> Quantity:
+    @classmethod
+    def _pressure(cls, z: Quantity) -> Quantity:
+        h = geopotential_altitude(z=z)
+
         # Broadcast h into a higher dimension
         h_broadcasted, Href_broadcasted = broadcast_vector(values=h, vector=TABLES[4]["H"])
 
@@ -111,7 +125,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
         beta = (Tb1 - Tb0) / (Hb1 - Hb0)
 
         # Intelligently determine the pressure depending on if the layer had a temperature lapse
-        T = self.temperature(h=h)
+        T = cls.temperature(z=z)
         beta[beta == 0] = np.nan  # Save ourselves the embarrassment of dividing by zero
         multiplier: np.ndarray = np.where(
             np.isnan(beta),
@@ -122,35 +136,37 @@ class ISO_2533_1975(StaticAtmosphereModel):
         p = p_b[i] * multiplier
         return Quantity(p, "Pa")
 
-    def _temperature(self, h: Quantity) -> Quantity:
+    @classmethod
+    def _temperature(cls, z: Quantity) -> Quantity:
+        h = geopotential_altitude(z=z)
         T = np.interp(h, TABLES[4]["H"], TABLES[4]["T"], right=np.nan)
         if np.any(np.isnan(T)):
             warn_msg = f"The requested altitude(s) exceed the profile defined by this model (got h > 80 km)"
             warnings.warn(message=warn_msg, category=RuntimeWarning)
         return Quantity(T, "K")
 
-    def _density(self, h: Quantity) -> Quantity:
-        Vm = self.molar_volume(h=h)
+    def _density(self, z: Quantity) -> Quantity:
+        Vm = self.molar_volume(z=z)
         rho = co.STANDARD.ISO_2533_1975.M / Vm
         return rho
 
-    def _number_density(self, h: Quantity) -> Quantity:
+    def _number_density(self, z: Quantity) -> Quantity:
         """
         Computes the number of neutral air particles per unit volume.
 
         Args:
-            h: Geopotential altitude.
+            z: Geometric altitude.
 
         Returns:
             The air number density.
 
         """
-        p = self.pressure(h=h)
-        T = self.temperature(h=h)
+        p = self.pressure(z=z)
+        T = self.temperature(z=z)
         n = co.STANDARD.ISO_2533_1975.N_A * p / co.STANDARD.ISO_2533_1975.Rstar / T
         return n
 
-    def _mean_particle_speed(self, h: Quantity) -> Quantity:
+    def _mean_particle_speed(self, z: Quantity) -> Quantity:
         """
         Computes the mean air-particle speed.
 
@@ -159,17 +175,17 @@ class ISO_2533_1975(StaticAtmosphereModel):
         exterior force.
 
         Args:
-            h: Geopotential altitude.
+            z: Geometric altitude.
 
         Returns:
             The mean air-particle speed.
 
         """
-        T = self.temperature(h=h)
+        T = self.temperature(z=z)
         vbar = (8 / np.pi * co.STANDARD.ISO_2533_1975.R * T) ** 0.5
         return vbar
 
-    def _mean_free_path(self, h: Quantity) -> Quantity:
+    def _mean_free_path(self, z: Quantity) -> Quantity:
         """
         Computes the mean free path length of air particles.
 
@@ -177,17 +193,17 @@ class ISO_2533_1975(StaticAtmosphereModel):
         average distance called a mean free path of air particles.
 
         Args:
-            h: Geopotential altitude.
+            z: Geometric altitude.
 
         Returns:
             The mean free path of air particles.
 
         """
-        n = self._number_density(h=h)
+        n = self._number_density(z=z)
         l = 1 / (2 ** 0.5 * np.pi * co.STANDARD.ISO_2533_1975.sigma ** 2 * n)
         return l
 
-    def _particle_collision_frequency(self, h: Quantity) -> Quantity:
+    def _particle_collision_frequency(self, z: Quantity) -> Quantity:
         """
         Computes the air-particle collision frequency.
 
@@ -195,29 +211,29 @@ class ISO_2533_1975(StaticAtmosphereModel):
         particles at the same altitude.
 
         Args:
-            h: Geopotential altitude.
+            z: Geometric altitude.
 
         Returns:
             The air-particle collision frequency.
 
         """
-        vbar = self._mean_particle_speed(h=h)
-        l = self._mean_free_path(h=h)
+        vbar = self._mean_particle_speed(z=z)
+        l = self._mean_free_path(z=z)
         omega = vbar / l
         return omega
 
-    def _speed_of_sound(self, h: Quantity) -> Quantity:
-        T = self.temperature(h=h)
+    def _speed_of_sound(self, z: Quantity) -> Quantity:
+        T = self.temperature(z=z)
         a = (co.STANDARD.ISO_2533_1975.kappa * co.STANDARD.ISO_2533_1975.R * T) ** 0.5
         return a
 
-    def _dynamic_viscosity(self, h: Quantity) -> Quantity:
-        T = self.temperature(h=h)
+    def _dynamic_viscosity(self, z: Quantity) -> Quantity:
+        T = self.temperature(z=z)
         mu = co.STANDARD.ISO_2533_1975.beta_S * T ** (3 / 2) / (T + co.STANDARD.ISO_2533_1975.S)
         return mu
 
-    def _thermal_conductivity(self, h: Quantity) -> Quantity:
-        T = self.temperature(h=h).x  # Empirical formula does not demand consistency/propagation of units
+    def _thermal_conductivity(self, z: Quantity) -> Quantity:
+        T = self.temperature(z=z).x  # Empirical formula does not demand consistency/propagation of units
         lambda_ = 2.648_151e-3 * T ** (3 / 2) / (T + 245.4 * 10 ** -(12 / T))
         return Quantity(lambda_, "W m^{-1} K^{-1}")
 

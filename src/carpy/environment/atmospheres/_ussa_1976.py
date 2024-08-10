@@ -54,8 +54,8 @@ TABLES[5] = pd.DataFrame(
 
 TABLES[8] = pd.DataFrame(
     data={
-        "H": Quantity(list(range(79_000, 85_000, 500)) + [84_852], "m"),
-        "M_M0": .999 + 1e-6 * np.array([1000, 996, 988, 969, 938, 904, 864, 822, 778, 731, 681, 679, 579])
+        "Z": Quantity(list(range(80_000, 86_000 + 1, 500)), "m"),
+        "M_M0": .999 + 1e-6 * np.array([1000, 996, 989, 971, 941, 909, 870, 829, 786, 741, 694, 641, 579])
     }
 )
 
@@ -68,40 +68,32 @@ TABLES[9] = pd.DataFrame(
 )
 
 
-def geometric_altitude(h):
+def geopotential_altitude(z):
     """
     Args:
-        h: Geopotential altitude, in metres.
+        z: Geometric altitude, in metres.
 
     Returns:
-        Geometric altitude.
+        Geopotential altitude.
 
     """
-    h = Quantity(h, "m")
-
-    selection = (denominator := co.STANDARD.USSA_1976.r_0 - h) <= 0
-    if np.any(selection):
-        denominator[selection] = np.nan
-        warn_msg = f"Invalid values for geopotential altitude encountered (h > radius of Earth)"
-        warnings.warn(message=warn_msg, category=RuntimeWarning)
-
-    z = co.STANDARD.USSA_1976.r_0 * h / denominator
-
-    return z
+    z = Quantity(z, "m")
+    h = co.STANDARD.ISO_2533_1975.r * z / (co.STANDARD.ISO_2533_1975.r + z)
+    return h
 
 
-def molecular_weight_ratio(h):
+def molecular_weight_ratio(z):
     """
     Computes the ratio of molecular weight of atmospheric air at altitude, to that of sea level. Typically, M / M0 <= 1.
 
     Args:
-        h: Geopotential altitude, in metres.
+        z: Geometric altitude, in metres.
 
     Returns:
         Ratio of molecular weight to that defined at standard sea-level.
 
     """
-    M = np.interp(h, *zip(*TABLES[8].to_records(index=False)))
+    M = np.interp(z, *zip(*TABLES[8].to_records(index=False)))
     return M
 
 
@@ -152,7 +144,7 @@ def compute_Tbases_kinetic():
     # The molecular scale results seed the kinetic scale temperature layers ...
     #   ... however, the concept of a molecular scale temperature no longer applies. Even though the end of table
     #   4 and start of table 5 are the same altitude, we actually now care about the kinetic temperature being recorded
-    T_7 = Tm_b[-1] * molecular_weight_ratio(h=84_852)
+    T_7 = Tm_b[-1] * molecular_weight_ratio(z=86_000)
 
     # Layer 8 base is just layer 7-8 is isothermal
     T_8 = T_7
@@ -188,7 +180,7 @@ T_b = compute_Tbases_kinetic()
 
 def compute_number_densities():
     T_7 = compute_Tbases_kinetic()[0]
-    return
+    raise NotImplementedError
 
 
 class USSA_1976(StaticAtmosphereModel):
@@ -202,16 +194,16 @@ class USSA_1976(StaticAtmosphereModel):
             PureGasModel(chemical_species=chemical_species): content_fraction
             for (chemical_species, content_fraction) in dict(TABLES[3].to_records(index=False)).items()
         }
-
-        # Define planet
-        self._celestial_body = "Earth"
         return
 
     def __str__(self):
         rtn_str = f"U.S. Standard Atmosphere 1976"
         return rtn_str
 
-    def _pressure(self, h: Quantity) -> Quantity:
+    @classmethod
+    def _pressure(cls, z: Quantity) -> Quantity:
+        h = geopotential_altitude(z=z)
+
         # Broadcast h into a higher dimension
         h_broadcasted, Href_broadcasted = broadcast_vector(values=h, vector=TABLES[4]["H"])
 
@@ -240,11 +232,13 @@ class USSA_1976(StaticAtmosphereModel):
 
         return Quantity(p, "Pa")
 
-    def _temperature(self, h: Quantity) -> Quantity:
+    @classmethod
+    def _temperature(cls, z: Quantity) -> Quantity:
+        h = geopotential_altitude(z=z)
+
         # Broadcast h into a higher dimension
         h_broadcasted, Href_broadcasted = broadcast_vector(h, TABLES[4]["H"])
-        # Convert to geometric altitude z and also broadcast
-        z = geometric_altitude(h=h)
+        # Also broadcast z
         z_broadcasted, Zref_broadcasted = broadcast_vector(z, TABLES[5]["Z"])
 
         # Selection indices for molecular and kinetic scales. Value of 0 or greater means that indexing system is active
@@ -259,7 +253,7 @@ class USSA_1976(StaticAtmosphereModel):
         dH = h.x - np.where(layer < idxm_limit, TABLES[4]["H"].to_numpy()[np.clip(idxm, 0, None)], np.nan)
         Tm = np.interp(idxm, range(Tm_b.size), Tm_b) + dH * TABLES[4]["L"].to_numpy()[idxm]
         # Convert to the kinetic temperature we care about
-        T = Tm * molecular_weight_ratio(h=h)
+        T = Tm * molecular_weight_ratio(z=z)
 
         # Anything left that is not a number is in the kinetic region
         dZ = z.x - np.where(layer >= idxm_limit, TABLES[5]["Z"].to_numpy()[idxk], np.nan)
@@ -292,12 +286,12 @@ class USSA_1976(StaticAtmosphereModel):
 
         return Quantity(T, "K")
 
-    def _number_density(self, h: Quantity) -> Quantity:
+    def _number_density(self, z: Quantity) -> Quantity:
         """
         Computes the number of neutral air particles per unit volume.
 
         Args:
-            h: Geopotential altitude.
+            z: Geometric altitude.
 
         Returns:
             The air number density.
@@ -305,22 +299,21 @@ class USSA_1976(StaticAtmosphereModel):
         """
         # Default to the sea-level number density
         N_0 = co.STANDARD.USSA_1976.P_0 / (co.STANDARD.USSA_1976.k * co.STANDARD.USSA_1976.T_0)
-        N = np.ones(h.shape) * N_0
+        N = np.ones(z.shape) * N_0
 
         # Adjustment by the molecular weight ratio
-        M_M0 = molecular_weight_ratio(h=h)
+        M_M0 = molecular_weight_ratio(z=z)
         N *= (1 / M_M0)  # As the molecular weight ratio decreases, N increases
 
-        z = geometric_altitude(h=h)
         if np.any(z > 86e3):
             error_msg = "Cannot yet compute total number density above 86 km geometric altitudes"
             raise NotImplementedError(error_msg)
 
         return N
 
-    def _speed_of_sound(self, h: Quantity) -> Quantity:
+    def _speed_of_sound(self, z: Quantity) -> Quantity:
         # Take the start of 1.2.2 "Equilibirum Assumptions" literally, a perfect gas with constant specific heat ratio
-        T = self.temperature(h=h)
+        T = self.temperature(z=z)
         Rspecific = co.STANDARD.USSA_1976.Rstar / M_0
         a = (1.4 * Rspecific * T) ** 0.5
         return a

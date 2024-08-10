@@ -11,7 +11,7 @@ __author__ = "Yaseen Reza"
 class StaticAtmosphereModel:
     """
     Base class for all reference/standardised models of atmospheric state variables. Constituent methods are always
-    functions of geopotential altitude.
+    functions of geometric altitude.
 
     The World Meteorological Organisation defines a standard atmosphere as "a hypothetical vertical distribution of
     atmospheric temperature, pressure and density."
@@ -27,7 +27,6 @@ class StaticAtmosphereModel:
 
     """
     _gas_model: NonReactiveGasModel
-    _celestial_body: str = None
 
     # Atmospheric profile functions of geometric altitude
     _temperature: typing.Callable
@@ -44,106 +43,105 @@ class StaticAtmosphereModel:
     def __call__(self, *args, **kwargs):
         return type(self)(*args, **kwargs)
 
-    def temperature(self, h) -> Quantity:
+    @classmethod
+    def temperature(cls, z) -> Quantity:
         """
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient temperature.
 
         """
-        h = Quantity(h, "m")
-        return self._temperature(h=h)
+        z = Quantity(z, "m")
+        return cls._temperature(z=z)
 
-    def pressure(self, h) -> Quantity:
+    @classmethod
+    def pressure(cls, z) -> Quantity:
         """
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient pressure.
 
         """
-        h = Quantity(h, "m")
-        return self._pressure(h=h)
+        z = Quantity(z, "m")
+        return cls._pressure(z=z)
 
-    def molar_volume(self, h) -> Quantity:
+    def molar_volume(self, z) -> Quantity:
         """
         Computes the molar volume at the given altitude, i.e. the volume of space occupied by one mole of gas.
 
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient molar volume.
 
         """
-        p = self.pressure(h=h)
-        T = self.temperature(h=h)
+        p = self.pressure(z=z)
+        T = self.temperature(z=z)
         Vm = self._gas_model.molar_volume(p=p, T=T)
         return Vm
 
-    def _density(self, h: Quantity) -> Quantity:
-        Vm = self.molar_volume(h=h)
-        rho = self._gas_model.molar_mass / Vm
-        return rho
-
-    def density(self, h) -> Quantity:
+    def density(self, z: Quantity) -> Quantity:
         """
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient density.
 
         """
-        h = Quantity(h, "m")
-        return self._density(h=h)
+        p = self.pressure(z=z)
+        T = self.temperature(z=z)
+        rho = self._gas_model.density(p=p, T=T)
+        return rho
 
-    def _speed_of_sound(self, h: Quantity):
-        p = self.pressure(h=h)
-        T = self.temperature(h=h)
+    def _speed_of_sound(self, z: Quantity):
+        p = self.pressure(z=z)
+        T = self.temperature(z=z)
         a = self._gas_model.speed_of_sound(p=p, T=T)
         return a
 
-    def speed_of_sound(self, h) -> Quantity:
+    def speed_of_sound(self, z) -> Quantity:
         """
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient speed of sound.
 
         """
-        return self._speed_of_sound(h=h)
+        return self._speed_of_sound(z=z)
 
-    def dynamic_viscosity(self, h) -> Quantity:
+    def dynamic_viscosity(self, z) -> Quantity:
         """
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient dynamic viscosity.
 
         """
-        h = Quantity(h, "m")
-        return self._dynamic_viscosity(h=h)
+        z = Quantity(z, "m")
+        return self._dynamic_viscosity(z=z)
 
-    def _kinematic_viscosity(self, h: Quantity):
-        mu = self.dynamic_viscosity(h=h)
-        rho = self.density(h=h)
+    def _kinematic_viscosity(self, z: Quantity):
+        mu = self.dynamic_viscosity(z=z)
+        rho = self.density(z=z)
         nu = mu / rho
         return nu
 
-    def kinematic_viscosity(self, h) -> Quantity:
+    def kinematic_viscosity(self, z) -> Quantity:
         """
         Args:
-            h: Geopotential altitude, in metres.
+            z: Geometric altitude, in metres.
 
         Returns:
             Ambient kinematic viscosity.
 
         """
-        h = Quantity(h, "m")
-        return self._kinematic_viscosity(h=h)
+        z = Quantity(z, "m")
+        return self._kinematic_viscosity(z=z)

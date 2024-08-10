@@ -422,6 +422,11 @@ class ISO_2533_1975:
         return Quantity(0.365e-9, "m")
 
     @cached_property
+    def r(self) -> Quantity:
+        """Nominal radius of Earth."""
+        return Quantity(6_356_766, "m")
+
+    @cached_property
     def a_n(self) -> Quantity:
         """Speed of sound at sea level."""
         return Quantity(340.294, "m s^{-1}")

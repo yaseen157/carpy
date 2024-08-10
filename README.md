@@ -118,7 +118,7 @@ from carpy.utility import Quantity
 isa = ISA()
 
 # Query the ambient density in this model at 41,000 feet
-print(f"{isa} density at 41,000 feet:", isa.density(h=Quantity(41_000, "ft")))
+print(f"{isa} density at 41,000 feet:", isa.density(z=Quantity(41_000, "ft")))
 ```
 
 You should see the following output:

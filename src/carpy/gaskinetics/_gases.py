@@ -71,6 +71,20 @@ class GasModel:
         """
         return self.equation_of_state.molar_volume(p, T)
 
+    def density(self, p, T) -> Quantity:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Gas density.
+
+        """
+        Vm = self.molar_volume(p=p, T=T)
+        rho = self.molar_mass / Vm
+        return rho
+
     def compressibility_coefficient_S(self, p, T) -> Quantity:
         """
         Args:
