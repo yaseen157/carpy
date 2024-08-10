@@ -9,7 +9,7 @@ import polars as pl
 from carpy.utility._maths import RationalNumber
 from carpy.utility._miscellaneous import PathAnchor
 
-__all__ = ["UnitOfMeasurement", "Quantity"]
+__all__ = ["Quantity"]
 __author__ = "Yaseen Reza"
 
 # Load data for quantity representation
@@ -47,7 +47,7 @@ class UnitOfMeasurement:
             symbols: Symbols that represent units and measurement quantities.
 
         """
-        if symbols is None or symbols == "":
+        if symbols is None or isinstance(symbols, cls):
             return super(UnitOfMeasurement, cls).__new__(cls)  # Nothing to do but return right away
         elif isinstance(symbols, str):
             pass  # Safe option, do nothing
@@ -203,7 +203,9 @@ class UnitOfMeasurement:
         # Spawn a fresh dictionary for tracking symbols and their units
         self._symbols_powers = dict()
 
-        if symbols is None or symbols == "":
+        if isinstance(symbols, type(self)):
+            symbols, = symbols.args  # Copy the string of and say sayonara to the original input object
+        elif symbols is None or symbols == "":
             return  # Nothing to be done, just leave
 
         # Record the exponent associated with the units
@@ -218,7 +220,7 @@ class UnitOfMeasurement:
         # Sort the symbol and power dictionary
         def symbol_sorter(sym):
             sym_dims = self._memo_dims[sym]
-            score_qtyidx = np.argmax(sym_dims != 0)  # Score by first appearance of which quantity
+            score_qtyidx = np.argmax(sym_dims != 0)  # Score by first appearance of which base dimension
             score_exp = -self._symbols_powers[sym] * sym_dims[score_qtyidx]  # Exponent of first nonzero dim
             return score_exp, score_qtyidx
 
@@ -232,8 +234,8 @@ class UnitOfMeasurement:
         units, = self.args
         return units
 
-    def __and__(self, other):
-        """Logical and asserts compatibility of units for operators requiring similar dims. Any no-unit returns true."""
+    def __eq__(self, other):
+        """Asserts compatibility of units for operators requiring similar dims. Radian/steradians ignored."""
         cls = type(self)
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be compared (got {type(other).__name__})"
@@ -258,6 +260,20 @@ class UnitOfMeasurement:
         new_dims = np.zeros(len(self._si_ext))
         new_dims[:len(self._sibase)] = (self.dims + other.dims)[:len(self._sibase)]
         new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
+
+    def __or__(self, other):
+        """Concatenate units from different unit objects."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be multiplied (got {type(other).__name__})"
+            raise TypeError(error_msg)
+
+        # Generate new dimensionality, including radian and steradian contribution
+        new_dims = self.dims + other.dims
+        new_arg = " ".join(
+            [f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
         new_obj = cls(new_arg)
         return new_obj
 
@@ -325,7 +341,7 @@ class UnitOfMeasurement:
     def args(self) -> tuple[str]:
         """An args tuple that could be used to instantiate a new object with identical units."""
         instantiable_string = " ".join([
-            f"{symbol}" if power == 1 else f"{symbol}^{power}"
+            f"{symbol}" if power == 1 else f"{symbol}^" + "{" + str(power) + "}"
             for (symbol, power) in self._symbols_powers.items()
         ])
         return (instantiable_string,)
@@ -393,7 +409,7 @@ class UnitOfMeasurement:
     def units_si(self) -> str:
         dim_powers = self.dims
         si_string = " ".join([
-            f"{symbol}" if power == 1 else f"{symbol}^{power}"
+            f"{symbol}" if power == 1 else f"{symbol}^" + "{" + str(power) + "}"
             for (symbol, power) in zip(self._si_ext, dim_powers)
             if power != 0
         ])
@@ -499,7 +515,7 @@ class Quantity(np.ndarray):
 
                 # Basic addition and subtraction should not alter units
                 if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
-                    assert inputs[0].u and inputs[1].u, f"Expected to have inputs with similar units (got {inputs=})"
+                    assert inputs[0].u == inputs[1].u, f"Expected to have inputs with similar units (got {inputs=})"
                     results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
 
                 elif ufunc.__name__ in ["multiply", "matmul"]:
@@ -510,7 +526,7 @@ class Quantity(np.ndarray):
 
                 # Special trigonometric function that maintains sign needs two inputs to contribute to the output
                 elif ufunc.__name__ in ["arctan2"]:
-                    results[0]._carpy_units = inputs[0].u / inputs[1].u * UnitOfMeasurement("rad")
+                    results[0]._carpy_units = (inputs[0].u / inputs[1].u) | UnitOfMeasurement("rad")
 
             elif isinstance(inputs[0], Quantity):
 
@@ -528,7 +544,7 @@ class Quantity(np.ndarray):
                 # Special trigonometric function that maintains sign needs two inputs to contribute to the output
                 elif ufunc.__name__ in ["arctan2"]:
                     # Assume that inputs[1], if it existed, would've removed a [m] dimension
-                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement("rad m^-1")
+                    results[0]._carpy_units = inputs[0].u | UnitOfMeasurement("rad m^-1")
 
             else:
 
@@ -547,7 +563,7 @@ class Quantity(np.ndarray):
                 # Special trigonometric function that maintains sign needs two inputs to contribute to the output
                 elif ufunc.__name__ in ["arctan2"]:
                     # Assume that inputs[0], if it existed, would've added a [m] dimension
-                    results[0]._carpy_units = UnitOfMeasurement("rad m") / inputs[1].u
+                    results[0]._carpy_units = UnitOfMeasurement("rad") | (UnitOfMeasurement("m") / inputs[1].u)
 
         elif len(inputs) == 1:
 
@@ -569,7 +585,7 @@ class Quantity(np.ndarray):
 
             # Trigonometric functions with an output should return the input with an added angular dimension
             elif ufunc.__name__ in ["arcsin", "arccos", "arctan"]:
-                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement("rad")
+                results[0]._carpy_units = inputs[0].u | UnitOfMeasurement("rad")
 
             # One way conversion (the other ways involve nasty assignment using non-SI unit of "degree"
             elif ufunc.__name__ in ["radians", "deg2rad"]:
@@ -589,7 +605,7 @@ class Quantity(np.ndarray):
         """Addition."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u and other.u, f"Cannot add arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot add arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__add__(other)
 
     def __ceil__(self):
@@ -632,14 +648,14 @@ class Quantity(np.ndarray):
         """Greater than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__ge__(other)
 
     def __gt__(self, other):
         """Greater than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__gt__(other)
 
     def __iadd__(self, other):
@@ -691,14 +707,14 @@ class Quantity(np.ndarray):
         """Less than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__le__(other)
 
     def __lt__(self, other):
         """Less than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__lt__(other)
 
     def __mod__(self, other):
@@ -793,7 +809,7 @@ class Quantity(np.ndarray):
         """Subtraction."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u and other.u, f"Cannot subtract arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot subtract arrays with units {self.u} and {other.u}"
         return super(Quantity, self).__sub__(other)
 
     def __truediv__(self, other):
@@ -841,8 +857,12 @@ class Quantity(np.ndarray):
     def to(self, units: str) -> np.ndarray:
         """Return a numpy array in the chosen units."""
         new_uom = UnitOfMeasurement(units)
-        new_value = new_uom.to_uom(self.x)
-        return new_value
+        if (self.u == new_uom):
+            new_value = new_uom.to_uom(self.x)
+            return new_value
+        else:
+            error_msg = f"Units of '{self.u}' and '{new_uom}' are dimensionally incompatible"
+            raise ValueError(error_msg)
 
     @property
     def u(self) -> UnitOfMeasurement:
