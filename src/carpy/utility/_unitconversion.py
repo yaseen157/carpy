@@ -9,7 +9,7 @@ import polars as pl
 from carpy.utility._maths import RationalNumber
 from carpy.utility._miscellaneous import PathAnchor
 
-__all__ = ["Quantity"]
+__all__ = ["UnitOfMeasurement", "Quantity"]
 __author__ = "Yaseen Reza"
 
 # Load data for quantity representation
