@@ -12,8 +12,8 @@ General principles
    speed.
 
 2. The consistency of physical units in the library is maintained using the
-   `carpy.utility.cast2numpy` function and `carpy.tools.Quantity` objects.
-    1. `cast2numpy(...)`should be used to sanitise numerical inputs, ensuring
+   `numpy.atleast_1d` function and `carpy.tools.Quantity` objects.
+    1. `atleast_1d(...)`should be used to sanitise numerical inputs, ensuring
        that the following code is always dealing with `numpy.ndarray` objects.
     2. Wherever possible, the numbers returned to a user (if dimensioned) should
        be returned within a `Quantity` object. The result of adherence to this
@@ -55,7 +55,7 @@ General principles
    (along with appropriate dimensions as all the other units have). Look to
    other units in the spreadsheet for guidance on how to make a new entry - if a
    unit conversion requires a scalar multiple and transform, pay careful
-   attention to the special code in `_quantities.py` that handles temperature
+   attention to the special code in `_unitconversion.py` that handles temperature
    converisons. Make sure to include an appropriate test for this exceptional
    case.
 

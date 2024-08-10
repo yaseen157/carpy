@@ -1,737 +1,855 @@
-"""A module for the conversion of units."""
-import copy
-import functools
-import itertools
+"""A module supporting the intelligent conversion between systems of units."""
+from functools import partial
 import os
 import re
-from typing import Union
-import warnings
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
-from carpy.utility._miscellaneous import cast2numpy, GetPath, Hint
-from carpy.utility._vanity import Unicodify
+from carpy.utility._maths import RationalNumber
+from carpy.utility._miscellaneous import PathAnchor
 
-__all__ = ["Quantity", "cast2quantity"]
+__all__ = ["UnitOfMeasurement", "Quantity"]
 __author__ = "Yaseen Reza"
 
-
-# ============================================================================ #
-# Load data required by the module
-# ---------------------------------------------------------------------------- #
-def load_quantities_dfs():
-    """Load and return the quantity dimensions and prefixes spreadsheets."""
-    filepath = os.path.join(GetPath.localpackage(), "data", "quantities.xlsx")
-    dataframes = pd.read_excel(io=filepath, sheet_name=None, na_filter=False)
-    return dataframes
-
-
-dfs = load_quantities_dfs()
-
-# ============================================================================ #
-# Unit Comprehension
-# ---------------------------------------------------------------------------- #
-
-# Patterns need to be sorted from longest to shortest element for regex
-# This pattern collects all the possible prefixes carpy will recognise and parse
-pattern_prefixes = "|".join([
-    f"(?:{sym})" for sym in sorted(dfs["prefixes"]["Symbol"], key=len)[::-1]])
+# Load data for quantity representation
+anchor = PathAnchor()
+filename = "quantities.xlsx"
+filepath = os.path.join(anchor.directory_path, "data", filename)
+dataframes = pl.read_excel(filepath, sheet_id=0)
+dataframes["dimensions"] = dataframes["dimensions"].with_row_index("id")  # Add a reliable way to get original id
+# The "null" prefix should be treated as an empty string and not missing data lol
+dataframes["prefixes"] = dataframes["prefixes"].with_columns(pl.col("Symbol").fill_null(pl.lit("")))
 
 
-class Dimensions(object):
+class UnitOfMeasurement:
     """
-    This class can be used to create and track the dimensionality of any
-    supported units, and find the dimensionally equivalent SI-base counterpart.
+    A unit object is used to record the dimensionality, scale, and other properties of a unit.
 
+    A simple set of maths operators are overloaded in this class to allow users to compare the dimensionality of one
+    unit to another. For example, an object of this class representing horsepower will cleanly divide by another
+    representing watts and return a dimensionless unit of measurement object. This does mean that class data on the
+    original arguments of instantiation are lost, however, this is by design and believed to be more useful.
     """
-    # Order base units as per the MKS (metre, kilogram, second) system of units
-    _sibase = np.array(["kg", "m", "s", "A", "K", "mol", "cd"])
+    _memo_ids = {}
+    _memo_dims = {}
+    _memo_func = {}
+    _re = re.compile(r"([^^]+)(?:\^(?<=\^){?([^{}]+)}?)?")
+    _sibase = ["kg", "m", "s", "A", "K", "mol", "cd"]  # MKS (metre, kilogram, second) system of quantities
+    _si_ext = _sibase + ["rad", "sr"]  # angular quantities included
+    _symbols_powers: dict
 
-    # This cache is *very* important to performance. pandas.series lookups in
-    # this class are very slow. By saving __init__ outcomes to a cache, some
-    # downstream functions see a 5-7x speed improvement! This cache does depend
-    # on users sticking to a regular way of writing units though, for example,
-    # 'm s^{-1}' and 's^{-1} m' are not equivalent. The hope is that users do
-    # stick a regular way of writing units (due to inherent user preferences),
-    # which may even coincide with units used by the library.
-    _sessioncache = {}
-
-    def __init__(self, units: str = None, /):
+    def __new__(cls, symbols: str = None, /):
         """
+        Return an instance of the class, and memoize the unit pattern.
+
         Args:
-            units: A space delimited string designating the units to instantiate
-                this object with. If the unit symbol is ambiguous, the unit
-                should be followed by '.<unit-system>' i.e.: .SI, .metric, .USC,
-                or .imperial tags.
+            symbols: Symbols that represent units and measurement quantities.
+
         """
-        self._unitstring = "" if units is None else units
+        if symbols is None or symbols == "":
+            return super(UnitOfMeasurement, cls).__new__(cls)  # Nothing to do but return right away
+        elif isinstance(symbols, str):
+            pass  # Safe option, do nothing
+        elif isinstance(symbols, np.ndarray):
+            assert symbols.dtype.kind in {"U", "S"}, f"{cls.__name__} was expecting type 'str', got {symbols.dtype}"
+        else:
+            error_msg = f"{cls.__name__} was expecting to be instantiated with a string type"
+            raise TypeError(error_msg)
 
-        # Check cache for an easy answer
-        # (use deepcopy because of dictionary memory persistence nonsense)
-        if self._unitstring in self._sessioncache:
-            self._pairings = copy.deepcopy(self._sessioncache[self._unitstring])
-            return
+        # Identify each constituent symbol with logical comparisons to defined units and systems in the dataframes
+        for symbol in symbols.split():
 
-        # Otherwise, break units into components and proceed
-        units = self._unitstring.split()
+            # If we already know what the symbol is supposed to be, don't bother with the polars dataframe lookup
+            if symbol in cls._memo_ids:
+                continue
 
-        # Use a dictionary (called "pairings") to squash any repeated units into
-        # a single item.
-        pairings = dict(zip(units, [dict() for _ in units]))
-        for i, key in enumerate(units):
+            # Valid prefixes don't constitute the entirety of the symbol being looked at
+            valid_prefixes = {
+                id: prefix for (id, prefix) in enumerate(dataframes["prefixes"]["Symbol"])
+                if (
+                        symbol.startswith(prefix) and  # The symbol must start with the prefix
+                        symbol != prefix and  # The symbol must not be the prefix
+                        re.match(rf"{prefix}(?!\^)", symbol)  # The symbol must not be directly followed by the power
+                )
+            }
 
-            unit = units[i]
-
-            # Assess the power of the unit's dimension, consuming the string
-            if not pairings[key].get("power"):
-                pairings[key]["power"] = 0.0
-            # Have to iadd the power in case there was a similar term earlier
-            powerterm = re.findall(r"\^{(-?[0-9.]+)}", unit)
-            if powerterm:
-                pairings[key]["power"] += float(powerterm[0])
-                unit = unit[:unit.index("^")]
-            else:
-                pairings[key]["power"] += 1.0
-
-            # If the unit's system is given in the unitstring, find it here
-            system = re.findall(r"\.(.+)", unit)
-            if system:
-                system, = system  # Unpack findall's list into a string
-                unit = unit[:unit.index(".")]
-                # Check that this unit doesn't already have a dissimilar system
-                if pairings[key].get("system", system) != system:
-                    errormsg = (
-                        f"'{unit}' in '{self._unitstring}' has conflicting unit"
-                        f" systems. Deconflict by explicitly stating the system"
-                        f" of this unit"
-                    )
-                    raise ValueError(errormsg)
-                pairings[key]["system"] = system
-
-            # Look for prefixes in the unitstring
-            df_prefix = dfs["prefixes"]
-            pattern = f"^(?:{pattern_prefixes})"
-            prefixes = dict(  # Make a dictionary of plausible prefix_id: prefix
-                df_prefix[
-                    np.array([
-                        x in set([""] + re.findall(pattern, unit))
-                        for (i, x) in enumerate(df_prefix["Symbol"])
-                    ])
-                ]["Symbol"]
-            )
-            # If the prefix belongs to the Bel system, only Bel symbols allowed
-            if "dB" in prefixes.values():
-                pairings[key]["system"] = "Bel"
-
-            # Create a dictionary of symbols indexed by the dataframe row number
-            # These are the symbols made allowable by the prefix's system
-            df_dims = dfs["dimensions"]
-            system = pairings[key].get("system")
-            symbols = df_dims["Symbol(s)"]
-            if system is not None:
-                symbols = dict(symbols[df_dims["System"] == system])  # ALL
-            else:
-                symbols = dict(symbols[df_dims["System"] != "Bel"])  # Not Bel
-
-            # Try to pair a prefix with a unit symbol that completes the unit
-            products = [
-                (prefix_id, symbol_id)
-                for prefix_id, symbol_id in itertools.product(prefixes, symbols)
-                if unit in [
-                    f"{prefixes[prefix_id]}{x}"
-                    for x in symbols[symbol_id].split(",")
-                ] and not (  # Fails if SI prefix used on non-SI unit
-                        df_prefix["System"][prefix_id] == "SI"
-                        and prefixes[prefix_id] != ""
-                        and df_dims["System"][symbol_id] not in ["SI"]
+            # Given the prefix, what is the inferred suffix and inferred system?
+            inferred_combinations = [
+                (prefix_id, re.match(rf"{prefix}(\w+)", symbol).groups()[0], prefix_system)
+                for (prefix_id, prefix) in valid_prefixes.items()
+                for prefix_system in (
+                    dataframes["prefixes"]["System"][i]
+                    for (i, x) in enumerate(dataframes["prefixes"]["Symbol"] == prefix)
+                    if x  # x is a boolean
                 )
             ]
-            if len(products) > 1:
-                matched = [
-                    f"<{symbols[i]}>.{df_dims['System'][i]}"
-                    for _, i in products
-                ]
-                errormsg = (
-                    f"'{key}' is too ambiguous a declaration of a unit. "
-                    f"Discovered potential matches to symbols: {matched}"
-                )
-                raise ValueError(errormsg)
-            elif len(products) == 0:
-                errormsg = (
-                    f"Could not identify what unit '{key}' might be referring "
-                    f"to in the compound unit '{self._unitstring}'."
-                )
-                raise ValueError(errormsg)
+            # The below code is commented out because while filter is a recommended method, its 10x slower than tuple
+            # comprehension for some reason right now...
+            # inferred_combinations = [
+            #     (prefix_id, re.match(rf"{prefix}(\w+)", symbol).groups()[0], prefix_system)
+            #     for (prefix_id, prefix) in valid_prefixes.items()
+            #     for prefix_system in dataframes["prefixes"].filter(pl.col("Symbol") == prefix)["System"]
+            # ]
 
-            # Otherwise all is good, save the result...
-            product, = products
-            _, sym_id = product
-            symbol = df_dims["Symbol(s)"][sym_id].split(",")[0]
+            # Valid suffixes are the actual units of quantity measurement
+            valid_combinations = []
+            for (prefix_id, inferred_suffix, prefix_system) in inferred_combinations:
 
-            pairings[key]["(prefix, unit)"] = product
-            pairings[key]["symbol"] = symbol
-            pairings[key]["system"] = df_dims["System"][sym_id]
+                valid_suffixes = {
+                    id: inferred_suffix for (id, symbols) in enumerate(dataframes["dimensions"]["Symbol(s)"])
+                    # If the inferred suffix is actually in the Symbol(s) and
+                    if inferred_suffix in symbols.split(",") and (
+                        # Filter by the known system. If I don't know, it's definitely not Bel (that *needs* a prefix!)
+                        (dataframes["dimensions"]["System"][id] == prefix_system) if prefix_system is not None
+                        else (dataframes["dimensions"]["System"][id] != "Bel")
+                    )
+                }
 
-        # Store and write to cache
-        self._pairings = pairings
-        self._sessioncache[self._unitstring] = copy.deepcopy(self._pairings)
+                # Below code is also commented out because it appears to be slow when using polars filters...
+                # # If the prefix inferred the use of a system, restrict the search space of valid units to that system
+                # dimension_table = dataframes["dimensions"]
+                # if prefix_system is not None:
+                #     dimension_table = dimension_table.filter(pl.col("System") == prefix_system)
+                # elif prefix_system != "Bel":
+                #     dimension_table = dimension_table.filter(pl.col("System") != "Bel")
+                #
+                # # Tabulate suffixes
+                # valid_suffixes = {
+                #     dimension_table["id"][reduced_index]: inferred_suffix
+                #     for (reduced_index, suffix) in enumerate(dimension_table["Symbol(s)"])
+                #     if inferred_suffix in suffix.split(",")
+                # }
+
+                for suffix_id in valid_suffixes:
+                    valid_combinations.append((prefix_id, suffix_id))
+
+            if len(valid_combinations) == 0:
+                error_msg = f"Could not determine what unit of measurement {symbol} means in {' '.join(symbols)}"
+                raise ValueError(error_msg)
+
+            elif len(valid_combinations) > 1:
+                error_msg = f"Could not deconflict multiple potential meanings of the unit of measurement {symbol}"
+                raise RuntimeError(error_msg)
+
+            # Unpack and memoise the ids (prefix_id, suffix_id)
+            (prefix_id, suffix_id), = valid_combinations
+            (symbol_no_power, _), = cls._re.findall(symbol)
+            cls._memo_ids[symbol_no_power], = valid_combinations
+
+            # Memoize an array representing dimensionality
+            dimension_row = dataframes["dimensions"][suffix_id]
+            cls._memo_dims[symbol_no_power], = dimension_row[cls._si_ext].to_numpy()
+
+            # Memoize conversions to and from SI
+            prefix_exp = dataframes["prefixes"][prefix_id]["Exponent"].item()
+            if dimension_row["System"].item() == "SI":
+                if dimension_row["Symbol(s)"].item() == "g":
+                    prefix_exp -= 3  # Naturally, correct for the fact that "g" is not SI but "kg" is!
+
+                def to_si(value, symbol_power, prefix_exp):
+                    return value * (10.0 ** prefix_exp) ** symbol_power
+
+                def from_si(value, symbol_power, prefix_exp):
+                    return value / (10.0 ** prefix_exp) ** symbol_power
+
+                cls._memo_func[symbol_no_power] = {
+                    "to_si": partial(to_si, prefix_exp=prefix_exp),
+                    "from_si": partial(from_si, prefix_exp=prefix_exp)
+                }
+
+            elif dimension_row["System"].item() == "Bel":
+                assert symbol == symbols, f"A bel system unit may not be instantiated in a compound unit like {symbols}"
+
+                if {"f", "m", "W", "k"} & set(dimension_row["Symbol(s)"].item().split(",")):
+                    offset = dimension_row["factor"].item()
+
+                    def to_si(value, symbol_power, dBshift):
+                        return 10.0 ** ((value + dBshift) / 10.0)
+
+                    def from_si(value, symbol_power, dBshift):
+                        return (10.0 * np.log10(value)) - dBshift
+
+                    cls._memo_func[symbol_no_power] = {
+                        "to_si": partial(to_si, dBshift=offset),
+                        "from_si": partial(from_si, dBshift=offset)
+                    }
+
+                else:
+                    error_msg = f"unit conversions for {symbol} in {symbols} are unsupported at this time"
+                    raise NotImplementedError(error_msg)
+
+            else:
+                factor = dimension_row["factor"].item()
+
+                def to_si(value, symbol_power, prefix_exp, factor):
+                    return value * factor * (10.0 ** prefix_exp) ** symbol_power
+
+                def from_si(value, symbol_power, prefix_exp, factor):
+                    return value / factor / (10.0 ** prefix_exp) ** symbol_power
+
+                cls._memo_func[symbol_no_power] = {
+                    "to_si": partial(to_si, prefix_exp=prefix_exp, factor=factor),
+                    "from_si": partial(from_si, prefix_exp=prefix_exp, factor=factor)
+                }
+
+        return super(UnitOfMeasurement, cls).__new__(cls)
+
+    def __init__(self, symbols: str = None, /):
+        """
+        Args:
+            symbols: Symbols that represent units and measurement quantities.
+        """
+        # Spawn a fresh dictionary for tracking symbols and their units
+        self._symbols_powers = dict()
+
+        if symbols is None or symbols == "":
+            return  # Nothing to be done, just leave
+
+        # Record the exponent associated with the units
+        for symbol in symbols.split():
+            (symbol_no_power, power), = self._re.findall(symbol)
+            power = RationalNumber(*map(float, power.split("/"))) if power else 1
+            if symbol_no_power in self._symbols_powers:
+                self._symbols_powers[symbol_no_power] += power
+            else:
+                self._symbols_powers[symbol_no_power] = power
+
+        # Sort the symbol and power dictionary
+        def symbol_sorter(sym):
+            sym_dims = self._memo_dims[sym]
+            score_qtyidx = np.argmax(sym_dims != 0)  # Score by first appearance of which quantity
+            score_exp = -self._symbols_powers[sym] * sym_dims[score_qtyidx]  # Exponent of first nonzero dim
+            return score_exp, score_qtyidx
+
+        self._symbols_powers = {
+            k: self._symbols_powers[k] for k in sorted(self._symbols_powers, key=symbol_sorter)
+            if self._symbols_powers[k] != 0  # Scrub any units that have a power of zero
+        }
         return
 
     def __repr__(self):
-        return f"{type(self).__name__}('{self._unitstring}')"
+        units, = self.args
+        return units
 
-    def __str__(self):
-        return Unicodify.mathscript_safe(self.si_equivalent)
+    def __and__(self, other):
+        """Logical and asserts compatibility of units for operators requiring similar dims. Any no-unit returns true."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be compared (got {type(other).__name__})"
+            raise TypeError(error_msg)
+
+        # Do logical and
+        if np.all(self.dims == other.dims):
+            return True
+        # If logical and returned false, was it the fault of radians or steradians?
+        elif np.all((self.dims == other.dims)[:len(self._sibase)]):
+            return True
+        return False
 
     def __mul__(self, other):
-        # Add dimensional powers
-        dict_a = {**self.si_dimensioned, **self.si_dimensionless}
-        dict_b = {**other.si_dimensioned, **other.si_dimensionless}
-        dict_sum = {
-            k: dict_a.get(k, 0) + dict_b.get(k, 0)
-            for k in set(dict_a) | set(dict_b)
-        }
-        # Create a new instance and overwrite hidden attributes
-        unitstring = " ".join(
-            f"{k}.SI" + "^{%f}" % v for k, v in dict_sum.items()
-        )
-        output = self.__class__(unitstring)
-        for k in output._pairings:
-            output._pairings[k]["power"] = dict_sum[k[:k.index(".")]]
-        return output
+        """Multiplication of units causes the powers to add together."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be multiplied (got {type(other).__name__})"
+            raise TypeError(error_msg)
 
-    def __truediv__(self, other):
-        # Subtract dimensional powers
-        dict_a = {**self.si_dimensioned, **self.si_dimensionless}
-        dict_b = {**other.si_dimensioned, **other.si_dimensionless}
-        dict_sum = {
-            k: dict_a.get(k, 0) - dict_b.get(k, 0)
-            for k in set(dict_a) | set(dict_b)
-        }
-        # Create a new instance and overwrite hidden attributes
-        unitstring = " ".join(
-            f"{k}.SI" + "^{%f}" % v for k, v in dict_sum.items())
-        output = self.__class__(unitstring)
-        for k in output._pairings:
-            output._pairings[k]["power"] = dict_sum[k[:k.index(".")]]
-        return output
+        # Generate new dimensionality, ignoring radian and steradian contribution
+        new_dims = np.zeros(len(self._si_ext))
+        new_dims[:len(self._sibase)] = (self.dims + other.dims)[:len(self._sibase)]
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
 
     def __pow__(self, power, modulo=None):
+        """Units raised to a power means multiplying the units dimensional power by the encumbent power."""
+        cls = type(self)
+        if not isinstance(power, (int, float, np.floating, np.integer)):
+            error_msg = f"{cls.__name__} must be raised to the power of a numeric type, not {type(power).__name__} type"
+            raise TypeError(error_msg)
 
-        myunits = {**self.si_dimensioned, **self.si_dimensionless}
+        # Unit raised to nan power should return a dead unit
+        if np.isnan(power):
+            return cls(None)
 
-        # Create a new instance and overwrite hidden attributes
-        unitstring = " ".join(
-            f"{k}.SI" + "^{%f}" % v for k, v in myunits.items())
-        output = self.__class__(unitstring)
-        for k in output._pairings:
-            output._pairings[k]["power"] = myunits[k[:k.index(".")]] * power
-
-        return output
-
-    def __invert__(self):
-        # Simply return true division result
-        return self.__class__("").__truediv__(self)
-
-    @property
-    def og_components(self) -> dict:
-        """A dictionary describing this object's constituent units."""
-        return self._pairings
-
-    @property
-    def og_string(self) -> str:
-        """The original string that instantiated this unit object."""
-        return self._unitstring
-
-    @functools.cached_property
-    def si_dimensioned(self) -> dict:
-        """Return a dictionary dimensionality of the unit in SI base units."""
-        dims = self._sibase
-        mydims = dict(zip(dims, np.zeros(len(dims))))
-
-        # Iterate over each component unit of the units object
-        for _, (_, pairinfo) in enumerate(self._pairings.items()):
-            _, unitid = pairinfo["(prefix, unit)"]
-            unitpower = pairinfo["power"]
-            unitseries = dfs["dimensions"].loc[unitid]
-
-            # Iterate over each SI dimension and compound the answer
-            for baseunit in dims:
-                mydims[baseunit] += unitseries[baseunit] * unitpower
-
-        return mydims
-
-    @functools.cached_property
-    def si_dimensionless(self) -> dict:
-        """Return a dictionary of non-dimensional components of the unit."""
-        dims = np.array(["rad", "sr"])
-        mydims = dict(zip(dims, np.zeros(len(dims))))
-
-        # Iterate over each component unit of the units object
-        for _, (_, pairinfo) in enumerate(self._pairings.items()):
-            _, unitid = pairinfo["(prefix, unit)"]
-            unitpower = pairinfo["power"]
-            unitseries = dfs["dimensions"].loc[unitid]
-
-            # Iterate over each SI dimension and compound the answer
-            for baseunit in dims:
-                mydims[baseunit] += unitseries[baseunit] * unitpower
-
-        return mydims
-
-    @property
-    def si_equivalent(self) -> str:
-        """Return a string of dimensions in SI equivalent units."""
-        stringelements = []
-        si_dimensions = {**self.si_dimensionless, **self.si_dimensioned}
-        for _, (symbol, power) in enumerate(si_dimensions.items()):
-            if power == 1:
-                stringelements.append(symbol)
-            elif power == 0:
-                pass
-            elif int(power) == power:
-                stringelements.append(symbol + "^{%d}" % power)
-            else:
-                stringelements.append(symbol + "^{%.3f}" % power)
-
-        return " ".join(stringelements)
-
-
-class Quantity(np.ndarray):
-    """
-    The Quantity class can be used to maintian consistency in the manipulation
-    of quantities, measures, and their units.
-
-    This class inherits many properties of classic numpy arrays.
-    """
-
-    def __new__(cls, value: Hint.nums, /, units: Union[str, Dimensions] = None):
-        """
-        Args:
-            value: Any number(s) that you would expect a numpy array to support.
-            units: Any argument the 'Units' class of this module supports.
-        """
-        # Recast as necessary
-        value = cast2numpy(value, dtype=np.float64)
-        units = units if isinstance(units, Dimensions) else Dimensions(units)
-
-        # If the value is a quantity, raise error to user on recasted dimensions
-        if isinstance(value, Quantity) and (
-                value.units.si_equivalent != units.si_equivalent
-        ):
-            errormsg = f"Quantity {value} had dimensions recast to {units}"
-            raise ValueError(errormsg)
-
-        # Try and convert the value to SI values
-        if units.og_string == "degC":
-            value = value + 273.15
-        elif units.og_string == "degF":
-            value = (value - 32) * (5 / 9) + 273.15
-        else:
-            for _, (_, pairinfo) in enumerate(units.og_components.items()):
-                prefix_id, unit_id = pairinfo["(prefix, unit)"]
-
-                prefix_system = dfs["prefixes"]["System"][prefix_id]
-
-                # Different conversions depending on the system of the prefix
-                if prefix_system == "SI":
-                    value = value * (
-                            10.0 ** dfs["prefixes"]["Exponent"][prefix_id]
-                            * dfs["dimensions"]["transform"][unit_id]
-                    ) ** pairinfo["power"]
-
-                elif prefix_system == "Bel":
-                    value = value + dfs["dimensions"]["transform"][unit_id]
-                    value = 10.0 ** (value / 10)  # map dB scale to linear scale
-
-                else:
-                    raise NotImplementedError(f"No method for {prefix_system}")
-
-        # Now that values are in SI format, we want units of a new obj to be too
-        # ... identify components of a unit string based on SI dimensions
-        newunit_components = [
-            f"{k}.SI" + ("^{%f}" % v)
-            for k, v in units.si_dimensioned.items()
-        ]
-        # ... identify components of a unit string based on angular dimensions
-        newunit_components += [
-            f"{k}.SI" + ("^{%f}" % v)
-            for k, v in units.si_dimensionless.items()
-        ]
-        newunit_str = " ".join(newunit_components)
-
-        # The new instance of this class should be an array object
-        customarray = np.asarray(value).view(cls)
-        # Add a custom attribute to the array object
-        customarray.units = Dimensions(newunit_str)
-        return customarray
-
-    def __array_finalize__(self, obj, **kwargs):
-        # This magic method is required for numpy compatibility
-        if obj is None:
-            return
-        self.units = getattr(obj, "units", None)
-
-    def __repr__(self):
-        return f"{super().__repr__()[:-1]}, units='{self.units}')"
-
-    def __format__(self, format_spec):
-        if self.size == 1 or format_spec == "":
-            pass  # Pass with conditional, allows me to add elifs down the line
-        else:
-            errormsg = "Only scalar quantities can be formatted (not arrays!)"
-            raise ValueError(errormsg)
-        si_units_utf8 = Unicodify.mathscript_safe(self.units.si_equivalent)
-        return f"{format(self.x, format_spec)} {si_units_utf8}"
-
-    def __str__(self):
-        si_units_utf8 = Unicodify.mathscript_safe(self.units.si_equivalent)
-        if self.size > 1:
-            return f"{super().__str__()} {si_units_utf8}"
-        return f"{super().__str__()[1:-1]} {si_units_utf8}"
-
-    # --------------------- #
-    # Relational Operations #
-    # --------------------- #
-
-    def _can_do_relational(self, other: object):
-        """Check that it makes sense to compare two objects as Quantity objs."""
-        if isinstance(other, self.__class__):
-            dims0 = {**self.units.si_dimensionless,
-                     **self.units.si_dimensioned}
-            dims1 = {**other.units.si_dimensionless,
-                     **other.units.si_dimensioned}
-            if not (dims0 == dims1):
-                # Two quantity objects with mismatched dimensions
-                errormsg = (
-                    f"Cannot carry out operation between {type(self).__name__} "
-                    f"objects with dimensions do not match (got "
-                    f"{self.units} and {other.units})"
-                )
-                raise ValueError(errormsg)
-        return True
-
-    def __lt__(self, other):
-        if self._can_do_relational(other):
-            return np.array(self) < other
-
-    def __le__(self, other):
-        if self._can_do_relational(other):
-            return np.array(self) <= other
-
-    def __eq__(self, other):
-        if self._can_do_relational(other):
-            return np.array(self) == other
-
-    def __ne__(self, other):
-        if self._can_do_relational(other):
-            return np.array(self) != other
-
-    def __gt__(self, other):
-        if self._can_do_relational(other):
-            return np.array(self) > other
-
-    def __ge__(self, other):
-        if self._can_do_relational(other):
-            return np.array(self) >= other
-
-    # --------------------- #
-    # Arithmetic Operations #
-    # --------------------- #
-
-    def __add__(self, other):
-        if self._can_do_relational(other):  # <-- Ensures matching units
-            return super().__add__(other)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __iadd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        if self._can_do_relational(other):  # <-- Ensures matching units
-            return super().__sub__(other)
-
-    def __rsub__(self, other):
-        return -self.__sub__(other)
-
-    def __isub__(self, other):
-        return self.__sub__(other)
-
-    def __mul__(self, other):
-        # For mismatched objects, use default behaviour
-        if not isinstance(other, type(self)):
-            return super().__mul__(other)
-
-        # Otherwise 2x Quantity objects. Create and return a new object
-        value = np.array(self) * np.array(other)
-        units = self.units * other.units
-        return self.__class__(value, units)
+        new_dims = self.dims * power
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
-    def __imul__(self, other):
-        return self.__mul__(other)
+    def __rtruediv__(self, other):
+        """Division of units means subtracting own unit's powers from the other."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
+            raise TypeError(error_msg)
 
-    def __matmul__(self, other):
-        warnmsg = (
-            f"{type(self).__name__} objects do not yet support the '@' "
-            f"operator. Collapsing result into regular numpy arrays w/o units"
-        )
-        warnings.warn(message=warnmsg, category=RuntimeWarning)
-        return np.array(self).__matmul__(other)
-
-    def __rmatmul__(self, other):
-        warnmsg = (
-            f"{type(self).__name__} objects do not yet support the '@' "
-            f"operator. Collapsing result into regular numpy arrays w/o units"
-        )
-        warnings.warn(message=warnmsg, category=RuntimeWarning)
-        return np.array(self).__rmatmul__(other)
-
-    def __imatmul__(self, other):
-        warnmsg = (
-            f"{type(self).__name__} objects do not yet support the '@' "
-            f"operator. Collapsing result into regular numpy arrays w/o units"
-        )
-        warnings.warn(message=warnmsg, category=RuntimeWarning)
-        # noinspection PyUnresolvedReferences
-        return np.array(self).__imatmul__(other)
+        # Generate new dimensionality, ignoring radian and steradian contribution
+        new_dims = np.zeros(len(self._si_ext))
+        new_dims[:len(self._sibase)] = (other.dims + self.dims)[:len(self._sibase)]
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
 
     def __truediv__(self, other):
-        # For mismatched objects, use default behaviour
-        if not isinstance(other, type(self)):
-            return super().__truediv__(other)
+        """Division of units means subtracting other powers from self's units."""
+        cls = type(self)
+        if not isinstance(other, cls):
+            error_msg = f"Illegal operation, only {cls.__name__} objects may be added (got {type(other).__name__})"
+            raise TypeError(error_msg)
 
-        # Otherwise 2x Quantity objects. Create and return a new object
-        value = np.array(self) / np.array(other)
-        units = self.units / other.units
-        return self.__class__(value, units)
-
-    def __rtruediv__(self, other):
-        # For mismatched objects, cast both to Quantity objects.
-        if not isinstance(other, type(self)):
-            other = Quantity(other, "")
-
-        # 2x Quantity objects. Create and return a new object
-        return other.__truediv__(self)
-
-    def __itruediv__(self, other):
-        return self.__truediv__(other)
-
-    def __floordiv__(self, other):
-        # For mismatched objects, use default behaviour
-        if not isinstance(other, type(self)):
-            return super().__floordiv__(other)
-
-        # Otherwise 2x Quantity objects. Create and return a new object
-        value = np.array(self) // np.array(other)
-        units = self.units / other.units
-        return self.__class__(value, units)
-
-    def __rfloordiv__(self, other):
-        # For mismatched objects, cast both to Quantity objects.
-        if not isinstance(other, type(self)):
-            other = Quantity(other, "")
-
-        # 2x Quantity objects. Create and return a new object
-        return other.__floordiv__(self)
-
-    def __ifloordiv__(self, other):
-        return self.__floordiv__(other)
-
-    def __mod__(self, other):
-        # For mismatched objects, use default behaviour
-        if not isinstance(other, type(self)):
-            return super().__mod__(other)
-
-        # Otherwise 2x Quantity objects. Create and return a new object
-        value = np.array(self) - (np.array(self) // np.array(other))
-        units = self.units / other.units
-        return self.__class__(value, units)
-
-    def __rmod__(self, other):
-        # For mismatched objects, cast both to Quantity objects.
-        if not isinstance(other, type(self)):
-            other = Quantity(other, "")
-
-        # 2x Quantity objects. Create and return a new object
-        return other.__mod__(self)
-
-    def __imod__(self, other):
-        return self.__mod__(other)
-
-    def __divmod__(self, other):
-        return self.__floordiv__(other), self.__mod__(other)
-
-    def __rdivmod__(self, other):
-        # For mismatched objects, cast both to Quantity objects.
-        if not isinstance(other, type(self)):
-            other = Quantity(other, "")
-
-        # 2x Quantity objects. Create and return a new object
-        return other.__divmod__(self)
-
-    def __pow__(self, power, modulo=None):
-
-        if modulo is not None:
-            return NotImplemented
-
-        if isinstance(power, self.__class__) and str(power.units) != "":
-            errormsg = (
-                "Exponent cannot be a Quantity object with non-negligible units"
-            )
-            raise ValueError(errormsg)
-
-        value = np.array(super().__pow__(power, modulo))
-        units = self.units ** power
-        return Quantity(value, units)
-
-    def __rpow__(self, power):
-
-        if str(self.units) != "":
-            errormsg = (
-                "Exponent cannot be a Quantity object with non-negligible units"
-            )
-            raise ValueError(errormsg)
-        return super().__rpow__(power)
-
-    def __ipow__(self, power):
-        return self.__pow__(power)
-
-    # ---------------------- #
-    # Arithmetic Overloading #
-    # ---------------------- #
-
-    def __round__(self, n=None):
-        return super().round(decimals=n if n is not None else 0)
-
-    def __trunc__(self):
-        return np.trunc(self)
-
-    def __floor__(self):
-        return np.floor(self)
-
-    def __ceil__(self):
-        return np.ceil(self)
-
-    def __float__(self):
-        flattened = self.flatten()
-        # If Quantity only contains a single scalar value, take it!
-        if len(flattened) == 1:
-            return float(self.flat[0])  # *actually* cast it as a float
-        # Otherwise we're losing information unintentionally, raise an error
-        else:
-            errormsg = "Conversion of multi-element array to scalar is lossy"
-            raise ValueError(errormsg)
-
-    # ----------------- #
-    # Slice Overloading #
-    # ----------------- #
-    def __getitem__(self, key):
-        return Quantity(super().__getitem__(key), self.units)
+        # Generate new dimensionality, ignoring radian and steradian contribution
+        new_dims = np.zeros(len(self._si_ext))
+        new_dims[:len(self._sibase)] = (self.dims - other.dims)[:len(self._sibase)]
+        new_arg = " ".join([f"{self._si_ext[i]}^{dim_power}" for (i, dim_power) in enumerate(new_dims) if dim_power])
+        new_obj = cls(new_arg)
+        return new_obj
 
     @property
-    def x(self) -> Union[float, np.ndarray]:
-        """The raw value(s) of the array, without associated units."""
-        try:
-            return float(self)
-        except ValueError:  # Error from converting size > 1 array to scalar
-            return np.array(self)
-
-    def to(self, units: str, /) -> np.ndarray:
+    def dims(self) -> np.ndarray:
         """
-        Convert this quantity into a desired unit, provided that the units have
-        compatible dimensions.
+        Return an array, where each term represents the dimensional power of a quantity.
 
-        Args:
-            units: A space delimited string designating the units to instantiate
-                this object with. If the unit symbol is ambiguous, the unit
-                should be followed by '.<unit-system>' i.e.: .SI, .metric, .USC,
-                or .imperial tags.
-
-        Returns:
-            The value of this quantity in the specified units.
-
+        In order, each index of the output array corresponds with the base dimensional units listed in self._si_ext.
         """
-        # Recast as necessary
-        units = units if isinstance(units, Dimensions) else Dimensions(units)
-
-        errormsg = f"Incompatible units ({self.units} != {units})"
-        assert self.units.si_equivalent == units.si_equivalent, errormsg
-
-        # Special cases where the unit needs to shift the scale
-        if len(units.og_components) == 1:
-            if units.og_string == "degC":
-                return self.x - 273.15
-            elif units.og_string == "degF":
-                return (self.x - 273.15) * (9 / 5) + 32
-
-            # Special cases where the scale is logarithmic
-            elif units.og_string.startswith("dB"):
-                pairinfo = units.og_components[units.og_string]
-                _, unit_id = pairinfo["(prefix, unit)"]
-                transform = dfs["dimensions"]["transform"][unit_id]
-                return 10 * np.log10(self.x) - transform
+        if not self._symbols_powers:
+            dims = np.zeros(len(self._si_ext))
         else:
-            for _, (_, pairinfo) in enumerate(units.og_components.items()):
-                if pairinfo["system"] == "Bel":
-                    raise ValueError("(deci)Bel conversion not recognised")
+            dims = np.vstack([self._memo_dims[k] * v for (k, v) in self._symbols_powers.items()]).sum(axis=0)
+        return dims
 
-        # Converting to units which differ by a scalar multiple is as easy as...
-        output = self / self.__class__(1, units)
+    @property
+    def args(self) -> tuple[str]:
+        """An args tuple that could be used to instantiate a new object with identical units."""
+        instantiable_string = " ".join([
+            f"{symbol}" if power == 1 else f"{symbol}^{power}"
+            for (symbol, power) in self._symbols_powers.items()
+        ])
+        return (instantiable_string,)
 
-        # If it was successful, the si_equivalent units should've cancelled
-        if output.units.si_equivalent == "":
-            return output.x
+    @property
+    def is_dimensionless(self) -> bool:
+        """Returns true if representing a dimensionless quantity. Radians are ratios by definition and ignored here."""
+        if np.all(self.dims[:len(self._sibase)] == 0):
+            return True
+        return False
 
-        # The units weren't successfully mapped due to inconsistent units
-        errormsg = (
-            f"Target '{units=}' do not share dimensionality with {self.units=}")
-        raise ValueError(errormsg)
+    def to_si(self, values):
+        """Convert values in the instance's units of measure, to the equivalent values in SI equivalent base units."""
+        values = np.atleast_1d(values)
+
+        # Map imperial temperatures, if appropriate
+        if self.args[0] == "degF":
+            values = values - 32
+
+        # In general
+        for (symbol, power) in self._symbols_powers.items():
+            transfer_func = self._memo_func[symbol].get("to_si")
+            if not callable(transfer_func):
+                raise NotImplementedError("Cannot convert unit to SI equivalent, no function exists")
+            if symbol in self._si_ext:
+                continue
+            values = np.where(
+                transfer_func(1, 1) != 1,
+                transfer_func(values, power), values
+            )
+
+        # Map non-SI temperatures, if appropriate
+        if self.args[0] in ["degC", "degF"]:
+            values = values + 273.15
+
+        return values
+
+    def to_uom(self, values):
+        """Convert values in SI units of measure, to the equivalent values in the instance's own units."""
+        values = np.atleast_1d(values)
+
+        # Map non-SI temperatures, if appropriate
+        if self.args[0] in ["degC", "degF"]:
+            values = values - 273.15
+
+        # In general
+        for (symbol, power) in self._symbols_powers.items():
+            transfer_func = self._memo_func[symbol].get("from_si")
+            if not callable(transfer_func):
+                raise NotImplementedError("Cannot convert unit from SI equivalent, no function exists")
+            if symbol in self._si_ext:
+                continue
+            values = np.where(
+                transfer_func(1, 1) != 1,
+                transfer_func(values, power), values
+            )
+
+        # Map imperial temperatures, if appropriate
+        if self.args[0] == "degF":
+            values = values + 32
+
+        return values
+
+    @property
+    def units_si(self) -> str:
+        dim_powers = self.dims
+        si_string = " ".join([
+            f"{symbol}" if power == 1 else f"{symbol}^{power}"
+            for (symbol, power) in zip(self._si_ext, dim_powers)
+            if power != 0
+        ])
+        return si_string
 
 
-def cast2quantity(pandas_df: pd.DataFrame) -> dict:
-    """
-    Convert the contents of a dataframe into a dictionary of quantities.
+class Quantity(np.ndarray):
+    _carpy_units: UnitOfMeasurement
 
-    Args:
-        pandas_df: A pandas dataframe object.
+    # =========================
+    # numpy array compatibility
+    # -------------------------
 
-    Returns:
-        A dictionary of quantities.
+    def __new__(cls, values, /, units=None):
+        # Recast the values to a numpy array
+        values = np.atleast_1d(values)
 
-    """
-    # Fill blank values with NaN
-    pandas_df = pandas_df.mask(pandas_df == "")
-
-    # Iterate over the columns in the dataframe
-    output = dict()
-    for column_name in pandas_df.columns:
-        name_components = re.split(r"\s\[(.+)]", column_name)
-        new_values = pandas_df[column_name].to_numpy()
-
-        # If units are not present, just copy the values over to the output
-        if len(name_components) == 1:
-            output[column_name] = new_values
-            continue
-
-        # Otherwise, check that the column doesn't already exist in output
-        output_col, units, _ = name_components
-        if output_col not in output:
+        # If values were unicode or string, attempt to recast as float
+        if values.dtype.kind in {"U", "S"}:
             try:
-                output[output_col] = Quantity(new_values, units)
-            except ValueError:  # Couldn't parse the unit that was detected
-                output[column_name] = new_values  # Just copy the values over
+                values = values.astype(np.float64)
+            except ValueError:
+                error_msg = f"Expected numerical values for {cls.__name__} object (got {values.dtype.type} type)"
+                raise ValueError(error_msg)
 
-        # If column name already exists, assume both new column and old column
-        # are referring to the same quantity - just different units. Try to
-        # update missing elements of the original column with the new column
+        # From the units, determine the SI equivalent quantity representation
+        if isinstance(units, UnitOfMeasurement):
+            unit_of_measurement = units
         else:
-            wherenan = np.isnan(output[output_col])
-            output[output_col][wherenan] = Quantity(new_values, units)[wherenan]
+            unit_of_measurement = UnitOfMeasurement(units)
+        values_SI = unit_of_measurement.to_si(values)
 
-    return output
+        # Subclass ourselves to np.ndarray
+        obj = values_SI.view(cls)
+        obj._carpy_units = unit_of_measurement
+        return obj
+
+    def __array_finalize__(self, obj):
+        """
+        References:
+            https://numpy.org/doc/stable/user/basics.subclassing.html
+
+        """
+        if obj is None:
+            return
+        self._carpy_units = getattr(obj, "_carpy_units", None)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
+        """
+        References:
+            https://numpy.org/doc/stable/user/basics.subclassing.html
+
+        """
+        # If types of Quantity are detected in the inputs, swap it for the original np.ndarray type
+        args = []
+        for input_ in inputs:
+            if isinstance(input_, Quantity):
+                args.append(input_.view(np.ndarray))
+            else:
+                args.append(input_)
+
+        # Same for the outputs
+        outputs = out
+        if outputs:
+            out_args = []
+            for output in outputs:
+                if isinstance(output, Quantity):
+                    out_args.append(output.view(np.ndarray))
+                else:
+                    out_args.append(output)
+            kwargs['out'] = tuple(out_args)
+        else:
+            outputs = (None,) * ufunc.nout
+
+        # Compute the results
+        results = getattr(ufunc, method)(*args, **kwargs)
+        if results is NotImplemented:
+            return NotImplemented
+
+        if ufunc.nout == 1:
+            results = (results,)
+
+        # If the user has specific arrays they want to return results to, we should respect this and not turn those
+        #   objects into Quantity objects
+        results = tuple(
+            (np.asarray(result).view(Quantity) if output is None else output)
+            for result, output in zip(results, outputs)
+        )
+        # By default, any new Quantity objects created must have at least an empty unit of measurement
+        for i, result in enumerate(results):
+            if isinstance(result, Quantity):
+                results[i]._carpy_units = UnitOfMeasurement(None)
+
+        # Finally, reintroduce the units (if possible)...
+        # If all the results are not Quantities (because the user specified their output explicitly), do no unit checks
+        if all([isinstance(result, Quantity) is False for result in results]):
+            pass
+
+        # https://numpy.org/doc/stable/reference/ufuncs.html#available-ufuncs
+        elif len(inputs) == 2:
+
+            if isinstance(inputs[0], Quantity) and isinstance(inputs[1], Quantity):
+
+                # Basic addition and subtraction should not alter units
+                if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                    assert inputs[0].u and inputs[1].u, f"Expected to have inputs with similar units (got {inputs=})"
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["multiply", "matmul"]:
+                    results[0]._carpy_units = inputs[0].u * inputs[1].u
+
+                elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                    results[0]._carpy_units = inputs[0].u / inputs[1].u
+
+                # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+                elif ufunc.__name__ in ["arctan2"]:
+                    results[0]._carpy_units = inputs[0].u / inputs[1].u * UnitOfMeasurement("rad")
+
+            elif isinstance(inputs[0], Quantity):
+
+                # Basic addition and subtraction should not alter units
+                if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                    # No need to warn of incompatible units this time
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["multiply", "matmul"]:
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                    results[0]._carpy_units = inputs[0].u / UnitOfMeasurement(None)
+
+                # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+                elif ufunc.__name__ in ["arctan2"]:
+                    # Assume that inputs[1], if it existed, would've removed a [m] dimension
+                    results[0]._carpy_units = inputs[0].u * UnitOfMeasurement("rad m^-1")
+
+            else:
+
+                # Basic addition and subtraction should not alter units
+                if ufunc.__name__ in ["add", "subtract", "gcd", "lcm"]:
+                    # No need to warn of incompatible units this time
+                    results[0]._carpy_units = inputs[1].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["multiply", "matmul"]:
+                    results[0]._carpy_units = inputs[1].u * UnitOfMeasurement(None)
+
+                elif ufunc.__name__ in ["divide", "true_divide", "floor_divide"]:
+                    # Units on the deonominator get inverted
+                    results[0]._carpy_units = UnitOfMeasurement(None) / inputs[1].u
+
+                # Special trigonometric function that maintains sign needs two inputs to contribute to the output
+                elif ufunc.__name__ in ["arctan2"]:
+                    # Assume that inputs[0], if it existed, would've added a [m] dimension
+                    results[0]._carpy_units = UnitOfMeasurement("rad m") / inputs[1].u
+
+        elif len(inputs) == 1:
+
+            # Carry units over
+            if ufunc.__name__ in ["negative", "positive", "absolute", "fabs"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            # Halve units
+            elif ufunc.__name__ in ["sqrt"]:
+                results[0]._carpy_units = inputs[0].u ** 0.5
+
+            # Double units
+            elif ufunc.__name__ in ["square"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            # Third units
+            elif ufunc.__name__ in ["cbrt"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
+
+            # Trigonometric functions with an output should return the input with an added angular dimension
+            elif ufunc.__name__ in ["arcsin", "arccos", "arctan"]:
+                results[0]._carpy_units = inputs[0].u * UnitOfMeasurement("rad")
+
+            # One way conversion (the other ways involve nasty assignment using non-SI unit of "degree"
+            elif ufunc.__name__ in ["radians", "deg2rad"]:
+                results[0]._carpy_units = UnitOfMeasurement("rad")
+
+        return results[0] if len(results) == 1 else results
+
+    # ==================================
+    # Mathematical built-ins overloading
+    # ----------------------------------
+
+    def __abs__(self):
+        """Absolute value."""
+        return super(Quantity, self).__abs__()
+
+    def __add__(self, other):
+        """Addition."""
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u and other.u, f"Cannot add arrays with units {self.u} and {other.u}"
+        return super(Quantity, self).__add__(other)
+
+    def __ceil__(self):
+        """Ceiling function."""
+        return np.ceil(self)
+
+    def __divmod__(self, other):
+        """Division quotient, remainder."""
+        return self.__floordiv__(other), self.__mod__(other)
+
+    def __eq__(self, other):
+        """Equality."""
+        cls = type(self)
+        if isinstance(other, cls):
+            if np.any(self.u.dims != other.u.dims):
+                return False
+        return self.x == other
+
+    def __float__(self):
+        """Cast as float."""
+        return float(self.x)
+
+    def __floor__(self):
+        """Floor function."""
+        return np.floor(self)
+
+    def __floordiv__(self, other):
+        """self // other, floored division quotient."""
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x // other.x
+            new_units = self.u / other.u
+            return cls(new_value, new_units)
+        # Otherwise...
+        new_value = self.x // other
+        new_units = self.u / UnitOfMeasurement(None)
+        return cls(new_value, new_units)
+
+    def __ge__(self, other):
+        """Greater than or equal to."""
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+        return super(Quantity, self).__ge__(other)
+
+    def __gt__(self, other):
+        """Greater than."""
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+        return super(Quantity, self).__gt__(other)
+
+    def __iadd__(self, other):
+        """Inplace addition."""
+        return self + other
+
+    def __iand__(self, other):
+        raise NotImplementedError
+
+    def __ifloordiv__(self, other):
+        raise NotImplementedError
+
+    def __ilshift__(self, other):
+        raise NotImplementedError
+
+    def __imatmul__(self, other):
+        raise NotImplementedError
+
+    def __imod__(self, other):
+        raise NotImplementedError
+
+    def __imul__(self, other):
+        """Inplace multiplication."""
+        return self * other
+
+    def __int__(self):
+        """Cast as integer."""
+        return int(self.x)
+
+    def __ipow__(self, other):
+        """Inplace exponentiation"""
+        return self ** other
+
+    def __isub__(self, other):
+        """Inplace subtraction."""
+        return self - other
+
+    def __irshift__(self, other):
+        raise NotImplementedError
+
+    def __itruediv__(self, other):
+        """Inplace true division."""
+        return self / other
+
+    def __ixor__(self, other):
+        raise NotImplementedError
+
+    def __le__(self, other):
+        """Less than or equal to."""
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+        return super(Quantity, self).__le__(other)
+
+    def __lt__(self, other):
+        """Less than."""
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u and other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+        return super(Quantity, self).__lt__(other)
+
+    def __mod__(self, other):
+        """Modulo."""
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x - (self.x // other.x) * other.x
+            new_units = self.u / other.u
+            return cls(new_value, new_units)
+        # Otherwise...
+        new_value = self.x % other
+        new_units = self.u * UnitOfMeasurement(None)
+        return cls(new_value, new_units)
+
+    def __mul__(self, other):
+        """Multiplication."""
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x * other.x
+            new_units = self.u * other.u
+            return cls(new_value, new_units)
+        # Otherwise...
+        new_value = self.x * other
+        new_units = self.u * UnitOfMeasurement(None)
+        return cls(new_value, new_units)
+
+    def __neg__(self):
+        """Negation."""
+        return super(Quantity, self).__neg__()
+
+    def __pow__(self, power):
+        """Self raised to a power."""
+        cls = type(self)
+        if isinstance(power, cls):
+            assert power.u.is_dimensionless, f"If acting as an exponent, {type(self).__name__} must be dimensionless"
+            power = power.x  # Squash the Quantity object, deal with array hereforward
+
+        # By this point we establish that Quantity has one unit of measurement, and power has none.
+        # If there is only one value in power, return type is a single Quantity object
+        xs, powers = np.broadcast_arrays(self.x, power)
+        nan_idxs = np.isnan(powers)
+        if len(set(powers[~nan_idxs])) == 1:
+            new_value = self.x ** power
+            new_units = self.u ** powers[~nan_idxs].flat[0]
+            return cls(new_value, new_units)
+
+        # Else, an array of Quantities with different powers
+        out = np.empty(xs.shape, dtype=np.ndarray)
+        for i in range(out.size):
+            new_value = xs.flat[i] ** powers.flat[i]
+            new_units = self.u ** powers.flat[i]
+            out.flat[i] = cls(new_value, new_units)
+        return out
+
+    def __radd__(self, other):
+        """Reverse addition."""
+        return self.__add__(other)
+
+    def __rdivmod__(self, other):
+        """Reverse divmod."""
+        raise NotImplementedError
+
+    def __rfloordiv__(self, other):
+        """Reverse floor division."""
+        raise NotImplementedError
+
+    def __rmod__(self, other):
+        """Reverse modulo."""
+        raise NotImplementedError
+
+    def __rmul__(self, other):
+        """Reverse multiplication."""
+        return self.__mul__(other)
+
+    def __round__(self, n=None):
+        """Round function."""
+        return np.round(self, decimals=n)
+
+    def __rpow__(self, other):
+        """Reverse raise power."""
+        raise NotImplementedError
+
+    def __rsub__(self, other):
+        """Reverse subtraction."""
+        return -self.__sub__(other)
+
+    def __rtruediv__(self, other):
+        """Reverse true division."""
+        return (self.__truediv__(other)) ** -1
+
+    def __sub__(self, other):
+        """Subtraction."""
+        cls = type(self)
+        if isinstance(other, cls):
+            assert self.u and other.u, f"Cannot subtract arrays with units {self.u} and {other.u}"
+        return super(Quantity, self).__sub__(other)
+
+    def __truediv__(self, other):
+        """True division."""
+        cls = type(self)
+        if isinstance(other, cls):
+            new_value = self.x / other.x
+            new_units = self.u / other.u
+            return cls(new_value, new_units)
+        # Otherwise...
+        new_value = self.x / other
+        new_units = self.u / UnitOfMeasurement(None)
+        return cls(new_value, new_units)
+
+    def __trunc__(self):
+        """Truncate."""
+        return np.trunc(self)
+
+    # =================================================
+    # Other methods not directly interacting with numpy
+    # -------------------------------------------------
+
+    def __repr__(self):
+        """For maths purposes, display SI."""
+        repr1 = super(Quantity, self).__repr__()
+        if self._carpy_units is None:
+            repr2 = None
+        else:
+            repr2 = self._carpy_units.units_si
+            repr2 = "no_unit" if repr2 == "" else repr2
+        return f"{repr1.rstrip()[:-1]}, {repr2})"
+
+    def __str__(self):
+        """For display purposes, display whatever the original unit was."""
+        # No units object set for some reason
+        if self._carpy_units is None:
+            return super(Quantity, self).__str__()
+        # Else, units object is defined
+        rtn_str1 = self._carpy_units.to_uom(self.x).__str__()
+        rtn_str2, = self._carpy_units.args
+        if rtn_str2:
+            return f"{rtn_str1} {rtn_str2}"
+        return rtn_str1
+
+    def to(self, units: str) -> np.ndarray:
+        """Return a numpy array in the chosen units."""
+        new_uom = UnitOfMeasurement(units)
+        new_value = new_uom.to_uom(self.x)
+        return new_value
+
+    @property
+    def u(self) -> UnitOfMeasurement:
+        """Return the units of measurement integral to the definition of the Quantity."""
+        return self._carpy_units
+
+    @property
+    def x(self) -> np.ndarray:
+        """Return the values of the internal numpy array without the Quantity class wrapper."""
+        return np.array(self)

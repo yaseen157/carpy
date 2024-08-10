@@ -8,8 +8,10 @@ information, examples, and tutorials on usage.
 carpy is distributed under the GNU GPLv3 License. A full copy of the license
 should be present alongside the source code on GitHub.
 """
-# The version number of the "entire" package is specified here
-__version__ = "0.0.7"
+import importlib as _importlib
+
+# The version number of the *entire* package is defined here
+__version__ = "0.1.0.dev1"
 
 # ============================================================================ #
 # -------------------------------- LICENSING --------------------------------- #
@@ -17,11 +19,11 @@ __version__ = "0.0.7"
 __license__ = "GNU GPLv3"
 # Console interaction copyright notice
 __copyright__ = (
-    f"\nADRpy  Copyright (C) 2023  Yaseen Reza"
+    f"\nCARPy  Copyright (C) 2024  Yaseen Reza"
     f"\nThis program comes with ABSOLUTELY NO WARRANTY; "
-    f"for details type `ADRpy.w()'."
+    f"for details type `CARPy.w()'."
     f"\nThis is free software, and you are welcome to redistribute it "
-    f"under certain conditions; type `ADRpy.c()' for details."
+    f"under certain conditions; type `CARPy.c()' for details."
 )
 
 
@@ -48,4 +50,31 @@ def w() -> None:
     print(warrantytxt)
     return None
 
+
 # ============================================================================ #
+
+submodules = [
+    "airworthiness",
+    "chemistry",
+    "concepts",
+    "environment",
+    "gaskinetics",
+    "utility",
+    "visual"
+]
+
+__all__ = submodules + ["__version__"]
+
+
+def __dir__():
+    return __all__
+
+
+def __getattr__(name):
+    if name in submodules:
+        return _importlib.import_module(f'carpy.{name}')
+    else:
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(f"Module 'carpy' has no attribute '{name}'")

@@ -1,6 +1,6 @@
 <!--
     Consolidated Aircraft Recipes in Python (carpy)
-    Copyright (C) 2023  Yaseen Reza
+    Copyright (C) 2024  Yaseen Reza
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,43 +16,48 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-![CARPy](./docs/source/_static/carpy.svg)
-<h2 align="center"><p>Consolidated Aircraft Recipes in Python</p></h2>
-<p align="center">Yaseen Reza</p>
+<h1 align="center">
+<img src="branding/logo_primary.png" width="300">
+</h1><br>
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python Version](https://img.shields.io/badge/python-3.9.5-blue.svg)](https://www.python.org/downloads/release/python-395/)
+[![Python Version](https://img.shields.io/badge/python-3.10_--_3.12-blue.svg)](https://www.python.org/downloads/)
 [![PyPI Version](https://badge.fury.io/py/carpy.svg)](https://badge.fury.io/py/carpy)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
+![Jupyter Badge](https://img.shields.io/badge/jupyter-notebook-orange.svg)
 
 CARPy is an open source project for those interested in the methodology and
-approach to the conceptual-level design of fixed-wing aircraft. This library
+approach to the conceptual-level design of fixed-wing and rotor-wing aircraft. This library
 provides its users with access to a variety of design tools for conceptual
-analysis - CARPy is designed to complement and not substitute a comprehensive
-and detailed study of a vehicle concept.
+analysis. The full terms of software use should have been
+provided to you with a copy of the software, i.e. the work here-in is protected by a standard GPLv3 license.
+
+Users will find:
+
+- Virtual (design) atmospheres and environments
+- Hassle-free conversions between systems of units
+- `[WorkInProgress]` Constraint Analysis Methods
+- `[WorkInProgress]` Propulsion models and Engine Performance Decks
+- *...and much more*
+
+CARPy is continually tested to ensure you have the most stable code. Users encountering any issues should raise a GitHub
+issue, or better yet, consider contributing to the project.
 
 - [Source Code](https://github.com/yaseen157/carpy)
 - [Jupyter Notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source)
 - [Contributors Guide](CONTRIBUTORS_GUIDE.md)
 
-Users will find:
-
-- Virtual (design) atmospheres
-- Hassle-free conversions between systems of units
-- Constraint Analysis Methods
-- `[WorkInProgress]` Propulsion models and Engine Performance Decks
-- *...and much more* `[WorkInProgress]`
+**Continuous Integration Status** (CircleCI):\
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
 
 For a detailed description of the library, please consult the documentation. To
 get started, follow the instructions below.
-
-**Continuous Integration Status** (CircleCI):\
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
 
 ## ✔️ Getting Started
 
 ### Installation
 
-`carpy` is written for (and tested in) Python version 3.9.5.
+`carpy` is written for (and tested in) Python version 3.10+.
 
 On most systems you should be able to simply open an operating system terminal
 and at the command prompt type
@@ -107,28 +112,27 @@ copy and paste them into a Jupyter notebook
 
 ```python
 """'Hello World' example to introduce users to CARPy atmospheres."""
-from carpy.environment import ISA1975
+from carpy.environment.atmospheres import ISA
 from carpy.utility import Quantity
 
-# Instantiate an atmosphere object:
-# International Standard Atmosphere with a +10C offset
-atm = ISA1975(T_offset=10)
+# Instantiate an atmosphere model
+isa = ISA()
 
-# Query the ambient density in this model at 41,000 feet 
-# noinspection PyTypeChecker
-print(f"{atm} density at 41,000 feet:",
-      atm.rho(altitude=Quantity(41_000, "ft")))
+# Query the ambient density in this model at 41,000 feet
+print(f"{isa} density at 41,000 feet:", isa.density(z=Quantity(41_000, "ft")))
 ```
 
 You should see the following output:
 
-    ISA1975(+10°C) density at 41,000 feet: 0.28740209 kg m⁻³
+    ISO 2533:1975 Standard Atmosphere density at 41,000 feet: 0.28740209 kg m⁻³
 
 You can learn more about `CARPy`'s capabilities through the exemplary
-[notebooks](./docs/source/).
+[notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source).
 
 ## 🐍 Acknowledgements
 
-The library was authored by:
+This library was written and published by **Yaseen Reza**, in support of my studies towards the degree of doctor of
+philosophy.
 
-- Yaseen Reza
+This project would not have been possible without the careful supervision of Dr.András Sóbester and the support of my
+close colleagues and friends - you know who you are!

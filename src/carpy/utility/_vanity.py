@@ -126,15 +126,6 @@ class Unicodify(object):
 
         return re.sub(r"\d+\s|\d+$", match_handler, text)
 
-
-__all__ += [Unicodify.__name__]
-
-
-# ============================================================================ #
-
-class Pretty(object):
-    """Assorted methods for making pretty outputs."""
-
     @staticmethod
     def temperature(T, unit: str = None):
         """
@@ -193,4 +184,6 @@ class Pretty(object):
             return f"{text}"
 
 
-__all__ += [Pretty.__name__]
+__all__ += [Unicodify.__name__]
+
+# ============================================================================ #
