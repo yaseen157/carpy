@@ -17,7 +17,7 @@
 -->
 
 <h1 align="center">
-<img src="branding/logo_primary.png" width="300">
+<img src="https://raw.githubusercontent.com/yaseen157/carpy/main/branding/logo_primary.png" width="300">
 </h1><br>
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
