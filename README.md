@@ -16,9 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<img style="float: right; padding-left:20px;" src="docs/source/_static/carpy.svg" width="180" height="160"/>
-<h1 align="center"><p>Consolidated Aircraft Recipes in Python</p></h1>
-<h4 align="center">by: Yaseen Reza</h4>
+<h1 align="center">
+<img src="branding/logo_primary.png" width="300">
+</h1><br>
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python Version](https://img.shields.io/badge/python-3.10_--_3.12-blue.svg)](https://www.python.org/downloads/)
@@ -27,25 +27,26 @@
 ![Jupyter Badge](https://img.shields.io/badge/jupyter-notebook-orange.svg)
 
 CARPy is an open source project for those interested in the methodology and
-approach to the conceptual-level design of fixed-wing aircraft. This library
+approach to the conceptual-level design of fixed-wing and rotor-wing aircraft. This library
 provides its users with access to a variety of design tools for conceptual
-analysis - CARPy is designed to complement, not substitute, the comprehensive
-and detailed study of vehicle concepts.
-
-- [Source Code](https://github.com/yaseen157/carpy)
-- [Jupyter Notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source)
-- [Contributors Guide](CONTRIBUTORS_GUIDE.md)
+analysis. The full terms of software use should have been
+provided to you with a copy of the software, i.e. the work here-in is protected by a standard GPLv3 license.
 
 Users will find:
 
-- Virtual (design) atmospheres
+- Virtual (design) atmospheres and environments
 - Hassle-free conversions between systems of units
 - `[WorkInProgress]` Constraint Analysis Methods
 - `[WorkInProgress]` Propulsion models and Engine Performance Decks
 - *...and much more*
 
 CARPy is continually tested to ensure you have the most stable code. Users encountering any issues should raise a GitHub
-issue, or better yet, consider contributing to the project.\
+issue, or better yet, consider contributing to the project.
+
+- [Source Code](https://github.com/yaseen157/carpy)
+- [Jupyter Notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source)
+- [Contributors Guide](CONTRIBUTORS_GUIDE.md)
+
 **Continuous Integration Status** (CircleCI):\
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/yaseen157/carpy/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/yaseen157/carpy/tree/main)
 
@@ -126,9 +127,12 @@ You should see the following output:
     ISO 2533:1975 Standard Atmosphere density at 41,000 feet: 0.28740209 kg m⁻³
 
 You can learn more about `CARPy`'s capabilities through the exemplary
-[notebooks](docs/source/).
+[notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source).
 
 ## 🐍 Acknowledgements
+
+This library was written and published by **Yaseen Reza**, in support of my studies towards the degree of doctor of
+philosophy.
 
 This project would not have been possible without the careful supervision of Dr.András Sóbester and the support of my
 close colleagues and friends - you know who you are!
