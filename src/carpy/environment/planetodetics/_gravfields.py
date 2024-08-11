@@ -7,7 +7,7 @@ import numpy as np
 
 from carpy.utility import PathAnchor, Quantity, classproperty
 
-__all__ = ["GravFieldModel", "SHGravModel", "EGM96", "EGM96s", "JGM3", "WGS72"]
+__all__ = ["GravFieldModel", "EGM96", "EGM96s", "JGM3", "WGS72"]
 __author__ = "Yaseen Reza"
 
 # Spawn a path anchor, so we know where we are in the system files
