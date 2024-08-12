@@ -6,7 +6,9 @@ from scipy.optimize import minimize_scalar
 
 from carpy.utility import Quantity, constants as co, gradient1d
 
-__all__ = ["EquationOfState", "IdealGas", "VanderWaals", "RedlichKwong", "SoaveRedlichKwong", "PengRobinson"]
+__all__ = [
+    "EquationOfState", "IdealGas", "VanderWaals", "RedlichKwong",
+    "SoaveRedlichKwong", "SRKmodPeneloux", "PengRobinson", "HydrogenGas"]
 __author__ = "Yaseen Reza"
 
 
@@ -24,7 +26,7 @@ class EquationOfState:
     _temperature: typing.Callable
     _molar_volume: typing.Callable
 
-    def __init__(self, p_c, T_c):
+    def __init__(self, p_c, T_c, **kwargs):
         """
         Args:
             p_c: Critical pressure of the fluid, in Pascal.
@@ -192,8 +194,10 @@ class EquationOfState:
 class IdealGas(EquationOfState):
     """A class implementing the ideal gas equation of state, a.k.a. the ideal gas law."""
 
-    def __init__(self, p_c=None, T_c=None):
+    def __init__(self, p_c=None, T_c=None, **kwargs):
         super().__init__(p_c=p_c, T_c=T_c)
+
+        self._critical_Vm = self.molar_volume(p=p_c, T=T_c)
         return
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
@@ -212,7 +216,7 @@ class IdealGas(EquationOfState):
 class VanderWaals(EquationOfState):
     """A class implementing the van der Waals equation of state."""
 
-    def __init__(self, p_c=None, T_c=None, a=None, b=None):
+    def __init__(self, p_c=None, T_c=None, *, a=None, b=None, **kwargs):
         if p_c is None and T_c is None:
             if a is not None and b is not None:
                 T_c = (a / b) / ((27 / 8) * co.PHYSICAL.R)
@@ -273,7 +277,7 @@ class RedlichKwong(EquationOfState):
     @property
     def _critical_Vm(self) -> Quantity:
         Z_c = 1 / 3
-        Vm_c = (co.PHYSICAL.R * self.T_c) / (self.p_c * Z_c)
+        Vm_c = Z_c * (co.PHYSICAL.R * self.T_c) / self.p_c
         return Vm_c
 
     @property
@@ -289,7 +293,7 @@ class RedlichKwong(EquationOfState):
         p = co.PHYSICAL.R * T / (Vm - b) - a / (T ** 0.5 * Vm * (Vm + b))
         return p
 
-    def _temperature(self, p: Quantity, Vm: Quantity, tol: float = 1e-6) -> Quantity:
+    def _temperature(self, p: Quantity, Vm: Quantity) -> Quantity:
         pressures, molar_volumes = np.broadcast_arrays(p, Vm)
         temperatures = np.zeros(pressures.shape)
 
@@ -301,11 +305,11 @@ class RedlichKwong(EquationOfState):
                 return abs(p - self._pressure(T, Vm).x)
 
             T_ideal = p * Vm / co.PHYSICAL.R.x
-            temperatures.flat[i] = minimize_scalar(helper, bracket=(T_ideal * 0.9, T_ideal), tol=tol).x.item()
+            temperatures.flat[i] = minimize_scalar(helper, bracket=(T_ideal * 0.9, T_ideal)).x.item()
 
         return Quantity(temperatures, "K")
 
-    def _molar_volume(self, p: Quantity, T: Quantity, tol: float = 1e-6) -> Quantity:
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
         a, b = (constants := self.constants)["a"], constants["b"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
@@ -315,10 +319,10 @@ class RedlichKwong(EquationOfState):
             p = pressures.flat[i]
             T = temperatures.flat[i]
 
-            par_a = p * T ** 0.5
-            par_b = (-co.PHYSICAL.R * T ** (3 / 2)).item()
-            par_c = a.item() + b.item() * par_b - b.item() ** 2 * par_a
-            par_d = -(a * b).item()
+            par_a = 1
+            par_b = (-co.PHYSICAL.R * T / p).item()
+            par_c = a.item() / p / (T ** 0.5) + par_b * b.item() - b.item() ** 2
+            par_d = -(a * b / p / (T ** 0.5)).item()
             roots = np.roots((par_a, par_b, par_c, par_d))
 
             # Ignore negative solution, non-physical
@@ -334,7 +338,7 @@ class RedlichKwong(EquationOfState):
 class SoaveRedlichKwong(RedlichKwong):
     """A class implementing the Soave-modification of the Redlich-Kwong equation of state."""
 
-    def __init__(self, p_c, T_c, omega: float = 0):
+    def __init__(self, p_c, T_c, *, omega: float = 0, **kwargs):
         """
         Args:
             p_c: Critical pressure of the fluid, in Pascal.
@@ -345,6 +349,11 @@ class SoaveRedlichKwong(RedlichKwong):
         super().__init__(p_c=p_c, T_c=T_c)
         self._omega = omega
         return
+
+    @property
+    def _critical_Vm(self) -> Quantity:
+        Vm_c = self.molar_volume(p=self.p_c, T=self.T_c)
+        return Vm_c
 
     @property
     def constants(self) -> dict[str, Quantity]:
@@ -362,7 +371,7 @@ class SoaveRedlichKwong(RedlichKwong):
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / (Vm * (Vm + b))
         return p
 
-    def _molar_volume(self, p: Quantity, T: Quantity, tol=1e-6) -> Quantity:
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
         a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
@@ -375,10 +384,10 @@ class SoaveRedlichKwong(RedlichKwong):
             alpha = (1 + (0.480 + 1.574 * omega - 0.176 * omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
 
             # Polynomial to solve for molar volume
-            par_a = p / alpha
-            par_b = (-co.PHYSICAL.R * T / alpha).x
-            par_c = a.x + b.x * par_b - b.x ** 2 * par_a
-            par_d = -(a * b).x
+            par_a = (p / alpha).item()
+            par_b = (-co.PHYSICAL.R * T / alpha).item()
+            par_c = (a.x + b.x * par_b - b.x ** 2 * par_a).item()
+            par_d = -(a * b).item()
             roots = np.roots((par_a, par_b, par_c, par_d))
 
             # Ignore negative solution, non-physical
@@ -391,13 +400,69 @@ class SoaveRedlichKwong(RedlichKwong):
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
 
+class SRKmodPeneloux(SoaveRedlichKwong):
+    """A class implementing the Peneloux-Rauzy-Freze (1982) modification to Soave-Redlich-Kwong volumes."""
+
+    _c: Quantity
+
+    def __init__(self, p_c, T_c, *, omega: float = 0, c=None, **kwargs):
+        """
+        Args:
+            p_c: Critical pressure of the fluid, in Pascal.
+            T_c: Critical temperature of the fluid, in Kelvin.
+            omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
+            c: Molar volume offset in metres cubed per mole. Optional, uses estimate for petroleum gas and oil.
+
+        """
+        super().__init__(p_c=p_c, T_c=T_c, omega=omega)
+
+        if c is not None:
+            self.c = c
+        else:
+            # c parameter for petroleum gas and oils can be estimated with Rackett compressibility factor Z_RA
+            Z_RA = 0.290_56 - 0.08775 * omega
+            self.c = 0.40768 * co.PHYSICAL.R * T_c / p_c * (0.294_41 - Z_RA)
+
+        return
+
+    @property
+    def c(self):
+        """Peneloux et al. volume correction parameter"""
+        return self._c
+
+    @c.setter
+    def c(self, value):
+        self._c = Quantity(value, "m^3 mol^-1")
+
+    @property
+    def constants(self) -> dict[str, Quantity]:
+        """Parameters as defined in the Soave-Redlich-Kwong equation of state."""
+        a = self._Omega_a * co.PHYSICAL.R ** 2 * self.T_c ** 2 / self.p_c
+        b = (self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c) - self.c
+        return dict([("a", a), ("b", b), ("omega", self._omega), ("c", self.c)])
+
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
+        a, b, omega, c = (constants := self.constants)["a"], constants["b"], constants["omega"], constants["c"]
+
+        # Compute Soave modification for hydrocarbons, alpha, from acentric factor, omega
+        alpha = (1 + (0.480 + 1.574 * omega - 0.176 * omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
+
+        p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / ((Vm + c) * (Vm + b + 2 * c))
+        return p
+
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+        Vm_tilda = super(SRKmodPeneloux, self)._molar_volume(p=p, T=T)
+        Vm = Vm_tilda - self.c
+        return Vm
+
+
 class PengRobinson(SoaveRedlichKwong):
-    """A class implementing the van der Waals equation of state."""
+    """A class implementing the Peng Robinson equation of state."""
     _eta_c = (1 + (4 - 8 ** 0.5) ** (1 / 3) + (4 + 8 ** 0.5) ** (1 / 3)) ** -1
     _Omega_a = (8 + 40 * _eta_c) / (49 - 37 * _eta_c)
     _Omega_b = _eta_c / (3 + _eta_c)
 
-    def __init__(self, p_c, T_c, omega: float = 0):
+    def __init__(self, p_c, T_c, *, omega: float = 0, **kwargs):
         """
         Args:
             p_c: Critical pressure of the fluid, in Pascal.
@@ -425,7 +490,7 @@ class PengRobinson(SoaveRedlichKwong):
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / (Vm ** 2 + 2 * b * Vm - b ** 2)
         return p
 
-    def _molar_volume(self, p: Quantity, T: Quantity, tol: float = 1e-6) -> Quantity:
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
         a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
@@ -439,14 +504,76 @@ class PengRobinson(SoaveRedlichKwong):
             alpha = (1 + kappa * (1 - self.T_r(T) ** 0.5)) ** 2
 
             # Polynomial to solve for molar volume
-            par_a = p
-            par_b = p * b.x - (co.PHYSICAL.R * T).x
-            par_c = a.x * alpha - 3 * b.x ** 2 * p - 2 * b.x * (co.PHYSICAL.R * T).x
-            par_d = p * b.x ** 3 + b.x ** 2 * (co.PHYSICAL.R * T).x - a.x * alpha * b.x
+            par_a = p.item()
+            par_b = (p * b.x - (co.PHYSICAL.R * T)).item()
+            par_c = (a.x * alpha - 3 * b.x ** 2 * p - 2 * b.x * (co.PHYSICAL.R * T).x).item()
+            par_d = (p * b.x ** 3 + b.x ** 2 * (co.PHYSICAL.R * T).x - a.x * alpha * b.x).item()
             roots = np.roots((par_a, par_b, par_c, par_d))
 
             # Ignore negative solution, non-physical
             roots = roots.real[~np.iscomplex(roots)]
+            roots[roots <= 0] = np.nan
+
+            # Vapour state must be maximum of remaining roots
+            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
+
+        return Quantity(molar_volumes, "m^{3} mol^{-1}")
+
+
+class HydrogenGas(EquationOfState):
+    """
+    An equation of state developed particularly for hydrogen gas.
+
+    References:
+        https://doi.org/10.1016/j.ijhydene.2011.03.157
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(p_c=Quantity(13, "bar"), T_c=Quantity(-240, "degC"))
+
+    @property
+    def _critical_Vm(self) -> Quantity:
+        Z_c = 0.305
+        Vm_c = Z_c * (co.PHYSICAL.R * self.T_c) / self.p_c
+        return Vm_c
+
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
+        T_r = T / self.T_c
+        V_r = Vm / self.Vm_c
+        Z_c = 0.305
+
+        ZV = Z_c * (V_r + 0.13636)
+        p_r = (
+                (T_r / (ZV - 0.125)) -
+                ((0.75 ** 3) / (T_r ** 0.5 * ZV ** 2))
+        )
+        p = self.p_c * p_r
+        return p
+
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+        pressures, temperatures = np.broadcast_arrays(p, T)
+        molar_volumes = np.zeros(pressures.shape)
+
+        for i in range(molar_volumes.size):
+            p = pressures.flat[i]
+            T = temperatures.flat[i]
+
+            p_r = (p / self.p_c).item()
+            T_r = (T / self.T_c).item()
+
+            # Polynomial to solve for molar volume critical compressibility product
+            par_a = T_r ** 0.5 * p_r
+            par_b = -(par_a / 8 + (par_a / p_r) ** 3)
+            par_c = 27 / 64
+            par_d = par_c / 8
+            roots = np.roots((par_a, par_b, par_c, par_d))
+
+            # Ignore non-physical
+            roots = roots.real[~np.iscomplex(roots)]
+
+            # Transform roots back into molar volume and ignore negative solutions
+            Z_c = 0.305
+            roots = self.Vm_c * ((roots / Z_c) - 0.13636)
             roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
@@ -461,7 +588,7 @@ class ElliotSureshDonohue(EquationOfState):
     _k2 = 1.0617
     _k3 = 1.90476
 
-    def __init__(self, p_c, T_c, omega: float = 0):
+    def __init__(self, p_c, T_c, *, omega: float = 0, **kwargs):
         """
         Args:
             p_c: Critical pressure of the fluid, in Pascal.
