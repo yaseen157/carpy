@@ -48,7 +48,6 @@ class Chemical(IOPower):
 
 class Electrical(IOPower):
     """Sinusoidal electrical power."""
-    _S_mag = Quantity(np.nan, "VA")
     _V_rms = Quantity(np.nan, "V")
     _X = Quantity(0, "ohm")
     _omega = Quantity(0, "Hz")
@@ -56,7 +55,7 @@ class Electrical(IOPower):
     @property
     def S_mag(self) -> Quantity:
         """Apparent power."""
-        return np.abs(self.S)
+        return Quantity(np.abs(self.S), "VA")
 
     @S_mag.setter
     def S_mag(self, value):
@@ -154,7 +153,7 @@ class Electrical(IOPower):
     @property
     def Q(self) -> Quantity:
         """Reactive power."""
-        return self.power * np.tan(self.phi)
+        return Quantity(self.power * np.tan(self.phi), "var")
 
     @Q.setter
     def Q(self, value):
