@@ -1,13 +1,15 @@
 """Module defining the IOBus, which allows powerplant modules to define their input and output connection types."""
-from carpy.powerplant.modules.io import types as IOtypes
+from typing import Type
 
-__all__ = ["IOBus"]
+from carpy.powerplant.modules.io import _types as IOPower
+
+__all__ = ["IOBus", "IOPower"]
 __author__ = "Yaseen Reza"
 
 
 class IOBus:
-    _permitted_types: set
+    _legal_types: tuple
 
-    def __init__(self, *args: IOtypes.IOPowerType):
-        self._permitted_types = set(args)
+    def __init__(self, *args: IOPower.AbstractPower):
+        self._legal_types = args
         return

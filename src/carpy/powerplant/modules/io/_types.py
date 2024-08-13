@@ -5,11 +5,11 @@ import numpy as np
 
 from carpy.utility import Quantity
 
-__all__ = ["IOPowerType", "Chemical", "Electrical", "Mechanical", "Thermal", "Electromagnetical", "Fluidal"]
+__all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Electromagnetic", "Fluid"]
 __author__ = "Yaseen Reza"
 
 
-class IOPowerType:
+class AbstractPower:
     """Base class for describing types of power that can be input or output of a powerplant module."""
     _power = Quantity(np.nan, "W")
 
@@ -23,7 +23,7 @@ class IOPowerType:
         self._power = Quantity(value, "W")
 
 
-class Chemical(IOPowerType):
+class Chemical(AbstractPower):
     """
     Chemical power, defined by calorific value and mass flow rate.
 
@@ -50,7 +50,7 @@ class Chemical(IOPowerType):
         self.mdot = self.power / value
 
 
-class Electrical(IOPowerType):
+class Electrical(AbstractPower):
     """
     Sinusoidal electrical power. Set frequency omega to zero for DC modelling.
 
@@ -190,23 +190,23 @@ class Electrical(IOPowerType):
         self.X = self.R * np.tan(value)
 
 
-class Mechanical(IOPowerType):
+class Mechanical(AbstractPower):
     def __init__(self):
         raise NotImplementedError
 
 
-class Thermal(IOPowerType):
+class Thermal(AbstractPower):
     def __init__(self):
         raise NotImplementedError
 
 
-class Electromagnetical(IOPowerType):
+class Electromagnetic(AbstractPower):
 
     def __init__(self):
         raise NotImplementedError
 
 
-class Fluidal(IOPowerType):
+class Fluid(AbstractPower):
     """
     Fluidal power, i.e. the product of pressure and volumetric flow.
 
