@@ -22,13 +22,13 @@
      bordercolor="#666666"
      borderopacity="1.0"
      inkscape:pageshadow="2"
-     inkscape:pageopacity="0.0"
+     inkscape:pageopacity="0"
      inkscape:pagecheckerboard="0"
      inkscape:document-units="mm"
      showgrid="false"
-     inkscape:zoom="0.7198092"
-     inkscape:cx="329.25392"
-     inkscape:cy="159.06993"
+     inkscape:zoom="0.64"
+     inkscape:cx="526.5625"
+     inkscape:cy="369.53125"
      inkscape:window-width="1920"
      inkscape:window-height="1001"
      inkscape:window-x="-9"
@@ -40,7 +40,14 @@
      fit-margin-right="0"
      fit-margin-bottom="0" />
   <defs
-     id="defs2" />
+     id="defs2">
+    <rect
+       x="959.97662"
+       y="454.28705"
+       width="12649.185"
+       height="833.55423"
+       id="rect42645" />
+  </defs>
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
@@ -142,7 +149,7 @@
          transform="translate(-75.505317,-14.847434)">
         <text
            xml:space="preserve"
-           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Motley Forces';-inkscape-font-specification:'Motley Forces, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#4c6f91;fill-opacity:1;stroke-width:0.264583"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:50.8px;font-family:'Motley Forces';-inkscape-font-specification:'Motley Forces, Normal';fill:#4c6f91;fill-opacity:1;stroke-width:0.264583"
            x="158.66887"
            y="168.65024"
            id="text9001"><tspan
@@ -152,11 +159,16 @@
              x="158.66887"
              y="168.65024"
              dx="0"><tspan
-               style="fill:#7bb6bf;fill-opacity:1"
+               style="fill:#ffa366;fill-opacity:1"
                id="tspan41827">CAR</tspan><tspan
-               style="fill:#5a83ab;fill-opacity:1"
+               style="fill:#4b8bbe;fill-opacity:1"
                id="tspan41487">Py</tspan></tspan></text>
       </g>
+      <text
+         xml:space="preserve"
+         transform="matrix(0.26458333,0,0,0.26458333,-0.735149,7.351485)"
+         id="text42643"
+         style="line-height:1.25;font-family:monospace;font-size:42.66666667px;-inkscape-font-specification:monospace;text-align:center;word-spacing:0px;white-space:pre;shape-inside:url(#rect42645)" />
     </g>
   </g>
 </svg>
