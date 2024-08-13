@@ -5,13 +5,27 @@ import numpy as np
 
 from carpy.utility import Quantity
 
-__all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Electromagnetic", "Fluid"]
+__all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Radiant", "Fluid"]
 __author__ = "Yaseen Reza"
 
 
 class AbstractPower:
     """Base class for describing types of power that can be input or output of a powerplant module."""
     _power = Quantity(np.nan, "W")
+
+    def __init__(self, power):
+        self.power = power
+        return
+
+    def __repr__(self):
+        repr_str = f"<{AbstractPower.__name__} '{type(self).__name__}' @ {hex(id(self))}>"
+        return repr_str
+
+    def __irshift__(self, other):
+        """For compatibility with plant modules... not to be used otherwise"""
+        error_msg = (f"'{type(self).__name__}' power type cannot be declared as an input to any power plant modules. "
+                     f"Instead, use power types to specify the required output(s) of a plant's network")
+        raise AttributeError(error_msg)
 
     @property
     def power(self) -> Quantity:
@@ -21,6 +35,9 @@ class AbstractPower:
     @power.setter
     def power(self, value):
         self._power = Quantity(value, "W")
+
+    def reverse_pass(self):
+        return
 
 
 class Chemical(AbstractPower):
@@ -200,10 +217,11 @@ class Thermal(AbstractPower):
         raise NotImplementedError
 
 
-class Electromagnetic(AbstractPower):
-
-    def __init__(self):
-        raise NotImplementedError
+class Radiant(AbstractPower):
+    """
+    Electromagnetical power, i.e. power transferred via electromagnetic irradiance.
+    """
+    pass
 
 
 class Fluid(AbstractPower):

@@ -197,7 +197,7 @@ class IdealGas(EquationOfState):
     def __init__(self, p_c=None, T_c=None, **kwargs):
         super().__init__(p_c=p_c, T_c=T_c)
 
-        self._critical_Vm = self.molar_volume(p=p_c, T=T_c)
+        self._critical_Vm = self.molar_volume(p=self.p_c, T=self.T_c)
         return
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
