@@ -1,3 +1,4 @@
+from carpy.environment import Environment
 from carpy.powerplant._io import IOType
 from carpy.powerplant.modules import PlantModule
 from carpy.utility import Graphs
@@ -65,4 +66,7 @@ class PowerNetwork:
 
     def __init__(self, network_module: PlantModule):
         self._graph = discover_network(network_module)
+        return
+
+    def solve(self, environment: Environment = None):
         return

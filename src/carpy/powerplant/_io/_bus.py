@@ -1,4 +1,4 @@
-"""Module defining the IOBus, which allows powerplant modules to define their input and output connection types."""
+"""Module defining the IOBus, which allows power plant modules to define their input and output connection types."""
 from carpy.powerplant._io import _types as IOType
 
 __all__ = ["IOBus", "IOType"]

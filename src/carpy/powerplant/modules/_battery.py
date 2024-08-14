@@ -6,10 +6,19 @@ __author__ = "Yaseen Reza"
 
 
 class Battery(PlantModule):
-    """Electrical battery."""
+    """
+    Electrical battery.
+
+    Notes:
+        With default instantiation, the power admitted is limited (by a charge controller).
+
+    """
 
     def __init__(self):
         super(Battery, self).__init__(
             in_types=IOType.Electrical,
-            out_types=IOType.Electrical
+            out_types=IOType.Electrical,
         )
+
+        # Lower limit of zero due to presence of a charge controller
+        self._admit_low = 0
