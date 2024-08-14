@@ -36,7 +36,8 @@ class PlantModule:
 
     def __ilshift__(self, other):
         """Use to indicate that other plant module feeds self."""
-        return other.__irshift__(self)
+        other.__irshift__(self)  # Carry out reversed __irshift__...
+        return self  # ... but remember to return self, so the "in-place" part if ilshift still makes sense
 
     def __irshift__(self, other):
         """Use to indicate that own plant module feeds other."""

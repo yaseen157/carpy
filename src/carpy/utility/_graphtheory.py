@@ -237,7 +237,7 @@ class Graph(object):
         sources = [
             indexed_nodes[i]
             for i, arr in enumerate(self.mat_adjacency.T)
-            if (arr == 0).all()  # No inbound directed paths
+            if np.all(arr == 0)  # No inbound directed paths
         ]
         return sources
 
@@ -252,7 +252,7 @@ class Graph(object):
         sinks = [
             indexed_nodes[i]
             for i, arr in enumerate(self.mat_adjacency)
-            if (arr == 0).all()  # No outbound directed paths
+            if np.all(arr == 0)  # No outbound directed paths
         ]
         return sinks
 

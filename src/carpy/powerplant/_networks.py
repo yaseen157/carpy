@@ -26,18 +26,21 @@ def traverse_edges(module: PlantModule) -> set[PlantModule]:
 def discover_network(module: PlantModule) -> Graphs.Graph:
     """Given a plant module, produce an undirected acyclic graph of the connections in the larger network."""
     graph = Graphs.Graph()
-    modules = traverse_edges(module)
-    del module  # clear namespace to make it less confusing
+    subnet = traverse_edges(module)
 
-    # A map from PlantModule objects to its corresponding node obj.
+    # A map from PlantModule object and its neighbours to each module's corresponding node obj.
     obj2node = {
-        module: graph.new_node(module)
-        for module in modules
+        component: graph.new_node(component)
+        for component in subnet
     }
-    for module in modules:
-        for bond in module.bonds:
-            atom_l, atom_r = bond.atoms
-            graph.new_link(obj2node[atom_l], obj2node[atom_r])
+    for root_component in subnet:
+
+        if isinstance(root_component, IOType.AbstractPower):
+            continue  # An abstract power definition node is one way, an output from another module
+
+        # We don't want to doubly record inputs and outputs, so go over just module outputs (getting abstract power too)
+        for output in root_component.outputs:
+            graph.new_link(obj2node[root_component], obj2node[output], directed=True)
 
     return graph
 
@@ -63,4 +66,5 @@ if __name__ == "__main__":
     my_batt >>= IOType.Electrical(power=850)
 
     # TODO: Update network discovery methods to reflect directionality of input and output edges
-    print(discover_network(my_batt))
+    graph = discover_network(my_batt)
+    print(graph)
