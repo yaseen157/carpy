@@ -208,8 +208,37 @@ class Electrical(AbstractPower):
 
 
 class Mechanical(AbstractPower):
-    def __init__(self):
-        raise NotImplementedError
+    """
+    Mechanical power delivered through a rotating shaft.
+    """
+    _omega = Quantity(np.nan, "rad s^-1")
+
+    @property
+    def omega(self) -> Quantity:
+        """Angular velocity."""
+        return self._omega
+
+    @omega.setter
+    def omega(self, value):
+        self._omega = Quantity(value, "rad s^-1")
+
+    @property
+    def T(self) -> Quantity:
+        """Rotational torque."""
+        return self.power / self.omega
+
+    @T.setter
+    def T(self, value):
+        self.omega = self.power / value
+
+    @property
+    def nu(self):
+        """Rotational frequency, i.e. the frequency with which one full rotation is completed."""
+        return self.omega / (2 * np.pi)
+
+    @nu.setter
+    def nu(self, value):
+        self.omega = value * (2 * np.pi)
 
 
 class Thermal(AbstractPower):

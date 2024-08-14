@@ -1,5 +1,5 @@
 """Module defining the IOBus, which allows powerplant modules to define their input and output connection types."""
-from carpy.powerplant.io import _types as IOType
+from carpy.powerplant._io import _types as IOType
 
 __all__ = ["IOBus", "IOType"]
 __author__ = "Yaseen Reza"

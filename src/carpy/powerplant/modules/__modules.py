@@ -1,4 +1,5 @@
-from carpy.powerplant.io import IOBus, IOType
+"""Base class definition for component 'modules' of a larger powerplant (that networks such modules together)."""
+from carpy.powerplant._io import IOBus, IOType
 
 __all__ = ["PlantModule"]
 __author__ = "Yaseen Reza"
@@ -50,7 +51,7 @@ class PlantModule:
 
         # Elif other is a well-defined power magnitude, assert that its addition would be legal
         elif isinstance(other, IOType.AbstractPower):
-            error_msg = f"'{cls.__name__}' does not output '{type(other).__name__}' power type"
+            error_msg = f"'{self}' does not output '{type(other).__name__}' power type"
             assert type(other) in self.outputs.legal_types, error_msg
 
             # Record the connection

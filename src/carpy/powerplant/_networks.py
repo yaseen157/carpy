@@ -1,10 +1,19 @@
-from carpy.powerplant.io import IOType
+from carpy.powerplant._io import IOType
 from carpy.powerplant.modules import PlantModule
 from carpy.utility import Graphs
 
+__all__ = ["PowerNetwork"]
+__author__ = "Yaseen Reza"
+
 
 def traverse_edges(module: PlantModule) -> set[PlantModule]:
-    """Breadth first search algorithm to locate connected modules in a network."""
+    """
+    Using a breadth first search algorithm, locate connected modules in a power plant network.
+
+    Returns:
+        A set of all the atoms that are constituents of the larger power plant network.
+
+    """
     visited = {module}  # Track visited nodes
     queue = [module]  # Spawn a queue
 
@@ -24,7 +33,13 @@ def traverse_edges(module: PlantModule) -> set[PlantModule]:
 
 
 def discover_network(module: PlantModule) -> Graphs.Graph:
-    """Given a plant module, produce an undirected acyclic graph of the connections in the larger network."""
+    """
+    Given a plant module, produce a directed acyclic graph of the connections in the larger network.
+
+    Returns:
+        A graph object that describes the connectivity of modules in the power plant.
+
+    """
     graph = Graphs.Graph()
     subnet = traverse_edges(module)
 
@@ -46,25 +61,8 @@ def discover_network(module: PlantModule) -> Graphs.Graph:
 
 
 class PowerNetwork:
+    _graph: Graphs.Graph
 
-    def __init__(self):
+    def __init__(self, network_module: PlantModule):
+        self._graph = discover_network(network_module)
         return
-
-
-if __name__ == "__main__":
-    from carpy.powerplant.io import IOType
-    from carpy.powerplant.modules import Battery, PVCell
-
-    # Define components of network
-    my_batt = Battery()
-    my_cell = PVCell()
-
-    # Define network connections
-    my_batt <<= my_cell
-
-    # Set network performance targets
-    my_batt >>= IOType.Electrical(power=850)
-
-    # TODO: Update network discovery methods to reflect directionality of input and output edges
-    graph = discover_network(my_batt)
-    print(graph)

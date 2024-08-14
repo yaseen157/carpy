@@ -59,7 +59,13 @@ def n_vertex_3dsphere(n: int):
 
 
 def traverse_bonds(atom: Atom) -> set[Atom]:
-    """Breadth first search algorithm to locate connected atoms in a molecule."""
+    """
+    Using a breadth first search algorithm, locate connected atoms in a molecule.
+
+    Returns:
+        A set of all the atoms that are constituents of the larger molecule.
+
+    """
     visited = {atom}  # Track visited nodes
     queue = [atom]  # Spawn a queue
 
@@ -77,7 +83,13 @@ def traverse_bonds(atom: Atom) -> set[Atom]:
 
 
 def discover_molecule(atom: Atom) -> Graphs.Graph:
-    """Given an atom, produce an undirected acyclic graph of the atomic bonding connections in the molecule."""
+    """
+    Given an atom, produce an undirected acyclic graph of the atomic bonding connections in the molecule.
+
+    Returns:
+        A graph object that describes the connectivity of atoms in the molecule.
+
+    """
     graph = Graphs.Graph()
     atoms = traverse_bonds(atom)
     del atom  # clear namespace to make it less confusing
