@@ -8,8 +8,9 @@ __author__ = "Yaseen Reza"
 class ElectricMotor(PlantModule):
     """Electrical Motor."""
 
-    def __init__(self):
-        super(ElectricMotor, self).__init__(
+    def __init__(self, name: str = None):
+        super().__init__(
+            name=name,
             in_types=IOType.Electrical,
             out_types=IOType.Mechanical
         )

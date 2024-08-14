@@ -8,8 +8,9 @@ __author__ = "Yaseen Reza"
 class PhotovolaticCell(PlantModule):
     """Photovoltaic cell module. Also known as a solar cell."""
 
-    def __init__(self):
-        super(PhotovolaticCell, self).__init__(
+    def __init__(self, name: str = None):
+        super().__init__(
+            name=name,
             in_types=IOType.Radiant,
             out_types=IOType.Electrical
         )

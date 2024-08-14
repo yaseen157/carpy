@@ -1,5 +1,6 @@
 """Base class definition for component 'modules' of a larger powerplant (that networks such modules together)."""
-import warnings
+import typing
+# import warnings
 
 import numpy as np
 
@@ -25,8 +26,11 @@ class PlantModule:
     _admittance = 1.0
     _admit_low = 1.0
 
+    _forward: typing.Callable
+
     def __init__(
-            self, in_types: tuple[IOType.AbstractPower.__class__] | IOType.AbstractPower.__class__ = None,
+            self, name: str = None,
+            in_types: tuple[IOType.AbstractPower.__class__] | IOType.AbstractPower.__class__ = None,
             out_types: tuple[IOType.AbstractPower.__class__] | IOType.AbstractPower.__class__ = None
     ):
         """
@@ -34,6 +38,8 @@ class PlantModule:
             in_types: IOType objects that describe the valid types of the power plant module's inputs.
             out_types: IOType objects that describe the valid types of the power plant module's outputs.
         """
+        self.name = name
+
         # Recast as tuples
         if in_types is not None and not isinstance(in_types, tuple):
             in_types = (in_types,)
@@ -45,7 +51,10 @@ class PlantModule:
         self._outputs = IOBus(*out_types) if out_types is not None else IOBus()
 
     def __repr__(self):
-        repr_str = f"<{PlantModule.__name__} '{type(self).__name__}' @ {hex(id(self))}>"
+        if self.name is None:
+            repr_str = f"<{PlantModule.__name__} '{type(self).__name__}' @ {hex(id(self))}>"
+        else:
+            repr_str = f"<{PlantModule.__name__} '{self.name}'>"
         return repr_str
 
     @property
@@ -114,11 +123,19 @@ class PlantModule:
 
         return self
 
-    def __ixor__(self, other):
-        """Use to indicate bidirectional connection between own and other plant module."""
-        if isinstance(other, IOType.AbstractPower):
-            error_msg = f"Object of type {type(self).__name__} may not make bidirectional connections to {type(other)=}"
-            raise TypeError(error_msg)
-        self.__ilshift__(other)
-        self.__irshift__(other)
-        return self
+    # TODO: Figure out if it's even a good idea to use ixor. Maybe it's better to explicitly define two way links?
+    # def __ixor__(self, other):
+    #     """Use to indicate bidirectional connection between own and other plant module."""
+    #     error_msg = f"Object of type {type(self).__name__} may not make bidirectional connections to {type(other)=}"
+    #     if isinstance(other, IOType.AbstractPower):
+    #         raise TypeError(error_msg)
+    #     self.__ilshift__(other)
+    #     self.__irshift__(other)
+    #     return self
+
+    # TODO: Figure out if it's a good idea to even use forward to pass flight conditions. Wouldn't that work better as
+    #   an actual configurable 'PlantModule' called condition or something, that actually passes parameters like age,
+    #   time dependencies, ambient pressure and temperature conditions?
+    # def forward(self, *args, **kwargs):
+    #     """Given conditions in *args and **kwargs, compute efficiency of transferred power."""
+    #     return self._forward(*args, **kwargs)

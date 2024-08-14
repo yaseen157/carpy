@@ -14,8 +14,9 @@ class Battery(PlantModule):
 
     """
 
-    def __init__(self):
-        super(Battery, self).__init__(
+    def __init__(self, name: str = None):
+        super().__init__(
+            name=name,
             in_types=IOType.Electrical,
             out_types=IOType.Electrical,
         )
