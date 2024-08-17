@@ -4,12 +4,13 @@ from functools import cached_property
 import re
 import warnings
 
+import networkx as nx
 import numpy as np
 import periodictable as pt
 
 from carpy.chemistry._atom import Atom
 from carpy.chemistry._chemical_bonding import CovalentBond
-from carpy.utility import Unicodify, Graphs, Quantity, broadcast_vector, constants as co
+from carpy.utility import Unicodify, Quantity, broadcast_vector, constants as co
 
 __all__ = ["Structure"]
 __author__ = "Yaseen Reza"
@@ -82,7 +83,7 @@ def traverse_bonds(atom: Atom) -> set[Atom]:
     return visited
 
 
-def discover_molecule(atom: Atom) -> Graphs.Graph:
+def discover_molecule(atom: Atom) -> nx.Graph:
     """
     Given an atom, produce an undirected acyclic graph of the atomic bonding connections in the molecule.
 
@@ -90,15 +91,14 @@ def discover_molecule(atom: Atom) -> Graphs.Graph:
         A graph object that describes the connectivity of atoms in the molecule.
 
     """
-    graph = Graphs.Graph()
+    graph = nx.Graph()
     atoms = traverse_bonds(atom)
     del atom  # clear namespace to make it less confusing
 
-    obj2node = {atom: graph.new_node(atom) for atom in atoms}  # A map from Atom objects to its corresponding node obj.
     for atom in atoms:
         for bond in atom.bonds:
             atom_l, atom_r = bond.atoms
-            graph.new_link(obj2node[atom_l], obj2node[atom_r])
+            graph.add_edge(atom_l, atom_r)
 
     return graph
 
@@ -369,7 +369,7 @@ class Structure(PartitionMethods):
     The class only supports simple molecules for now. Longer alkanes for example, are not supported at this time.
     """
     regex: re.Pattern
-    _graph: Graphs.Graph
+    _graph: nx.Graph
 
     def __new__(cls, *args, **kwargs):
         error_msg = (
@@ -394,7 +394,7 @@ class Structure(PartitionMethods):
     @property
     def _ordered_atoms(self) -> tuple[Atom, ...]:
         """Tuple for list of atoms in the molecule. A tuple provides a consistent order of atoms where sets do not."""
-        return tuple(node.obj for node in self._graph.link_map.keys())
+        return tuple(self._graph.nodes)
 
     @property
     def atoms(self) -> set[Atom]:
@@ -411,7 +411,7 @@ class Structure(PartitionMethods):
     @property
     def _longest_path(self) -> list[int]:
         """Produce a list of the ._atoms indices that represent the molecule's longest chain of functional groups."""
-        mat_adjacency = self._graph.mat_adjacency
+        mat_adjacency = nx.adjacency_matrix(self._graph)
         mask = np.nan
         np.fill_diagonal(mat_adjacency, mask)
 
@@ -425,7 +425,7 @@ class Structure(PartitionMethods):
 
         # If we got rid of every bond (because it's a small molecule like methane with only C-H bonds)
         if np.isnan(mat_adjacency).all():
-            id = np.argmax(self._graph.mat_adjacency.sum(axis=0))  # Find index of most bonded atom
+            id = np.argmax(nx.adjacency_matrix(self._graph).sum(axis=0))  # Find index of most bonded atom
             return [id]  # Return a "path" (just that one atom)
 
         # Whatever is leftover as having just one valid neighbour must be the start of/end of a chain
