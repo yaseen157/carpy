@@ -103,7 +103,7 @@ def discover_molecule(atom: Atom) -> Graphs.Graph:
     return graph
 
 
-class KineticMethods:
+class PartitionMethods:
     _longest_path: list[int]
     _ordered_atoms: tuple[Atom, ...]
     atoms: set[Atom]
@@ -358,7 +358,7 @@ class KineticMethods:
         return Quantity(inertia_tensor, "kg m^{2}")
 
 
-class Structure(KineticMethods):
+class Structure(PartitionMethods):
     """
     Class for recording and describing a permutation of a physical chemical structure. The main goal of the class is to
     allow users to specify unique resonant structures in the global definition of a molecule. This won't affect simple
@@ -379,7 +379,7 @@ class Structure(KineticMethods):
         raise RuntimeError(error_msg)
 
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super(PartitionMethods, self).__init__()
         self._formula = kwargs.get("formula")
         return
 

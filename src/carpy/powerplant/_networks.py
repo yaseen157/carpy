@@ -94,7 +94,7 @@ class PowerNetwork:
 
         # Using the magnitude of power in sources and sinks, tabulate deficit (P < 0) and excess (P >= 0) power
         balance_sheet = {
-            node: (-1 if i in sinks else 1) * node.obj.power if isinstance(node.obj, IOType.AbstractPower) else 0.0
+            i: (-1 if i in sinks else 1) * node.obj.power if isinstance(node.obj, IOType.AbstractPower) else 0.0
             for i, node in enumerate(self._graph.node_map.keys())
         }
 
@@ -110,11 +110,15 @@ class PowerNetwork:
                 upstream_id, = upstream_ids
 
                 # Update the balance sheet
+                balance_sheet[upstream_id] = balance_sheet[sink_id]
+                balance_sheet[sink_id] = 0.0
 
-                pass
+                propagate_sinkpower(sink_ids=upstream_ids)
 
             return None
 
         propagate_sinkpower(sink_ids=sinks)
 
         return
+
+# TODO: research geek for geeks DFS traversal for cycle location. Then squash cycles into representative surrogates.

@@ -6,6 +6,24 @@ from carpy.powerplant import IOType, modules, PowerNetwork
 
 class Networking(unittest.TestCase):
 
+    def test_combustor(self):
+        """A simple combustor heat addition test."""
+        combustor = modules.Combustor()
+
+        fluid_in = IOType.Fluid()
+        fluid_in.pressure = 6e5
+        fluid_in.mdot = 2.4
+        fluid_in.Vdot = 3
+
+        fuel = IOType.Chemical()
+        fuel.mdot = 0.1
+        fuel.CV = 43e6
+
+        combustor <<= fluid_in
+        combustor <<= fuel
+        combustor.forward()
+        return
+
     def test_simple_solar(self):
         """A linear, acyclic solar network with no time dependencies."""
         # Define components of network

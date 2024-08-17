@@ -13,8 +13,8 @@ class AbstractPower:
     """Base class for describing types of power that can be input or output of a powerplant module."""
     _power = Quantity(np.nan, "W")
 
-    def __init__(self, power):
-        self.power = power
+    def __init__(self, power=None):
+        self.power = np.nan if power is None else power
         return
 
     def __repr__(self):
@@ -44,7 +44,7 @@ class Chemical(AbstractPower):
     """
     Chemical power, defined by calorific value and mass flow rate.
 
-    This type is fully defined when 'power' and 'mdot' attributes are set.
+    This type is fully defined when 'power' (or CV) and 'mdot' attributes are set.
     """
     _mdot = Quantity(0, "kg s^-1")
 
@@ -64,14 +64,17 @@ class Chemical(AbstractPower):
 
     @CV.setter
     def CV(self, value):
-        self.mdot = self.power / value
+        if np.isnan(self.power):
+            self.power = self.mdot * value
+        else:
+            self.mdot = self.power / value
 
 
 class Electrical(AbstractPower):
     """
     Sinusoidal electrical power. Set frequency omega to zero for DC modelling.
 
-    This type is fully defined when 'power', 'V_rms', 'X', and 'omega' attributes are set.
+    This type is fully defined when 'power' (or I_rms), 'V_rms', 'X', and 'omega' attributes are set.
     """
     _V_rms = Quantity(np.nan, "V")
     _X = Quantity(0, "ohm")
@@ -111,7 +114,10 @@ class Electrical(AbstractPower):
 
     @I_rms.setter
     def I_rms(self, value):
-        self.V_rms = self.power / value
+        if np.isnan(self.power):
+            self.power = self.V_rms * value
+        else:
+            self.V_rms = self.power / value
 
     @property
     def C(self) -> Quantity:
@@ -229,7 +235,10 @@ class Mechanical(AbstractPower):
 
     @T.setter
     def T(self, value):
-        self.omega = self.power / value
+        if np.isnan(self.power):
+            self.power = self.omega * value
+        else:
+            self.omega = self.power / value
 
     @property
     def nu(self):
@@ -287,7 +296,10 @@ class Fluid(AbstractPower):
 
     @Vdot.setter
     def Vdot(self, value):
-        self.pressure = self.power / value
+        if np.isnan(self.power):
+            self.power = self.pressure * value
+        else:
+            self.pressure = self.power / value
 
     @property
     def rho(self) -> Quantity:

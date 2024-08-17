@@ -67,7 +67,7 @@ class PlantModule:
         """Outputs from this plant module."""
         return self._outputs
 
-    @property
+    # @property
     # def admittance(self) -> float:
     #     """Proportion of input that is allowed to pass through the module."""
     #     return self._admittance
@@ -82,7 +82,7 @@ class PlantModule:
 
     @property
     def admit_low(self) -> float:
-        """The minimum proportion of input power that must make it through the module to the output bus."""
+        """The lower bound of the module's admittance term."""
         return self._admit_low
 
     def __ilshift__(self, other):
