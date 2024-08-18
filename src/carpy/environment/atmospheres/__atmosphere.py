@@ -1,7 +1,7 @@
 """Module implementing the basis class for modelling static atmospheres."""
 import typing
 
-from carpy.physchem import UnreactiveFluidModel
+from carpy.physicalchem import UnreactiveFluidModel
 from carpy.utility import Quantity
 
 __all__ = ["StaticAtmosphereModel"]

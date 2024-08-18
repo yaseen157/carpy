@@ -55,7 +55,7 @@ def w() -> None:
 
 submodules = [
     "airworthiness",
-    "physchem",
+    "physicalchem",
     "concepts",
     "environment",
     "utility",

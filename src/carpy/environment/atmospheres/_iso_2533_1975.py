@@ -13,7 +13,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from carpy.physchem import species
+from carpy.physicalchem import species
 from carpy.environment.atmospheres import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
