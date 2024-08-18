@@ -1,7 +1,7 @@
 """Module implementing the basis class for modelling static atmospheres."""
 import typing
 
-from carpy.gaskinetics import NonReactiveGasModel
+from carpy.physchem import UnreactiveFluidModel
 from carpy.utility import Quantity
 
 __all__ = ["StaticAtmosphereModel"]
@@ -17,7 +17,7 @@ class StaticAtmosphereModel:
     atmospheric temperature, pressure and density."
 
     Notes:
-        Base methods for molar volume, density, and speed of sound depend on the definition of a 'non-reactive gas
+        Base methods for molar volume, density, and speed of sound depend on the definition of a 'non-reactive fluid
         model'. As such, each model derived from this class must either specify a composition for the private gas model
         attribute, or redefine the aforementioned base methods without reference to the model.
 
@@ -26,7 +26,7 @@ class StaticAtmosphereModel:
         for example, altitude.
 
     """
-    _gas_model: NonReactiveGasModel
+    _fluid_model: UnreactiveFluidModel
 
     # Atmospheric profile functions of geometric altitude
     _temperature: typing.Callable
@@ -34,7 +34,7 @@ class StaticAtmosphereModel:
     _dynamic_viscosity: typing.Callable
 
     def __init__(self, *args, **kwargs):
-        self._gas_model = NonReactiveGasModel()
+        self._fluid_model = UnreactiveFluidModel()
 
     def __getattr__(self, item):
         # print(f"hooked a call to {self.__repr__()}.{item}!!!")
@@ -82,7 +82,7 @@ class StaticAtmosphereModel:
         """
         p = self.pressure(z=z)
         T = self.temperature(z=z)
-        Vm = self._gas_model.molar_volume(p=p, T=T)
+        Vm = self._fluid_model.molar_volume(p=p, T=T)
         return Vm
 
     def density(self, z: Quantity) -> Quantity:
@@ -96,13 +96,13 @@ class StaticAtmosphereModel:
         """
         p = self.pressure(z=z)
         T = self.temperature(z=z)
-        rho = self._gas_model.density(p=p, T=T)
+        rho = self._fluid_model.density(p=p, T=T)
         return rho
 
     def _speed_of_sound(self, z: Quantity):
         p = self.pressure(z=z)
         T = self.temperature(z=z)
-        a = self._gas_model.speed_of_sound(p=p, T=T)
+        a = self._fluid_model.speed_of_sound(p=p, T=T)
         return a
 
     def speed_of_sound(self, z) -> Quantity:

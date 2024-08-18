@@ -1,8 +1,8 @@
-"""Tests for library chemistry methods."""
+"""Tests for library physchem methods."""
 import unittest
 
-from carpy.chemistry._atom import Atom
-from carpy.chemistry._chemical_structure import Structure
+from carpy.physchem._atom import Atom
+from carpy.physchem._chemical_structure import Structure
 from carpy.utility import constants as co
 
 

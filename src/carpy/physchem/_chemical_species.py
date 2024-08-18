@@ -1,8 +1,8 @@
 """Module that allows for the representation of molecules and atoms as "chemical species" with define structure(s)."""
 import numpy as np
 
-from carpy.chemistry._atom import Atom
-from carpy.chemistry._chemical_structure import Structure
+from carpy.physchem._atom import Atom
+from carpy.physchem._chemical_structure import Structure
 from carpy.utility import Quantity
 
 __all__ = ["ChemicalSpecies", "AtomicSpecies"]
@@ -11,6 +11,8 @@ __author__ = "Yaseen Reza"
 
 class ChemicalSpecies:
     """Unique chemical species."""
+    _LVcritical_p = Quantity(np.nan, "Pa")
+    _LVcritical_T = Quantity(np.nan, "K")
 
     def __init__(self, structures: Structure | tuple[Structure, ...]):
         if not isinstance(structures, tuple):
@@ -21,6 +23,32 @@ class ChemicalSpecies:
         structure_formulae = {structure._formula for structure in self._structures}
         repr_str = f"{type(self).__name__}({'; '.join(structure_formulae)})"
         return repr_str
+
+    @property
+    def LVcritical_p(self) -> Quantity:
+        """
+        The substance's liquid-vapour critical pressure.
+
+        At the critical point, there is no distinction between liquid and vapour phases of the pure substance.
+        """
+        return self._LVcritical_p
+
+    @LVcritical_p.setter
+    def LVcritical_p(self, value):
+        self._LVcritical_p = Quantity(value, "Pa")
+
+    @property
+    def LVcritical_T(self) -> Quantity:
+        """
+        The substance's liquid-vapour critical temperature.
+
+        At the critical point, there is no distinction between liquid and vapour phases of the pure substance.
+        """
+        return self._LVcritical_T
+
+    @LVcritical_T.setter
+    def LVcritical_T(self, value):
+        self._LVcritical_T = Quantity(value, "K")
 
     @property
     def molar_mass(self) -> Quantity:

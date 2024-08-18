@@ -5,7 +5,7 @@ import re
 
 import periodictable as pt
 
-from carpy.chemistry._chemical_bonding import LocalBonds
+from carpy.physchem._chemical_bonding import LocalBonds
 from carpy.utility import Quantity, Unicodify
 
 __all__ = ["Atom"]

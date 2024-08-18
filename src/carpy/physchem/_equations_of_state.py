@@ -146,29 +146,7 @@ class EquationOfState:
         Z = (p * Vm / co.PHYSICAL.R / T).x
         return Z
 
-    def thermal_expansion_coefficient_p(self, p, T) -> Quantity:
-        """
-        Args:
-            p: Pressure, in Pascal.
-            T: Absolute temperature, in Kelvin.
-
-        Returns:
-            Isobaric (volumetric) thermal expansion coefficient.
-
-        """
-        # Recast as necessary
-        p = Quantity(p, "Pa")
-        T = Quantity(T, "K")
-
-        def helper(x):
-            return self.molar_volume(p=p, T=x)
-
-        Vm, dVmdT_p = gradient1d(helper, T)
-
-        alpha = Quantity((1 / Vm) * dVmdT_p, "K^{-1}")
-        return alpha
-
-    def compressibility_coefficient_T(self, p, T) -> Quantity:
+    def compressibility_isothermal(self, p, T) -> Quantity:
         """
         Args:
             p: Pressure, in Pascal.
@@ -189,6 +167,52 @@ class EquationOfState:
 
         beta_T = Quantity(-(1 / Vm) * dVmdp_p, "Pa^{-1}")
         return beta_T
+
+    def internal_pressure(self, p, T) -> Quantity:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Isothermal partial derivative of internal energy with respect to volume.
+
+        """
+        # Recast as necessary
+        p = Quantity(p, "Pa")
+        T = Quantity(T, "K")
+
+        Vm = self.molar_volume(p=p, T=T)
+
+        def helper(x):
+            return self.pressure(T=x, Vm=Vm)
+
+        _, dpdT_Vm = gradient1d(helper, T)
+
+        pi_T = T * dpdT_Vm - p
+        return pi_T
+
+    def thermal_expansion(self, p, T) -> Quantity:
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Isobaric (volumetric) thermal expansion coefficient.
+
+        """
+        # Recast as necessary
+        p = Quantity(p, "Pa")
+        T = Quantity(T, "K")
+
+        def helper(x):
+            return self.molar_volume(p=p, T=x)
+
+        Vm, dVmdT_p = gradient1d(helper, T)
+
+        alpha = Quantity((1 / Vm) * dVmdT_p, "K^{-1}")
+        return alpha
 
 
 class IdealGas(EquationOfState):

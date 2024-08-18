@@ -8,8 +8,8 @@ import networkx as nx
 import numpy as np
 import periodictable as pt
 
-from carpy.chemistry._atom import Atom
-from carpy.chemistry._chemical_bonding import CovalentBond
+from carpy.physchem._atom import Atom
+from carpy.physchem._chemical_bonding import CovalentBond
 from carpy.utility import Unicodify, Quantity, broadcast_vector, constants as co
 
 __all__ = ["Structure"]
