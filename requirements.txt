@@ -6,6 +6,7 @@ setuptools>=67.0.0
 fastexcel  # Used by polars to read excel
 # fsspec
 matplotlib
+networkx
 numpy
 pandas
 periodictable

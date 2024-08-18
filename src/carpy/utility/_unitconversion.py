@@ -222,7 +222,7 @@ class UnitOfMeasurement:
             sym_dims = self._memo_dims[sym]
             score_qtyidx = np.argmax(sym_dims != 0)  # Score by first appearance of which base dimension
             score_exp = -self._symbols_powers[sym] * sym_dims[score_qtyidx]  # Exponent of first nonzero dim
-            return score_exp, score_qtyidx
+            return (score_exp > 0), score_qtyidx
 
         self._symbols_powers = {
             k: self._symbols_powers[k] for k in sorted(self._symbols_powers, key=symbol_sorter)

@@ -53,11 +53,16 @@ issue, or better yet, consider contributing to the project.
 For a detailed description of the library, please consult the documentation. To
 get started, follow the instructions below.
 
-## ✔️ Getting Started
+# ✔️ Getting Started
 
-### Installation
+## Installation
 
-`carpy` is written for (and tested in) Python version 3.10+.
+CARPy is written for (and tested in) Python version 3.10+.
+
+### Method 1: Using the Python Package Index
+
+![Terminal](https://badgen.net/badge/icon/terminal?icon=terminal&label)
+[![PyPi](https://badgen.net/badge/icon/pypi?icon=pypi&label)](https://https://pypi.org/)
 
 On most systems you should be able to simply open an operating system terminal
 and at the command prompt type
@@ -81,6 +86,11 @@ upgrade, use the `--upgrade` flag:
 
     $ pip install --upgrade carpy
 
+### Method 2: Using git clone
+
+![Terminal](https://badgen.net/badge/icon/terminal?icon=terminal&label)
+[![git](https://badgen.net/badge/icon/git?icon=git&label)](https://git-scm.com)
+
 An alternative approach to installing carpy is to clone the GitHub repository
 using `git`, by typing
 
@@ -102,7 +112,9 @@ current Python environment, install them by typing this in the same prompt:
 
     $ python -m pip install -r requirements.txt
 
-### A 'Hello world' example: Atmospheric properties
+## 'Hello world' examples
+
+### Atmospheric properties
 
 There are several options for running the examples shown here: you could copy
 and paste them into a `.py` file, save it and run it in Python, or you could
@@ -129,7 +141,43 @@ You should see the following output:
 You can learn more about `CARPy`'s capabilities through the exemplary
 [notebooks](https://github.com/yaseen157/carpy/tree/main/docs/source).
 
-## 🐍 Acknowledgements
+# 🤔 Getting Help
+
+CARPy was developed explicitly to fill a gap in the market for a well documented, open-source, and highly modular suite
+of tools for analysing aircraft concepts.
+
+If you feel that our documentation leaves something to be desired or want to get in touch about any bugs you've
+discovered, let us know about it by raising a GitHib issue.
+
+## Uninstalling with PIP
+
+![Terminal](https://badgen.net/badge/icon/terminal?icon=terminal&label)
+[![PyPi](https://badgen.net/badge/icon/pypi?icon=pypi&label)](https://https://pypi.org/)
+
+If CARPy did not meet your expectations or you are looking to reinstall the library, you can use `pip` to remove CARPy
+from your system.
+
+Open a command prompt anywhere in your CARPy enabled
+Python environment. You don't need to navigate to a specific folder to uninstall
+CARPy, as pip already knows where CARPy lives on your machine. Type as follows:
+
+    $ pip uninstall -y carpy
+
+Which tells pip to uninstall any package on your machine it knows to be called
+CARPy, and uses the optional flag `-y` to answer "yes" automatically to any
+prompt asking the user if they want to uninstall.
+
+> 📝 **Note:** It's not uncommon for Python users to make use of "virtual
+> environments." These behave like isolated installations of Python, so for scientific
+> or development purposes you can be sure your code depends on exactly the
+> files and libraries you want it to. Make sure you're in the correct
+> environment when you're uninstalling, or nothing will happen. You can tell
+> which environment has ADRpy in because you can type in the terminal:
+>
+>       $ pip show carpy
+> and see CARPy library info (as well as the installed version number).
+
+# 🐍 Acknowledgements
 
 This library was written and published by **Yaseen Reza**, in support of my studies towards the degree of doctor of
 philosophy.

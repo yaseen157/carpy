@@ -13,8 +13,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from carpy.chemistry import species
-from carpy.gaskinetics import PureGasModel
+from carpy.physicalchem import species
 from carpy.environment.atmospheres import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
@@ -22,10 +21,10 @@ __all__ = ["USSA_1976"]
 __author__ = "Yaseen Reza"
 
 air_composition = dict([
-    (species.nitrogen, .780_84), (species.oxygen, .209_476), (species.argon, .009_34),
-    (species.carbon_dioxide, .000_314), (species.neon, .000_018_18), (species.helium, .000_005_24),
-    (species.krypton, .000_001_14), (species.xenon, .000_000_087), (species.methane, .000_002),
-    (species.hydrogen, .000_000_5)
+    (species.nitrogen(), .780_84), (species.oxygen(), .209_476), (species.argon(), .009_34),
+    (species.carbon_dioxide(), .000_314), (species.neon(), .000_018_18), (species.helium(), .000_005_24),
+    (species.krypton(), .000_001_14), (species.xenon(), .000_000_087), (species.methane(), .000_002),
+    (species.hydrogen(), .000_000_5)
 ])
 
 TABLES = dict()
@@ -190,10 +189,7 @@ class USSA_1976(StaticAtmosphereModel):
         super().__init__()
 
         # Define sea-level constituent gas composition
-        self._gas_model.X = {
-            PureGasModel(chemical_species=chemical_species): content_fraction
-            for (chemical_species, content_fraction) in dict(TABLES[3].to_records(index=False)).items()
-        }
+        self._fluid_model.X = dict(TABLES[3].to_records(index=False))
         return
 
     def __str__(self):

@@ -13,8 +13,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from carpy.chemistry import species
-from carpy.gaskinetics import PureGasModel
+from carpy.physicalchem import species
 from carpy.environment.atmospheres import StaticAtmosphereModel
 from carpy.utility import Quantity, broadcast_vector, constants as co
 
@@ -27,9 +26,10 @@ __author__ = "Yaseen Reza"
 # Iodine (I2) quantities can vary from time to time or place to place,
 # their contributions are omitted.
 air_composition = dict([
-    (species.nitrogen, 78.084), (species.oxygen, 20.947_6), (species.argon, 0.934), (species.carbon_dioxide, 0.031_4),
-    (species.neon, 1.818e-3), (species.helium, 524.0e-6), (species.krypton, 114.0e-6), (species.xenon, 8.7e-6),
-    (species.hydrogen, 50.0e-6), (species.dinitrogen_oxide, 50.0e-6), (species.methane, 0.2e-3)
+    (species.nitrogen(), 78.084), (species.oxygen(), 20.947_6), (species.argon(), 0.934),
+    (species.carbon_dioxide(), 0.031_4), (species.neon(), 1.818e-3), (species.helium(), 524.0e-6),
+    (species.krypton(), 114.0e-6), (species.xenon(), 8.7e-6), (species.hydrogen(), 50.0e-6),
+    (species.dinitrogen_oxide(), 50.0e-6), (species.methane(), 0.2e-3)
 ])
 
 TABLES = dict()
@@ -97,10 +97,7 @@ class ISO_2533_1975(StaticAtmosphereModel):
         super().__init__()
 
         # Define sea-level constituent gas composition
-        self._gas_model.X = {
-            PureGasModel(chemical_species=chemical_species): content_fraction
-            for (chemical_species, content_fraction) in dict(TABLES[2].to_records(index=False)).items()
-        }
+        self._fluid_model.X = dict(TABLES[2].to_records(index=False))
         return
 
     def __str__(self):

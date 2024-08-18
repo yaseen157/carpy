@@ -1,22 +1,23 @@
-<img style="float: right; padding-left:20px;" src="source/_static/carpy.svg" width="180" height="160"/>
+<h1 align="center";>
+    <img style="float: right; padding-bottom:40px;" src="https://raw.githubusercontent.com/yaseen157/carpy/main/branding/logo_primary.png" width="300"/>
+</h1>
 
 # CARPy Documentation
 
 Users of the library can find the following documentation in this directory:
 
-- `source` contains library docs and assets.
-    - `demo` contains examples of the library's capabilities.
-    - `developer` contains guides and details for contributors and developers.
-    - `tutorial` contains user guides and detailed walkthroughs.
+- `/source` contains all docs and assets.
+    - `/demo` contains no-frills examples.
+    - `/developer` contains guides and details for contributors and developers.
+    - `/tutorial` contains user guides and detailed walkthroughs.
 
-> [!IMPORTANT]
+> ⚠️ **IMPORTANT:**
 > _For users encountering `ModuleNotFoundError` when running the Jupyter notebooks_
 >
-> If you have cloned this project and are making an editable install of the contained library, the iPython backend of
-> Jupyter notebooks may not be able to locate CARPy. If this is the case, have a go at running the `ipynb_wizard.py`
-> file that can be found in this folder. So long as it can find where CARPy is located, it configures the iPython kernel
-> to effectively run the following code at the start of each notebook - and of course, you are welcome to ignore the
-> wizard and use this template yourself:
+> If you cloned this project and made an editable install of the source code, the iPython backend of Jupyter notebooks
+> may have trouble locating CARPy.
+> Usually, this is solved by running the following code at the start of your notebook, being sure to change the
+> directory to point to your CARPy `/src` folder:
 > ```python
 > import sys
 > 
@@ -24,3 +25,7 @@ Users of the library can find the following documentation in this directory:
 > src_loc = r"C:\Users\...\carpy\src"
 > sys.path.insert(0, src_loc)
 > ```
+> Instead of doing this yourself in every affected notebook, you can optionally trust CARPy to tell the `iPython`
+> interpreter to run an equivalent script everytime it starts up.
+> Have a go at running the `ipynb_wizard.py` file that can be located in the folder - it works by locating your system's
+> default iPython profile and depositing a startup script that prepends the `sys.path` variable with CARPy's location. 

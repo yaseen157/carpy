@@ -11,7 +11,7 @@ should be present alongside the source code on GitHub.
 import importlib as _importlib
 
 # The version number of the *entire* package is defined here
-__version__ = "0.1.0.dev1"
+__version__ = "0.1.0.dev2"
 
 # ============================================================================ #
 # -------------------------------- LICENSING --------------------------------- #
@@ -55,10 +55,9 @@ def w() -> None:
 
 submodules = [
     "airworthiness",
-    "chemistry",
+    "physicalchem",
     "concepts",
     "environment",
-    "gaskinetics",
     "utility",
     "visual"
 ]
