@@ -172,7 +172,7 @@ prompt asking the user if they want to uninstall.
 > or development purposes you can be sure your code depends on exactly the
 > files and libraries you want it to. Make sure you're in the correct
 > environment when you're uninstalling, or nothing will happen. You can tell
-> which environment has ADRpy in because you can type in the terminal:
+> which environment has CARPy in because you can type in the terminal:
 >
 >       $ pip show carpy
 > and see CARPy library info (as well as the installed version number).
