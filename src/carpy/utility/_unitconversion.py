@@ -183,10 +183,10 @@ class UnitOfMeasurement:
                 factor = dimension_row["factor"].item()
 
                 def to_si(value, symbol_power, prefix_exp, factor):
-                    return value * factor * (10.0 ** prefix_exp) ** symbol_power
+                    return value * (factor * 10.0 ** prefix_exp) ** symbol_power
 
                 def from_si(value, symbol_power, prefix_exp, factor):
-                    return value / factor / (10.0 ** prefix_exp) ** symbol_power
+                    return value / (factor * 10.0 ** prefix_exp) ** symbol_power
 
                 cls._memo_func[symbol_no_power] = {
                     "to_si": partial(to_si, prefix_exp=prefix_exp, factor=factor),

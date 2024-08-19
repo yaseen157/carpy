@@ -54,15 +54,16 @@ def w() -> None:
 # ============================================================================ #
 
 submodules = [
-    "airworthiness",
-    "physicalchem",
-    "concepts",
+    # "airworthiness",
+    # "concepts",
     "environment",
+    "physicalchem",
+    "powerplant",
     "utility",
-    "visual"
+    # "visual"
 ]
 
-__all__ = submodules + ["__version__"]
+__all__ = submodules + ["__version__", "__license__", "__copyright__", "c", "w"]
 
 
 def __dir__():

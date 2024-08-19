@@ -50,8 +50,8 @@ class FluidModel:
                 current_p, current_T = self._pT
                 pressure, temperature = value
 
-                pressure = current_p if pressure is None else current_p
-                temperature = current_T if temperature is None else current_T
+                pressure = current_p if pressure is None else pressure
+                temperature = current_T if temperature is None else temperature
 
         # TODO: Decide whether the fluid state should also report the fluid model (pros = quicker access time if not
         #   all state variables are to be accessed, con = state would be inconsistent if the fluid model was modified),
