@@ -180,7 +180,7 @@ prompt asking the user if they want to uninstall.
 # 🐍 Acknowledgements
 
 This library was written and published by **Yaseen Reza**, in support of my studies towards the degree of doctor of
-philosophy.
+philosophy at the University of Southampton.
 
 This project would not have been possible without the careful supervision of Dr.András Sóbester and the support of my
 close colleagues and friends - you know who you are!
