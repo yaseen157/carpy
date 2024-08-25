@@ -31,34 +31,6 @@ class FluidModel:
         repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
         return repr_str
 
-    def __call__(self, p, T):
-        class FluidState:
-            _pT: tuple[Quantity, Quantity] = Quantity(101_325, "Pa"), Quantity(288.15, "K")
-            _model: FluidModel
-
-            @property
-            def pT(self) -> tuple[Quantity, Quantity]:
-                """A tuple of the pressure and temperature, describing the fluid's state."""
-                return self._pT
-
-            @pT.setter
-            def pT(self, value):
-                if not isinstance(value, tuple) or len(value) != 2:
-                    error_msg = "Expected a tuple of length two (pressure, temperature)"
-                    raise TypeError(error_msg)
-
-                current_p, current_T = self._pT
-                pressure, temperature = value
-
-                pressure = current_p if pressure is None else pressure
-                temperature = current_T if temperature is None else temperature
-
-        # TODO: Decide whether the fluid state should also report the fluid model (pros = quicker access time if not
-        #   all state variables are to be accessed, con = state would be inconsistent if the fluid model was modified),
-        #   and further, finish off the fluid state object so it can be returned.
-
-        return
-
     # ==================================
     # Intensive thermodynamic properties
 
@@ -415,8 +387,47 @@ class FluidModel:
         return a
 
 
+class FluidState:
+    pass
+
+
 class UnreactiveFluidModel(FluidModel):
     def __init__(self, eos_class: EquationOfState.__class__ = None):
         self._EOS_cls = IdealGas if eos_class is None else eos_class
         self._EOS = self._EOS_cls(p_c=None, T_c=None)
         return
+
+    def __call__(self, p, T):
+        # The fluid state that returns should provide a copy of the fluid model, and the pressure and temperature are
+        # attributes in addition to those already accessible of the fluid model.
+
+        class FluidState:
+            _pT: tuple[Quantity, Quantity] = Quantity(101_325, "Pa"), Quantity(288.15, "K")
+            _model: FluidModel
+
+            @property
+            def pT(self) -> tuple[Quantity, Quantity]:
+                """A tuple of the pressure and temperature, describing the fluid's state."""
+                return self._pT
+
+            @pT.setter
+            def pT(self, value):
+                if not isinstance(value, tuple) or len(value) != 2:
+                    error_msg = "Expected a tuple of length two (pressure, temperature)"
+                    raise TypeError(error_msg)
+
+                current_p, current_T = self._pT
+                pressure, temperature = value
+
+                pressure = current_p if pressure is None else pressure
+                temperature = current_T if temperature is None else temperature
+
+        # TODO: Decide whether the fluid state should also report the fluid model (pros = quicker access time if not
+        #   all state variables are to be accessed, con = state would be inconsistent if the fluid model was modified),
+        #   and further, finish off the fluid state object so it can be returned.
+
+        return
+
+
+if __name__ == "__main__":
+    print(FluidModel().__dir__())
