@@ -7,7 +7,7 @@ import numpy as np
 from carpy.physicalchem import ChemicalSpecies, EquationOfState, IdealGas
 from carpy.utility import Quantity, constants as co
 
-__all__ = ["UnreactiveFluidModel"]
+__all__ = ["FluidState", "UnreactiveFluidModel"]
 __author__ = "Yaseen Reza"
 
 
@@ -433,13 +433,13 @@ class FluidModel:
 class FluidState:
     _forward_funcs = [x for x in dir(FluidModel) if callable(getattr(FluidModel, x)) and not x.startswith("_")]
     _forward_props = [x for x in dir(FluidModel) if isinstance(getattr(FluidModel, x), property)]
-    _p: Quantity
-    _T: Quantity
+    _pressure: Quantity
+    _temperature: Quantity
 
     def __init__(self, model: FluidModel, p, T):
         self._model = deepcopy(model)
-        self.p = p
-        self.T = T
+        self.pressure = p
+        self.temperature = T
         return
 
     def __dir__(self):
@@ -451,7 +451,7 @@ class FluidState:
 
         # If the parameter was forwarded, use the appropriate call
         if item in FluidState._forward_funcs:
-            return getattr(self._model, item)(p=self.p, T=self.T)
+            return getattr(self._model, item)(p=self.pressure, T=self.temperature)
         elif item in FluidState._forward_props:
             return getattr(self._model, item)
 
@@ -460,27 +460,27 @@ class FluidState:
     def __str__(self):
         rtn_str = f"{type(self).__name__} object @ {hex(id(self))}:"
         rtn_str += f"\n|...{repr(self._model)}"
-        rtn_str += f"\n|...p={self.p}, T={self.T}"
+        rtn_str += f"\n|...p={self.pressure}, T={self.temperature}"
         rtn_str += f"\n"
         return rtn_str
 
     @property
-    def p(self) -> Quantity:
+    def pressure(self) -> Quantity:
         """Fluid pressure."""
-        return self._p
+        return self._pressure
 
-    @p.setter
-    def p(self, value):
-        self._p = Quantity(value, "Pa")
+    @pressure.setter
+    def pressure(self, value):
+        self._pressure = Quantity(value, "Pa")
 
     @property
-    def T(self):
+    def temperature(self):
         """Fluid bulk temperature."""
-        return self._T
+        return self._temperature
 
-    @T.setter
-    def T(self, value):
-        self._T = Quantity(value, "K")
+    @temperature.setter
+    def temperature(self, value):
+        self._temperature = Quantity(value, "K")
 
 
 class UnreactiveFluidModel(FluidModel):

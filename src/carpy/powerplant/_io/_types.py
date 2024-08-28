@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 
+from carpy.physicalchem import FluidState
 from carpy.utility import Quantity
 
 __all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Radiant", "Fluid"]
@@ -251,8 +252,10 @@ class Mechanical(AbstractPower):
 
 
 class Thermal(AbstractPower):
-    def __init__(self):
-        raise NotImplementedError
+    """
+    Thermal power, i.e. power transferred through mass transport.
+    """
+    pass
 
 
 class Radiant(AbstractPower):
@@ -266,46 +269,27 @@ class Fluid(AbstractPower):
     """
     Fluidal power, i.e. the product of pressure and volumetric flow.
 
-    This type is fully defined when 'power', 'mdot', and 'pressure' attributes are set.
+    This type is fully defined when 'power' and 'state' attributes are set.
     """
-    _mdot = Quantity(0, "kg s^-1")
-    _pressure = Quantity(np.nan, "Pa")
+    _state: FluidState = None
 
     @property
-    def mdot(self) -> Quantity:
-        """Mass flow rate."""
-        return self._mdot
+    def state(self) -> FluidState:
+        """Returns an object describing the static fluid state."""
+        return self._state
 
-    @mdot.setter
-    def mdot(self, value):
-        self._mdot = Quantity(value, "kg s^-1")
-
-    @property
-    def pressure(self) -> Quantity:
-        """Fluid pressure."""
-        return self._pressure
-
-    @pressure.setter
-    def pressure(self, value):
-        self._pressure = Quantity(value, "Pa")
+    @state.setter
+    def state(self, value):
+        self._state = value
 
     @property
     def Vdot(self) -> Quantity:
         """Volumetric flow rate."""
-        return self.power / self.pressure
+        return self.power / self.state.pressure
 
     @Vdot.setter
     def Vdot(self, value):
         if np.isnan(self.power):
-            self.power = self.pressure * value
+            self.power = self.state.pressure * value
         else:
-            self.pressure = self.power / value
-
-    @property
-    def rho(self) -> Quantity:
-        """Fluid density."""
-        return self.mdot / self.Vdot
-
-    @rho.setter
-    def rho(self, value):
-        self.Vdot = self.mdot / value
+            self.state.pressure = self.power / value
