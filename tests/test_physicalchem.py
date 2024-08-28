@@ -1,8 +1,7 @@
 """Tests for library physicalchem methods."""
 import unittest
 
-from carpy.physicalchem._atom import Atom
-from carpy.physicalchem._chemical_structure import Structure
+from carpy.physicalchem import Atom, Structure, UnreactiveFluidModel, species
 from carpy.utility import constants as co
 
 
@@ -124,6 +123,17 @@ class MolecularStructures(unittest.TestCase):
             else:
                 self.assertEqual(atom.atomic_charge, 1)
 
+        return
+
+
+class FluidModels(unittest.TestCase):
+
+    def test_unreactive_ideal(self):
+        my_model = UnreactiveFluidModel()
+        my_model.X = {species.hydrogen(): 0.9}
+
+        # Create fluid state object
+        _ = my_model(p=101325, T=288.15)
         return
 
 

@@ -1,4 +1,5 @@
 """Module for modelling fluids and wrapping thermodynamic state variables."""
+from copy import deepcopy
 import typing
 
 import numpy as np
@@ -11,6 +12,9 @@ __author__ = "Yaseen Reza"
 
 
 class FluidModel:
+    """
+    Template class for fluid models, defining the key attributes and methods to be implemented.
+    """
     _EOS: EquationOfState
     _EOS_cls: EquationOfState.__class__
     _X: dict[ChemicalSpecies, float]
@@ -27,9 +31,48 @@ class FluidModel:
     _thermal_diffusivity: typing.Callable
     _vapour_quality: typing.Callable
 
+    def __new__(cls, *args, **kwargs):
+        if cls is not FluidModel:
+            return super().__new__(cls, *args, **kwargs)
+        error_msg = f"As a template, '{cls.__name__}' should not be instantiated directly - try one of the children!"
+        raise NotImplementedError(error_msg)
+
     def __repr__(self):
         repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
         return repr_str
+
+    def __call__(self, *, p, T):
+        # The fluid state that returns should provide a copy of the fluid model, and the pressure and temperature are
+        # attributes in addition to those already accessible of the fluid model.
+        fluid_state = FluidState(model=self, p=p, T=T)
+        return fluid_state
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            # Special exception: the contents of _X should not be deepcopied as the keys refer to static library
+            #   definitions for molecule structures
+            if k == "_X":
+                setattr(result, k, dict(v))
+            else:
+                setattr(result, k, deepcopy(v, memo))
+        return result
+
+    @property
+    def EOS(self) -> EquationOfState:
+        """Equation of state instance that defines the behaviour of the fluid."""
+        if not hasattr(self, "_EOS"):
+            error_msg = f"Equation of State is undefined - it can be defined by setting the X or Y attributes"
+            raise RuntimeError(error_msg)
+        return self._EOS
 
     # ==================================
     # Intensive thermodynamic properties
@@ -66,7 +109,7 @@ class FluidModel:
             Isothermal coefficient of compressibility.
 
         """
-        return self._EOS.compressibility_isothermal(p=p, T=T)
+        return self.EOS.compressibility_isothermal(p=p, T=T)
 
     def compressibility_adiabatic(self, p, T) -> Quantity:
         """
@@ -127,7 +170,7 @@ class FluidModel:
             The fluid's volume per unit amount of substance.
 
         """
-        Vm = self._EOS.molar_volume(p=p, T=T)
+        Vm = self.EOS.molar_volume(p=p, T=T)
         return Vm
 
     def specific_enthalpy(self, p, T) -> Quantity:
@@ -200,7 +243,7 @@ class FluidModel:
             cvi = species.specific_heat_V(p=p, T=T)
             CV += cvi * Yi
         cvbar = CV / 1.0
-        return cvbar
+        return Quantity(cvbar, "J kg^{-1} K^{-1}")
 
     def specific_internal_energy(self, p, T) -> Quantity:
         """
@@ -220,7 +263,7 @@ class FluidModel:
             U += ui * Yi
 
         ubar = U / 1.0
-        return ubar
+        return Quantity(ubar, "J kg^{-1}")
 
     def internal_pressure(self, p, T) -> Quantity:
         """
@@ -231,7 +274,7 @@ class FluidModel:
         Returns:
 
         """
-        return self._EOS.internal_pressure(p=p, T=T)
+        return self.EOS.internal_pressure(p=p, T=T)
 
     def thermal_conductivity(self, p, T) -> Quantity:
         """
@@ -265,7 +308,7 @@ class FluidModel:
             Isobaric (volumetric) thermal expansion coefficient.
 
         """
-        return self._EOS.thermal_expansion(p=p, T=T)
+        return self.EOS.thermal_expansion(p=p, T=T)
 
     def vapour_quality(self, p, T) -> Quantity:
         """
@@ -388,46 +431,60 @@ class FluidModel:
 
 
 class FluidState:
-    pass
+    _forward_funcs = [x for x in dir(FluidModel) if callable(getattr(FluidModel, x)) and not x.startswith("_")]
+    _forward_props = [x for x in dir(FluidModel) if isinstance(getattr(FluidModel, x), property)]
+    _p: Quantity
+    _T: Quantity
+
+    def __init__(self, model: FluidModel, p, T):
+        self._model = deepcopy(model)
+        self.p = p
+        self.T = T
+        return
+
+    def __dir__(self):
+        all_dir = super(FluidState, self).__dir__()
+        all_dir += FluidState._forward_funcs + FluidState._forward_props
+        return sorted(all_dir)
+
+    def __getattribute__(self, item):
+
+        # If the parameter was forwarded, use the appropriate call
+        if item in FluidState._forward_funcs:
+            return getattr(self._model, item)(p=self.p, T=self.T)
+        elif item in FluidState._forward_props:
+            return getattr(self._model, item)
+
+        return super(FluidState, self).__getattribute__(item)
+
+    def __str__(self):
+        rtn_str = f"{type(self).__name__} object @ {hex(id(self))}:"
+        rtn_str += f"\n|...{repr(self._model)}"
+        rtn_str += f"\n|...p={self.p}, T={self.T}"
+        rtn_str += f"\n"
+        return rtn_str
+
+    @property
+    def p(self) -> Quantity:
+        """Fluid pressure."""
+        return self._p
+
+    @p.setter
+    def p(self, value):
+        self._p = Quantity(value, "Pa")
+
+    @property
+    def T(self):
+        """Fluid bulk temperature."""
+        return self._T
+
+    @T.setter
+    def T(self, value):
+        self._T = Quantity(value, "K")
 
 
 class UnreactiveFluidModel(FluidModel):
+
     def __init__(self, eos_class: EquationOfState.__class__ = None):
         self._EOS_cls = IdealGas if eos_class is None else eos_class
-        self._EOS = self._EOS_cls(p_c=None, T_c=None)
         return
-
-    def __call__(self, p, T):
-        # The fluid state that returns should provide a copy of the fluid model, and the pressure and temperature are
-        # attributes in addition to those already accessible of the fluid model.
-
-        class FluidState:
-            _pT: tuple[Quantity, Quantity] = Quantity(101_325, "Pa"), Quantity(288.15, "K")
-            _model: FluidModel
-
-            @property
-            def pT(self) -> tuple[Quantity, Quantity]:
-                """A tuple of the pressure and temperature, describing the fluid's state."""
-                return self._pT
-
-            @pT.setter
-            def pT(self, value):
-                if not isinstance(value, tuple) or len(value) != 2:
-                    error_msg = "Expected a tuple of length two (pressure, temperature)"
-                    raise TypeError(error_msg)
-
-                current_p, current_T = self._pT
-                pressure, temperature = value
-
-                pressure = current_p if pressure is None else pressure
-                temperature = current_T if temperature is None else temperature
-
-        # TODO: Decide whether the fluid state should also report the fluid model (pros = quicker access time if not
-        #   all state variables are to be accessed, con = state would be inconsistent if the fluid model was modified),
-        #   and further, finish off the fluid state object so it can be returned.
-
-        return
-
-
-if __name__ == "__main__":
-    print(FluidModel().__dir__())
