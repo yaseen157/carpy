@@ -5,14 +5,17 @@ from carpy.physicalchem import species, UnreactiveFluidModel
 from carpy.powerplant import IOType, modules, PowerNetwork
 
 
-class Networking(unittest.TestCase):
+class PlantModules(unittest.TestCase):
 
     def test_diffuser0d(self):
         """Tests for data-driven engine decks."""
 
+        # Define a fluid
         gas_model = UnreactiveFluidModel()
         gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
         gas_state = gas_model(p=101325, T=288.15)
+
+        # The fluid is assigned to a flow
         freestream_capture = IOType.Fluid(
             state=gas_state,
             Vdot=3.141592 * (speed := 160),  # unit circle, 160 m/s
@@ -20,8 +23,11 @@ class Networking(unittest.TestCase):
 
         )
 
+        # The flow is passed into an ideal diffuser
         my_diffuser = modules.Diffuser0D()
         diffuser_exit = my_diffuser.forward(freestream_capture)
+
+        self.assertIsInstance(diffuser_exit, type(freestream_capture))
 
         # Data-driven engine deck takes in parameters of Mach number, altitude, and environment (atmosphere model)
 

@@ -52,7 +52,7 @@ class Diffuser0D(PlantModule):
         def helper(T_static):
             """Objective function to solve for the static temperature at the diffuser exit."""
             g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=T_static)
-            lhs = p2 / pt2
+            lhs = (p2 / pt2).x
             rhs = (T_static / Tt2.x) ** (g2 / (g2 - 1))
             return abs(lhs - rhs)
 

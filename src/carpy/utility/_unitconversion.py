@@ -1,7 +1,8 @@
 """A module supporting the intelligent conversion between systems of units."""
-from functools import partial
+from functools import partial, wraps
 import os
 import re
+import warnings
 
 import numpy as np
 import polars as pl
@@ -424,6 +425,12 @@ class Quantity(np.ndarray):
     # -------------------------
 
     def __new__(cls, values, /, units=None):
+
+        unit_of_measurement = UnitOfMeasurement(units)
+        if isinstance(values, Quantity) and (values.u != unit_of_measurement):
+            warn_msg = f"{cls.__name__} object {values} had units recast to '{unit_of_measurement}'"
+            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=3)
+
         # Recast the values to a numpy array
         values = np.atleast_1d(values)
 
@@ -436,10 +443,6 @@ class Quantity(np.ndarray):
                 raise ValueError(error_msg)
 
         # From the units, determine the SI equivalent quantity representation
-        if isinstance(units, UnitOfMeasurement):
-            unit_of_measurement = units
-        else:
-            unit_of_measurement = UnitOfMeasurement(units)
         values_SI = unit_of_measurement.to_si(values)
 
         # Subclass ourselves to np.ndarray
@@ -605,7 +608,7 @@ class Quantity(np.ndarray):
         """Addition."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Cannot add arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot add Quantity arrays with units '{self.u}' and '{other.u}'"
         return super(Quantity, self).__add__(other)
 
     def __ceil__(self):
@@ -648,14 +651,14 @@ class Quantity(np.ndarray):
         """Greater than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
         return super(Quantity, self).__ge__(other)
 
     def __gt__(self, other):
         """Greater than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
         return super(Quantity, self).__gt__(other)
 
     def __iadd__(self, other):
@@ -707,14 +710,14 @@ class Quantity(np.ndarray):
         """Less than or equal to."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
         return super(Quantity, self).__le__(other)
 
     def __lt__(self, other):
         """Less than."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Cannot compare arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
         return super(Quantity, self).__lt__(other)
 
     def __mod__(self, other):
@@ -809,7 +812,7 @@ class Quantity(np.ndarray):
         """Subtraction."""
         cls = type(self)
         if isinstance(other, cls):
-            assert self.u == other.u, f"Cannot subtract arrays with units {self.u} and {other.u}"
+            assert self.u == other.u, f"Cannot subtract Quantity arrays with units '{self.u}' and '{other.u}'"
         return super(Quantity, self).__sub__(other)
 
     def __truediv__(self, other):
@@ -827,6 +830,37 @@ class Quantity(np.ndarray):
     def __trunc__(self):
         """Truncate."""
         return np.trunc(self)
+
+    # =================================
+    # NumPy array attribute overloading
+    # ---------------------------------
+    def _wrap_units(self, func):
+        """Given a function that loses Quantity information, recover a Quantity object with units."""
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Get the unit-less array result
+            vanilla_result = func(*args, **kwargs)
+
+            # Ignore the warnings we get about recasting units, and then make sure we apply the original unit
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                remembered_quantity = Quantity(vanilla_result, self.u)
+
+            return remembered_quantity
+
+        return wrapper
+
+    def __getattribute__(self, item):
+        # Produce what the original __getattribute__ method would have
+        result = super(Quantity, self).__getattribute__(item)
+
+        # If the attribute was a numpy method, make sure the units are appropriately recovered in the result.
+        #   At this stage, all we have access to is the function itself. Therefore, we should wrap the function
+        if item in ["mean"]:
+            result = self._wrap_units(result)
+
+        return result
 
     # =================================================
     # Other methods not directly interacting with numpy
