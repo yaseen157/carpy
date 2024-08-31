@@ -224,9 +224,19 @@ class FluidModel:
             T: Absolute temperature, in Kelvin.
 
         Returns:
+            Isobaric specific heat capacity.
 
         """
-        return self._specific_heat_p(p=p, T=T)
+        # Recast as necessary
+        T = Quantity(T, "K")
+
+        alpha = self.EOS.thermal_expansion(p=p, T=T)
+        betaT = self.EOS.compressibility_isothermal(p=p, T=T)
+        rho = self.density(p=p, T=T)
+
+        cpbar = self.specific_heat_V(p=p, T=T) + alpha ** 2 * T / rho / betaT
+
+        return Quantity(cpbar, "J kg^{-1} K^{-1}")
 
     def specific_heat_V(self, p, T) -> Quantity:
         """
@@ -433,14 +443,49 @@ class FluidModel:
 class FluidState:
     _forward_funcs = [x for x in dir(FluidModel) if callable(getattr(FluidModel, x)) and not x.startswith("_")]
     _forward_props = [x for x in dir(FluidModel) if isinstance(getattr(FluidModel, x), property)]
+    _model: FluidModel
     _pressure: Quantity
     _temperature: Quantity
+
+    # ~*~ Annotations for properties accessible through __getattribute__() ~*~
+    activity: ...
+    chemical_potential: ...
+    compressibility_isothermal: ...
+    compressibility_adiabatic: ...
+    cryoscopic_constant: ...
+    density: ...
+    ebullioscopic_constant: ...
+    molar_volume: ...
+    specific_enthalpy: ...
+    specific_entropy: ...
+    fugacity: ...
+    specific_gibbs_fe: ...
+    specific_heat_p: ...
+    specific_heat_V: ...
+    specific_internal_energy: ...
+    internal_pressure: ...
+    thermal_conductivity: ...
+    thermal_diffusivity: ...
+    thermal_expansion: ...
+    vapour_quality: ...
+    specific_volume: ...
+    X: ...
+    Y: ...
+    molar_mass: ...
+    specific_gas_constant: ...
+    specific_heat_ratio: ...
+    speed_of_sound: ...
 
     def __init__(self, model: FluidModel, p, T):
         self._model = deepcopy(model)
         self.pressure = p
         self.temperature = T
         return
+
+    def __call__(self, p=None, T=None):
+        p = self.pressure if p is None else p
+        T = self.temperature if T is None else T
+        return type(self)(model=self.model, p=p, T=T)
 
     def __dir__(self):
         all_dir = super(FluidState, self).__dir__()
@@ -451,18 +496,27 @@ class FluidState:
 
         # If the parameter was forwarded, use the appropriate call
         if item in FluidState._forward_funcs:
-            return getattr(self._model, item)(p=self.pressure, T=self.temperature)
+            return getattr(self.model, item)(p=self.pressure, T=self.temperature)
         elif item in FluidState._forward_props:
-            return getattr(self._model, item)
+            return getattr(self.model, item)
 
         return super(FluidState, self).__getattribute__(item)
 
+    def __repr__(self):
+        repr_str = f"{type(self).__name__} object @ {hex(id(self))}"
+        return repr_str
+
     def __str__(self):
-        rtn_str = f"{type(self).__name__} object @ {hex(id(self))}:"
-        rtn_str += f"\n|...{repr(self._model)}"
+        rtn_str = f"{repr(self)}:"
+        rtn_str += f"\n|...{repr(self.model)}"
         rtn_str += f"\n|...p={self.pressure}, T={self.temperature}"
         rtn_str += f"\n"
         return rtn_str
+
+    @property
+    def model(self) -> FluidModel:
+        """The model used to compute fluid state properties."""
+        return self._model
 
     @property
     def pressure(self) -> Quantity:
@@ -486,5 +540,9 @@ class FluidState:
 class UnreactiveFluidModel(FluidModel):
 
     def __init__(self, eos_class: EquationOfState.__class__ = None):
+        """
+        Args:
+            eos_class: The class that powers background fluid state computations. Optional, assumes ideal gas.
+        """
         self._EOS_cls = IdealGas if eos_class is None else eos_class
         return

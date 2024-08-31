@@ -8,7 +8,7 @@ __author__ = "Yaseen Reza"
 class IOBus(set):
     _legal_types: tuple
 
-    def __init__(self, *args: IOType.AbstractPower):
+    def __init__(self, *args: IOType.AbstractPower.__class__):
         self._legal_types = args
         super(IOBus, self).__init__()
         return
@@ -19,6 +19,6 @@ class IOBus(set):
         return set(self.legal_types) & set(other.legal_types)
 
     @property
-    def legal_types(self) -> tuple[IOType.AbstractPower]:
+    def legal_types(self) -> tuple[IOType.AbstractPower.__class__]:
         """I/O types that this bus is permitted to host."""
         return self._legal_types

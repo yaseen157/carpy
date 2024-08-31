@@ -2,6 +2,7 @@
 import warnings
 
 import numpy as np
+from openpyxl.styles.builtins import total
 
 from carpy.physicalchem import FluidState
 from carpy.utility import Quantity
@@ -11,11 +12,16 @@ __author__ = "Yaseen Reza"
 
 
 class AbstractPower:
-    """Base class for describing types of power that can be input or output of a powerplant module."""
-    _power = Quantity(np.nan, "W")
+    """Base class for describing types of power that can be input or output of a power plant module."""
+    _power: property
 
-    def __init__(self, power=None):
-        self.power = np.nan if power is None else power
+    def __init__(self, **kwargs):
+
+        for (k, v) in kwargs.items():
+            if k not in dir(self):
+                error_msg = f"'{k}' is not recognised as a valid attribute of {type(self).__name__} objects"
+                raise AttributeError(error_msg)
+            setattr(self, k, v)
         return
 
     def __repr__(self):
@@ -35,19 +41,26 @@ class AbstractPower:
 
     @power.setter
     def power(self, value):
-        self._power = Quantity(value, "W")
-
-    def reverse_pass(self):
-        return
+        error_msg = (
+            f"The 'power' attribute of '{type(self).__name__}' class instances should not be set directly. Consult "
+            f"the documentation for a valid list of parameters (from which power can be derived)."
+        )
+        raise ValueError(error_msg)
 
 
 class Chemical(AbstractPower):
     """
     Chemical power, defined by calorific value and mass flow rate.
 
-    This type is fully defined when 'power' (or CV) and 'mdot' attributes are set.
+    This type is fully defined when 'CV' and 'mdot' attributes are set.
     """
-    _mdot = Quantity(0, "kg s^-1")
+
+    @property
+    def _power(self):
+        return self.CV * self.mdot
+
+    _CV = Quantity(np.nan, "J kg^-1")
+    _mdot = Quantity(np.nan, "kg s^-1")
 
     @property
     def mdot(self) -> Quantity:
@@ -61,22 +74,25 @@ class Chemical(AbstractPower):
     @property
     def CV(self) -> Quantity:
         """Calorific value, i.e. gravimetric energy density."""
-        return self.power / self.mdot
+        return self._CV
 
     @CV.setter
     def CV(self, value):
-        if np.isnan(self.power):
-            self.power = self.mdot * value
-        else:
-            self.mdot = self.power / value
+        self._CV = Quantity(value, "J kg^-1")
 
 
 class Electrical(AbstractPower):
     """
     Sinusoidal electrical power. Set frequency omega to zero for DC modelling.
 
-    This type is fully defined when 'power' (or I_rms), 'V_rms', 'X', and 'omega' attributes are set.
+    This type is fully defined when 'I_rms', 'V_rms', 'X', and 'omega' attributes are set.
     """
+
+    @property
+    def _power(self):
+        return self.V_rms * self.I_rms
+
+    _I_rms = Quantity(np.nan, "A")
     _V_rms = Quantity(np.nan, "V")
     _X = Quantity(0, "ohm")
     _omega = Quantity(0, "Hz")
@@ -111,14 +127,11 @@ class Electrical(AbstractPower):
     @property
     def I_rms(self) -> Quantity:
         """Electrical current."""
-        return self.power / self.V_rms
+        return self._I_rms
 
     @I_rms.setter
     def I_rms(self, value):
-        if np.isnan(self.power):
-            self.power = self.V_rms * value
-        else:
-            self.V_rms = self.power / value
+        self._I_rms = Quantity(value, "A")
 
     @property
     def C(self) -> Quantity:
@@ -218,7 +231,22 @@ class Mechanical(AbstractPower):
     """
     Mechanical power delivered through a rotating shaft.
     """
+
+    @property
+    def _power(self):
+        return self.T * self.omega
+
+    _T = Quantity(np.nan, "N m")
     _omega = Quantity(np.nan, "rad s^-1")
+
+    @property
+    def T(self) -> Quantity:
+        """Rotational torque."""
+        return self._T
+
+    @T.setter
+    def T(self, value):
+        self._T = Quantity(value, "N m")
 
     @property
     def omega(self) -> Quantity:
@@ -228,18 +256,6 @@ class Mechanical(AbstractPower):
     @omega.setter
     def omega(self, value):
         self._omega = Quantity(value, "rad s^-1")
-
-    @property
-    def T(self) -> Quantity:
-        """Rotational torque."""
-        return self.power / self.omega
-
-    @T.setter
-    def T(self, value):
-        if np.isnan(self.power):
-            self.power = self.omega * value
-        else:
-            self.omega = self.power / value
 
     @property
     def nu(self):
@@ -267,11 +283,55 @@ class Radiant(AbstractPower):
 
 class Fluid(AbstractPower):
     """
-    Fluidal power, i.e. the product of pressure and volumetric flow.
+    Fluidal power, i.e. the product of stagnation pressure and volumetric flow rate.
 
-    This type is fully defined when 'power' and 'state' attributes are set.
+    This type is fully defined when 'Mach', 'mdot', and fluid 'state' and attributes are set.
     """
+
+    @property
+    def _power(self):
+        # The total fluid power should come from the product of stagnation pressure and flow rate. Consider that in a
+        #   U-tube of water static pressure contributes to the instantaneous pressure head, whereas the dynamic pressure
+        #   is responsible for velocity head. Assuming no contribution from elevation head, their sum is the total head.
+        total_power = (
+                self.power_pressure +
+                self.power_velocity
+        )
+        return total_power
+
+    @property
+    def power_pressure(self):
+        return self.state.pressure * self.Vdot
+
+    @property
+    def power_velocity(self):
+        # Compute dynamic pressure
+        q = 0.5 * self.state.density * self.u ** 2
+
+        dynamic_power = q * self.Vdot
+        return dynamic_power
+
+    _Mach: float = 0
+    _mdot = Quantity(0, "kg s^-1")
     _state: FluidState = None
+
+    @property
+    def Mach(self) -> float:
+        """The Mach number of the flow."""
+        return self._Mach
+
+    @Mach.setter
+    def Mach(self, value):
+        self._Mach = float(value)
+
+    @property
+    def mdot(self) -> float:
+        """Mass flow rate."""
+        return self._mdot
+
+    @mdot.setter
+    def mdot(self, value):
+        self._mdot = Quantity(value, "kg s^-1")
 
     @property
     def state(self) -> FluidState:
@@ -285,11 +345,26 @@ class Fluid(AbstractPower):
     @property
     def Vdot(self) -> Quantity:
         """Volumetric flow rate."""
-        return self.power / self.state.pressure
+        return self.mdot / self.state.density
 
     @Vdot.setter
     def Vdot(self, value):
-        if np.isnan(self.power):
-            self.power = self.state.pressure * value
-        else:
-            self.state.pressure = self.power / value
+        self.mdot = self.state.density * value
+
+    @property
+    def u(self):
+        """Fluid velocity."""
+        return self.Mach * self.state.speed_of_sound
+
+    @u.setter
+    def u(self, value):
+        self.Mach = value / self.state.speed_of_sound
+
+    @property
+    def q(self):
+        """Dynamic pressure."""
+        return 0.5 * self.state.density * self.u ** 2
+
+    @q.setter
+    def q(self, value):
+        self.u = (2 * value / self.state.density) ** 0.5

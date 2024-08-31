@@ -1,10 +1,33 @@
 """Tests for library powerplant analysis methods."""
 import unittest
 
+from carpy.physicalchem import species, UnreactiveFluidModel
 from carpy.powerplant import IOType, modules, PowerNetwork
-#
-#
-# class Networking(unittest.TestCase):
+
+
+class Networking(unittest.TestCase):
+
+    def test_diffuser0d(self):
+        """Tests for data-driven engine decks."""
+
+        gas_model = UnreactiveFluidModel()
+        gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
+        gas_state = gas_model(p=101325, T=288.15)
+        freestream_capture = IOType.Fluid(
+            state=gas_state,
+            Vdot=3.141592 * (speed := 160),  # unit circle, 160 m/s
+            Mach=speed / gas_state.speed_of_sound
+
+        )
+
+        my_diffuser = modules.Diffuser0D()
+        diffuser_exit = my_diffuser.forward(freestream_capture)
+
+        # Data-driven engine deck takes in parameters of Mach number, altitude, and environment (atmosphere model)
+
+        # Needs to output thrust value
+
+        return
 #
 #     def test_combustor(self):
 #         """A simple combustor heat addition test."""

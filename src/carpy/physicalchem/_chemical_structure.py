@@ -236,7 +236,7 @@ class PartitionMethods:
         """
         # Recast as necessary
         _ = p  # Does nothing!
-        T = np.atleast_1d(T)
+        T = Quantity(T, "K")
         if np.any(T == 0):
             error_msg = f"It is insensible to compute the heat capacity at 0 K, please check input temperatures"
             raise ValueError(error_msg)
@@ -379,7 +379,7 @@ class Structure(PartitionMethods):
         raise RuntimeError(error_msg)
 
     def __init__(self, *args, **kwargs):
-        super(PartitionMethods, self).__init__()
+        super(Structure, self).__init__()
         self._formula = kwargs.get("formula")
         return
 

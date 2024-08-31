@@ -213,7 +213,7 @@ def broadcast_vector(values, vector) -> tuple[np.ndarray, np.ndarray]:
     vector = np.atleast_1d(vector)
     assert vector.ndim == 1, f"Expected vector to be a 1d array (got {vector.ndim=})"
 
-    values_broadcast = np.broadcast_to(values, shape=(*vector.shape, *values.shape))
+    values_broadcast = np.broadcast_to(values, shape=(*vector.shape, *values.shape), subok=True)
     vector_broadcast = np.expand_dims(vector, tuple(range(values_broadcast.ndim - 1))).T
     return values_broadcast, vector_broadcast
 

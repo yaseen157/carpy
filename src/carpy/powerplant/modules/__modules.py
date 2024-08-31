@@ -133,9 +133,7 @@ class PlantModule:
     #     self.__irshift__(other)
     #     return self
 
-    # TODO: Figure out if it's a good idea to even use forward to pass flight conditions. Wouldn't that work better as
-    #   an actual configurable 'PlantModule' called condition or something, that actually passes parameters like age,
-    #   time dependencies, ambient pressure and temperature conditions?
-    # def forward(self, *args, **kwargs):
-    #     """Given conditions in *args and **kwargs, compute efficiency of transferred power."""
-    #     return self._forward(*args, **kwargs)
+    def forward(self, *inputs):
+        """Template for plant module power propagation."""
+        error_msg = f"{PlantModule.__name__} object '{type(self).__name__}' does not implement the 'forward' method"
+        raise NotImplementedError(error_msg)
