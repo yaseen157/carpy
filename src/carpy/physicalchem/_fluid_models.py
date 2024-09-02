@@ -433,10 +433,13 @@ class FluidModel:
         Returns:
             Local speed of sound.
 
+        Notes:
+            The computation accounts for real gas effects, if any are present.
+
         """
         gamma = self.specific_heat_ratio(p=p, T=T)
-        R = self.specific_gas_constant
-        a = (gamma * R * T) ** 0.5
+        nu = self.specific_volume(p=p, T=T)
+        a = (gamma * p * nu) ** 0.5
         return a
 
 

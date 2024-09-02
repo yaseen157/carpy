@@ -18,13 +18,13 @@ class PlantModules(unittest.TestCase):
         # The fluid is assigned to a flow
         freestream_capture = IOType.Fluid(
             state=gas_state,
-            Vdot=3.141592 * (speed := 160),  # unit circle, 160 m/s
+            Vdot=3.141592 * (speed := 220),  # unit circle, 220 m/s
             Mach=speed / gas_state.speed_of_sound
 
         )
 
         # The flow is passed into an ideal diffuser
-        my_diffuser = modules.Diffuser0D()
+        my_diffuser = modules.Diffuser0d()
         diffuser_exit = my_diffuser.forward(freestream_capture)
 
         self.assertIsInstance(diffuser_exit, type(freestream_capture))

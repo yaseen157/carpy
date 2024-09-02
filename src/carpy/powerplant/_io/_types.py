@@ -7,7 +7,7 @@ from openpyxl.styles.builtins import total
 from carpy.physicalchem import FluidState
 from carpy.utility import Quantity
 
-__all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Radiant", "Fluid"]
+__all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Radiant", "Fluid", "collect"]
 __author__ = "Yaseen Reza"
 
 
@@ -368,3 +368,54 @@ class Fluid(AbstractPower):
     @q.setter
     def q(self, value):
         self.u = (2 * value / self.state.density) ** 0.5
+
+
+class IOCollection:
+
+    def __init__(self):
+        self._chemical = []
+        self._electrical = []
+        self._mechanical = []
+        self._thermal = []
+        self._radiant = []
+        self._fluid = []
+
+    @property
+    def chemical(self) -> list[Chemical]:
+        return self._chemical
+
+    @property
+    def electrical(self) -> list[Electrical]:
+        return self._electrical
+
+    @property
+    def mechanical(self) -> list[Mechanical]:
+        return self._mechanical
+
+    @property
+    def thermal(self) -> list[Thermal]:
+        return self._thermal
+
+    @property
+    def radiant(self) -> list[Radiant]:
+        return self._radiant
+
+    @property
+    def fluid(self) -> list[Fluid]:
+        return self._fluid
+
+
+def collect(*powers: AbstractPower) -> IOCollection:
+    collection = IOCollection()
+    allowed_types = [attr for attr in dir(collection) if not attr.startswith("_")]
+
+    for power in powers:
+        power_type = type(power).__name__.lower()
+
+        if power_type not in allowed_types:
+            error_msg = f"'{type(power).__name__}' is not allowed (not deemed to be any of the valid {allowed_types=})"
+            raise TypeError(error_msg)
+
+        setattr(collection, f"_{power_type}", getattr(collection, power_type) + [power])
+
+    return collection

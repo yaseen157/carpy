@@ -1,16 +1,23 @@
+import warnings
+
 from scipy.optimize import minimize_scalar
 
 from carpy.powerplant import IOType
 from carpy.powerplant.modules import PlantModule
 from carpy.utility import Quantity
 
-__all__ = ["Diffuser0D"]
+__all__ = ["Diffuser0d"]
 __author__ = "Yaseen Reza"
 
 
-class Diffuser0D(PlantModule):
-    """Diffuser (or inlet). Used to slow down and encourage smooth air uptake into a downstream compressor."""
+class Diffuser0d(PlantModule):
+    """
+    Subsonic diffuser (or inlet). Used to slow down and encourage smooth air uptake into a downstream compressor.
 
+    The diffuser is considered to be-zero dimensional, as it does not require the specification of any geometry.
+    Furthermore, the compressor is considered adiabatic (no addition or rejection of heat).
+    """
+    _Cp = 0.6
     _pi_o = 1
     _pi_r = 1
 
@@ -30,11 +37,14 @@ class Diffuser0D(PlantModule):
         """
         # Input checks
         inputs += tuple(self.inputs)
-        assert len(inputs) == 1, f"{type(self).__name__} expected only one input of type {self.inputs.legal_types}"
-        assert isinstance(inputs[0], self.inputs.legal_types)
+        assert len(inputs) == 1, f"{type(self).__name__} is expecting exactly one input (got {inputs})"
+        assert isinstance(inputs[0], self.inputs.legal_types), f"{self.inputs.legal_types=}"
 
         # Unpack input
-        fluid_in: IOType.Fluid = inputs[0]
+        fluid_in = IOType.collect(*inputs).fluid[0]
+
+        if fluid_in.Mach >= 1:
+            raise NotImplementedError
 
         # Compute upstream properties
         g1 = fluid_in.state.specific_heat_ratio
@@ -44,10 +54,11 @@ class Diffuser0D(PlantModule):
         Tt1 = fluid_in.state.temperature / T_Tt1
 
         # Compute downstream properties
-        Tt2 = Tt1
-        delta_p = (Cp := 0.6) * fluid_in.q  # Hill and Peterson (1992) suggest Cp_max = 0.6 for inlet-aligned flow
+        delta_p = self.Cp * fluid_in.q
         p2 = fluid_in.state.pressure + delta_p
         pt2 = pt1 * self.pi_d
+
+        Tt2 = Tt1
 
         def helper(T_static):
             """Objective function to solve for the static temperature at the diffuser exit."""
@@ -65,6 +76,38 @@ class Diffuser0D(PlantModule):
         return fluid_out
 
     @property
+    def Cp(self):
+        """
+        The coefficient of pressure of the diffuser.
+
+        Returns:
+            Module coefficient of pressure.
+
+        Notes:
+            The coefficient of pressure according to Hill and Peterson (1992) as cited in Flack (2015), has an empirical
+            maximum of Cp ~= 0.6 before flow begins to separate in a diffuser. For this reason, the value of Cp should
+            not be set any higher than 0.6 for a well-designed diffuser in strictly ideal conditions. In non-ideal cases
+            involving, for example, periodic flow in a turbomachine, Cp may lie closer to 0.3~0.45.
+
+        References:
+            R. D. Flack, “Diffusers,” in Fundamentals of Jet Propulsion with Applications, Cambridge: Cambridge
+            University Press, 2005, pp. 209–243, pp. 276–373.
+
+        """
+        return self._Cp
+
+    @Cp.setter
+    def Cp(self, value):
+        self._Cp = float(value)
+
+        # Flack reports that:
+        #   Hill and Peterson (1992) suggest Cp_max = 0.6 for flows aligned with the inlet, to prevent flow separation
+        if self.Cp > 0.6:
+            warnmsg = (f"Coefficient of pressure values of {self.Cp} are not recommended - values > 0.6 are likely to "
+                       f"result in flow separation.")
+            warnings.warn(message=warnmsg, category=RuntimeWarning)
+
+    @property
     def pi_o(self):
         """
         Term accounting for the loss in recovered pressure at the diffuser inlet due to, for example, sonic shocks
@@ -78,7 +121,9 @@ class Diffuser0D(PlantModule):
 
     @pi_o.setter
     def pi_o(self, value):
-        self._pi_o = float(value)
+        warn_msg = (f"The ability to prescribe a value pressure loss due to shocked flow is slated for "
+                    f"deprecation. Do not rely on being able to set this parameter.")
+        warnings.warn(message=warn_msg, category=DeprecationWarning)
 
     @property
     def pi_r(self):
