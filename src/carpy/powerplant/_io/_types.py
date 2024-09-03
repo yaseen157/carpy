@@ -369,6 +369,22 @@ class Fluid(AbstractPower):
         self.u = (2 * value / self.state.density) ** 0.5
 
     @property
+    def total_density(self):
+        gamma = self.state.specific_heat_ratio
+        T_Tt = self.state.temperature / self.total_temperature
+        r_rt = T_Tt ** (1 / (gamma - 1))
+        rt = self.state.density / r_rt
+        return rt
+
+    @total_density.setter
+    def total_density(self, value):
+        gamma = self.state.specific_heat_ratio
+        rt = float(value)
+        r_rt = self.state.density / rt
+        T_Tt = r_rt ** (gamma - 1)
+        self.total_temperature = self.state.temperature / T_Tt
+
+    @property
     def total_enthalpy(self):
         ht = self.state.specific_enthalpy + self.u ** 2 / 2
         return ht
