@@ -1,18 +1,18 @@
-import warnings
-
 from scipy.optimize import newton
 
 from carpy.powerplant import IOType
 from carpy.powerplant.modules import PlantModule
 from carpy.utility import Quantity
 
-__all__ = ["Diffuser1d"]
+__all__ = ["Diffuser0d"]
 __author__ = "Yaseen Reza"
 
 
-class Diffuser1d(PlantModule):
+class Diffuser0d(PlantModule):
     """
     Subsonic diffuser (or inlet). Used to slow down and recover static pressure in a flow.
+
+    The model is described as zero-dimensional as it has no spatial dependencies.
     """
     _Cp = 0.6
     _pi_d = 0.9
@@ -24,7 +24,7 @@ class Diffuser1d(PlantModule):
             out_types=IOType.Fluid
         )
 
-    def forward(self, *inputs):
+    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
         """
         References:
             R. D. Flack, “Diffusers,” in Fundamentals of Jet Propulsion with Applications, Cambridge: Cambridge
@@ -38,13 +38,13 @@ class Diffuser1d(PlantModule):
         inputs = IOType.collect(*inputs)
 
         # Unpack input
-        fluid_in = inputs.fluid[0]
+        fluid_in: IOType.Fluid = inputs.fluid[0]
 
         # Flow entering the diffuser
         pta = fluid_in.total_pressure
         Tta = fluid_in.total_temperature
 
-        # Stagnation properties at inlet face (normal shock methods are not implemented yet....)
+        # Flow properties at inlet face (normal shock methods are not implemented yet....)
         if fluid_in.Mach >= 1:
             error_msg = "normal shock methods for diffusers are not yet implemented"
             raise NotImplementedError(error_msg)
@@ -81,7 +81,7 @@ class Diffuser1d(PlantModule):
             Vdot=fluid_in.mdot / fluid_out_state.density
         )
 
-        return fluid_out
+        return (fluid_out,)
 
     @property
     def Cp(self):

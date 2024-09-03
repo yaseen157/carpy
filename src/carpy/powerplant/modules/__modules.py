@@ -26,8 +26,6 @@ class PlantModule:
     _admittance = 1.0
     _admit_low = 1.0
 
-    _forward: typing.Callable
-
     def __init__(
             self, name: str = None,
             in_types: tuple[IOType.AbstractPower.__class__] | IOType.AbstractPower.__class__ = None,

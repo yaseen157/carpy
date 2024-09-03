@@ -1,16 +1,17 @@
 import warnings
+from zipfile import error
 
-from scipy.optimize import minimize_scalar
+from scipy.optimize import newton
 
 from carpy.powerplant import IOType
 from carpy.powerplant.modules import PlantModule
 from carpy.utility import Quantity
 
-__all__ = ["AxialPump_Meridional"]
+__all__ = ["AxialPump"]
 __author__ = "Yaseen Reza"
 
 
-class AxialPump_Meridional(PlantModule):
+class AxialPump(PlantModule):
     _eta = 0.85
 
     def __init__(self, name: str = None):
@@ -20,11 +21,11 @@ class AxialPump_Meridional(PlantModule):
             out_types=IOType.Fluid
         )
 
-    def forward(self, *inputs):
+    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
         """
         References:
-            R. D. Flack, “Diffusers,” in Fundamentals of Jet Propulsion with Applications, Cambridge: Cambridge
-            University Press, 2005, pp. 276–373.
+            R. D. Flack, “Axial Flow Compressors and Fans,” in Fundamentals of Jet Propulsion with Applications,
+            Cambridge: Cambridge University Press, 2005, pp. 276–373.
 
         """
         # Input checks
@@ -35,23 +36,40 @@ class AxialPump_Meridional(PlantModule):
         inputs = IOType.collect(*inputs)
 
         # Unpack input
-        fluid_in = inputs.fluid[0]
-        mech_in = inputs.mechanical[0]
+        fluid_in: IOType.Fluid = inputs.fluid[0]
+        mech_in: IOType.Mechanical = inputs.mechanical[0]
 
-        # Compute upstream properties
-        g1 = fluid_in.state.specific_heat_ratio
-        pt1 = fluid_in.power / fluid_in.Vdot
-        p_pt1 = fluid_in.state.pressure / pt1
-        T_Tt1 = p_pt1 ** ((g1 - 1) / g1)
-        Tt1 = fluid_in.state.temperature / T_Tt1
-        ht1 = fluid_in.state.model.specific_enthalpy(p=pt1, T=Tt1)
+        # Assert incompressibility of fluid
+        if fluid_in.Mach > 0.3:
+            error_msg = "Fluid could not be treated as incompressible, got Mach > 0.3"
+            raise ValueError(error_msg)
 
-        # Mass flow rate specific change in total enthalpy
-        dht = mech_in.power / fluid_in.mdot
+        # Compression - Isentropic compression with an efficiency penalty to the enthalpy change
+        delta_ht12 = (mech_in.power / fluid_in.mdot) * self.eta  # Change in total enthalpy
+        # delta_L12 = delta_ht12 / mech_in.omega  # Change in angular momentum
 
-        # Compute downstream properties
-        pt2_pt1 = (self.eta * dht / ht1 + 1) ** (g1 / (g1 - 1))
-        pt2 = pt2_pt1 * pt1
+        # Total enthalpy change
+        ht1 = fluid_in.total_enthalpy
+        ht2 = ht1 + delta_ht12
+
+        # Assume perfect gas, i.e. cp and gamma are constant between up and downstream states
+        g = fluid_in.state.specific_heat_ratio
+        Tt2_Tt1 = ht2 / ht1
+        pt2_pt1 = Tt2_Tt1 ** (g / (g - 1))
+
+        Tt2 = Tt2_Tt1 * fluid_in.total_temperature
+
+        def helper(Tstatic):
+            lhs = Tstatic / Tt2
+
+            def helper2(Pstatic):
+                g2 = fluid_in.state.model.specific_heat_ratio(p=Pstatic, T=Tstatic)
+                a2 = (g2 * fluid_in.state.specific_gas_constant * Tstatic)
+                v2 = fluid_in.Mach * a2
+
+            rhs = None
+
+        pt1 = fluid_in.total_pressure
 
         fluid_out = IOType.Fluid()
 
@@ -59,5 +77,5 @@ class AxialPump_Meridional(PlantModule):
 
     @property
     def eta(self):
-        """Axial pump effective stage efficiency."""
+        """Axial pump isentropic stage efficiency."""
         return self._eta

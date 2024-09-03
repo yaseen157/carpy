@@ -2,8 +2,6 @@
 import warnings
 
 import numpy as np
-from openpyxl.styles.builtins import total
-from sympy.physics.units import temperature
 
 from carpy.physicalchem import FluidState
 from carpy.utility import Quantity
@@ -369,6 +367,16 @@ class Fluid(AbstractPower):
     @q.setter
     def q(self, value):
         self.u = (2 * value / self.state.density) ** 0.5
+
+    @property
+    def total_enthalpy(self):
+        ht = self.state.specific_enthalpy + self.u ** 2 / 2
+        return ht
+
+    @total_enthalpy.setter
+    def total_enthalpy(self, value):
+        ht = float(value)
+        self.u = ((ht - self.state.specific_enthalpy) * 2) ** 0.5
 
     @property
     def total_pressure(self):

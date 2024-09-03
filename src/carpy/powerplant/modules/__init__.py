@@ -3,6 +3,7 @@
 from .__modules import *
 
 # Modules derived from the base class
+from ._axial_pump import *
 from ._battery import *
 from ._combustor import *
 from ._diffuser import *
