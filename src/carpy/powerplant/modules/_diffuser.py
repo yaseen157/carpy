@@ -19,7 +19,7 @@ class Diffuser0d(PlantModule):
     """
     _Cp = 0.6
     _pi_o = 1
-    _pi_r = 1
+    _pi_r = 0.9
 
     def __init__(self, name: str = None):
         super().__init__(
@@ -39,37 +39,42 @@ class Diffuser0d(PlantModule):
         inputs += tuple(self.inputs)
         assert len(inputs) == 1, f"{type(self).__name__} is expecting exactly one input (got {inputs})"
         assert isinstance(inputs[0], self.inputs.legal_types), f"{self.inputs.legal_types=}"
+        inputs = IOType.collect(*inputs)
 
         # Unpack input
-        fluid_in = IOType.collect(*inputs).fluid[0]
+        fluid_in = inputs.fluid[0]
 
         if fluid_in.Mach >= 1:
             raise NotImplementedError
 
         # Compute upstream properties
-        g1 = fluid_in.state.specific_heat_ratio
+        h1 = fluid_in.state.specific_enthalpy
+        a1 = fluid_in.state.speed_of_sound
+        ht1 = h1 + (fluid_in.Mach * a1) ** 2 / 2
+
+        # TODO: Figure out how we're supposed to incorporate pi_d losses into ht1...
+
         pt1 = fluid_in.power / fluid_in.Vdot
-        p_pt1 = fluid_in.state.pressure / pt1
-        T_Tt1 = p_pt1 ** ((g1 - 1) / g1)
-        Tt1 = fluid_in.state.temperature / T_Tt1
 
         # Compute downstream properties
         delta_p = self.Cp * fluid_in.q
         p2 = fluid_in.state.pressure + delta_p
         pt2 = pt1 * self.pi_d
 
-        Tt2 = Tt1
-
         def helper(T_static):
             """Objective function to solve for the static temperature at the diffuser exit."""
             g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=T_static)
-            lhs = (p2 / pt2).x
-            rhs = (T_static / Tt2.x) ** (g2 / (g2 - 1))
-            return abs(lhs - rhs)
+            T_Tt2 = (p2 / pt2).x ** ((g2 - 1) / g2)
+            Tt2 = T_static / T_Tt2
+            ht2 = fluid_in.state.model.specific_enthalpy(p=pt2, T=Tt2)
+            return abs(ht2 - ht1)
 
-        T2 = Quantity(minimize_scalar(helper, bounds=(0, Tt2.x)).x, "K")
+        T2 = Quantity(minimize_scalar(helper, bounds=(0, 3_000), tol=1e-1).x,
+                      "K")  # No compressor will ever reach 3,000 K
         new_state = fluid_in.state(p=p2, T=T2)
-        M2 = (2 / (new_state.specific_heat_ratio - 1) * (Tt2 / T2 - 1)) ** 0.5
+        g2 = new_state.specific_heat_ratio
+        T_Tt2 = (p2 / pt2).x ** ((g2 - 1) / g2)
+        M2 = (2 / (g2 - 1) * (1 / T_Tt2 - 1)) ** 0.5
 
         # Instantiate output
         fluid_out = IOType.Fluid(Mach=M2, mdot=fluid_in.mdot, state=new_state)

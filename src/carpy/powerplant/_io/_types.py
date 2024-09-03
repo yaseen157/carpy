@@ -371,6 +371,7 @@ class Fluid(AbstractPower):
 
 
 class IOCollection:
+    """A simple class for collecting together common IO types."""
 
     def __init__(self):
         self._chemical = []
@@ -406,6 +407,16 @@ class IOCollection:
 
 
 def collect(*powers: AbstractPower) -> IOCollection:
+    """
+    Given instances of classes which inherit AbstractPower, collect similar types of power.
+
+    Args:
+        *powers: Fully-defined instances of classes that inherit from AbstractPower.
+
+    Returns:
+        An IOCollection object that permits easy access to each of the powers passed as an argument to this function.
+
+    """
     collection = IOCollection()
     allowed_types = [attr for attr in dir(collection) if not attr.startswith("_")]
 

@@ -22,7 +22,6 @@ class FluidModel:
     _chemical_potential: typing.Callable
     _cryoscopic_constant: typing.Callable
     _ebullioscopic_constant: typing.Callable
-    _specific_enthalpy: typing.Callable
     _specific_entropy: typing.Callable
     _fugacity: typing.Callable
     _specific_gibbs_fe: typing.Callable
@@ -182,7 +181,13 @@ class FluidModel:
         Returns:
 
         """
-        return self._specific_enthalpy(p=p, T=T)
+        # h = u + pv
+        u = self.specific_internal_energy(p=p, T=T)
+        v = self.specific_volume(p=p, T=T)
+
+        p = Quantity(p, "Pa")
+        h = u + p * v
+        return h
 
     def specific_entropy(self, p, T) -> Quantity:
         """
