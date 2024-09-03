@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 from openpyxl.styles.builtins import total
+from sympy.physics.units import temperature
 
 from carpy.physicalchem import FluidState
 from carpy.utility import Quantity
@@ -368,6 +369,36 @@ class Fluid(AbstractPower):
     @q.setter
     def q(self, value):
         self.u = (2 * value / self.state.density) ** 0.5
+
+    @property
+    def total_pressure(self):
+        # For adiabatic (no heat addition or rejection) and isentropic flows (no entropy gain)
+        gamma = self.state.specific_heat_ratio
+        T_Tt = self.state.temperature / self.total_temperature
+        p_pt = T_Tt ** (gamma / (gamma - 1))
+        pt = self.state.pressure / p_pt
+        return pt
+
+    @total_pressure.setter
+    def total_pressure(self, value):
+        gamma = self.state.specific_heat_ratio
+        pt = float(value)
+        p_pt = self.state.pressure / pt
+        T_Tt = p_pt ** ((gamma - 1) / gamma)
+        self.total_temperature = self.state.temperature / T_Tt
+
+    @property
+    def total_temperature(self):
+        # For adiabatic flows (no heat addition or rejection)
+        T_Tt = (1 + (self.state.specific_heat_ratio - 1) / 2 * self.Mach ** 2) ** -1
+        Tt = self.state.temperature / T_Tt
+        return Tt
+
+    @total_temperature.setter
+    def total_temperature(self, value):
+        Tt = float(value)
+        T_Tt = self.state.temperature / Tt
+        self.Mach = (2 / (self.state.specific_heat_ratio - 1) * (1 / T_Tt - 1)) ** 0.5
 
 
 class IOCollection:

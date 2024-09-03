@@ -629,7 +629,7 @@ class Quantity(np.ndarray):
 
     def __float__(self):
         """Cast as float."""
-        return float(self.x)
+        return self.x.item()
 
     def __floor__(self):
         """Floor function."""

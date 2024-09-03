@@ -1,25 +1,21 @@
 import warnings
 
-from scipy.optimize import minimize_scalar
+from scipy.optimize import newton
 
 from carpy.powerplant import IOType
 from carpy.powerplant.modules import PlantModule
 from carpy.utility import Quantity
 
-__all__ = ["Diffuser0d"]
+__all__ = ["Diffuser1d"]
 __author__ = "Yaseen Reza"
 
 
-class Diffuser0d(PlantModule):
+class Diffuser1d(PlantModule):
     """
-    Subsonic diffuser (or inlet). Used to slow down and encourage smooth air uptake into a downstream compressor.
-
-    The diffuser is considered to be-zero dimensional, as it does not require the specification of any geometry.
-    Furthermore, the compressor is considered adiabatic (no addition or rejection of heat).
+    Subsonic diffuser (or inlet). Used to slow down and recover static pressure in a flow.
     """
     _Cp = 0.6
-    _pi_o = 1
-    _pi_r = 0.9
+    _pi_d = 0.9
 
     def __init__(self, name: str = None):
         super().__init__(
@@ -44,40 +40,47 @@ class Diffuser0d(PlantModule):
         # Unpack input
         fluid_in = inputs.fluid[0]
 
+        # Flow entering the diffuser
+        pta = fluid_in.total_pressure
+        Tta = fluid_in.total_temperature
+
+        # Stagnation properties at inlet face (normal shock methods are not implemented yet....)
         if fluid_in.Mach >= 1:
-            raise NotImplementedError
+            error_msg = "normal shock methods for diffusers are not yet implemented"
+            raise NotImplementedError(error_msg)
+        else:
+            pt1 = pta
+            Tt1 = Tta
+            p1 = fluid_in.state.pressure
+            M1 = fluid_in.Mach
+            g1 = fluid_in.state.specific_heat_ratio
 
-        # Compute upstream properties
-        h1 = fluid_in.state.specific_enthalpy
-        a1 = fluid_in.state.speed_of_sound
-        ht1 = h1 + (fluid_in.Mach * a1) ** 2 / 2
+        # Stagnation properties downstream
+        pt2 = pt1 * self.pi_d  # Adiabatic but not isentropic process (some stagnation pressure is lost in friction)
+        Tt2 = Tt1  # Adiabatic process
 
-        # TODO: Figure out how we're supposed to incorporate pi_d losses into ht1...
+        # Compute downstream fluid state
+        q1 = g1 / 2 * p1 * M1 ** 2
+        delta_p12 = self.Cp * q1
+        p2 = p1 + delta_p12
 
-        pt1 = fluid_in.power / fluid_in.Vdot
+        def helper(Tstatic):
+            g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=Tstatic)
+            lhs = p2 / pt2
+            rhs = (Tstatic / float(Tt2)) ** (g2 / (g2 - 1))
+            return abs(lhs - rhs)
 
-        # Compute downstream properties
-        delta_p = self.Cp * fluid_in.q
-        p2 = fluid_in.state.pressure + delta_p
-        pt2 = pt1 * self.pi_d
+        T2 = Quantity(newton(helper, Tt2), "K")
+        g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=T2)
+        M2 = (2 / (g2 - 1) * (Tt2 / T2 - 1)) ** 0.5
 
-        def helper(T_static):
-            """Objective function to solve for the static temperature at the diffuser exit."""
-            g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=T_static)
-            T_Tt2 = (p2 / pt2).x ** ((g2 - 1) / g2)
-            Tt2 = T_static / T_Tt2
-            ht2 = fluid_in.state.model.specific_enthalpy(p=pt2, T=Tt2)
-            return abs(ht2 - ht1)
+        fluid_out_state = fluid_in.state(p=p2, T=T2)
+        fluid_out = IOType.Fluid(
+            state=fluid_out_state,
+            Mach=M2,
+            Vdot=fluid_in.mdot / fluid_out_state.density
+        )
 
-        T2 = Quantity(minimize_scalar(helper, bounds=(0, 3_000), tol=1e-1).x,
-                      "K")  # No compressor will ever reach 3,000 K
-        new_state = fluid_in.state(p=p2, T=T2)
-        g2 = new_state.specific_heat_ratio
-        T_Tt2 = (p2 / pt2).x ** ((g2 - 1) / g2)
-        M2 = (2 / (g2 - 1) * (1 / T_Tt2 - 1)) ** 0.5
-
-        # Instantiate output
-        fluid_out = IOType.Fluid(Mach=M2, mdot=fluid_in.mdot, state=new_state)
         return fluid_out
 
     @property
@@ -86,13 +89,14 @@ class Diffuser0d(PlantModule):
         The coefficient of pressure of the diffuser.
 
         Returns:
-            Module coefficient of pressure.
+            Diffuser element's coefficient of pressure.
 
         Notes:
             The coefficient of pressure according to Hill and Peterson (1992) as cited in Flack (2015), has an empirical
-            maximum of Cp ~= 0.6 before flow begins to separate in a diffuser. For this reason, the value of Cp should
-            not be set any higher than 0.6 for a well-designed diffuser in strictly ideal conditions. In non-ideal cases
-            involving, for example, periodic flow in a turbomachine, Cp may lie closer to 0.3~0.45.
+            maximum of Cp ~= 0.6 before flow begins to separate in a simple diffuser design. For this reason, it is
+            recommended that users should not set Cp > 0.6 for simple geometries, with this limit decreasing if the flow
+            incoming does not align with the diffuser inlet, or has periodicity. An example of periodic flow is that in
+            the rotors of turbomachines, for which one might expect a Cp flow separation limit closer to 0.30~0.45.
 
         References:
             R. D. Flack, “Diffusers,” in Fundamentals of Jet Propulsion with Applications, Cambridge: Cambridge
@@ -105,33 +109,8 @@ class Diffuser0d(PlantModule):
     def Cp(self, value):
         self._Cp = float(value)
 
-        # Flack reports that:
-        #   Hill and Peterson (1992) suggest Cp_max = 0.6 for flows aligned with the inlet, to prevent flow separation
-        if self.Cp > 0.6:
-            warnmsg = (f"Coefficient of pressure values of {self.Cp} are not recommended - values > 0.6 are likely to "
-                       f"result in flow separation.")
-            warnings.warn(message=warnmsg, category=RuntimeWarning)
-
     @property
-    def pi_o(self):
-        """
-        Term accounting for the loss in recovered pressure at the diffuser inlet due to, for example, sonic shocks
-        outside, or in the plane of, the inlet face of the diffuser.
-
-        Returns:
-            The total pressure ratio of diffuser inlet to freestream.
-
-        """
-        return self._pi_o
-
-    @pi_o.setter
-    def pi_o(self, value):
-        warn_msg = (f"The ability to prescribe a value pressure loss due to shocked flow is slated for "
-                    f"deprecation. Do not rely on being able to set this parameter.")
-        warnings.warn(message=warn_msg, category=DeprecationWarning)
-
-    @property
-    def pi_r(self):
+    def pi_d(self):
         """
         Term accounting for the loss in recovered pressure due to internal losses of the diffuser component.
 
@@ -139,20 +118,8 @@ class Diffuser0d(PlantModule):
             The total pressure ratio of diffuser outlet to diffuser inlet.
 
         """
-        return self._pi_r
+        return self._pi_d
 
-    @pi_r.setter
-    def pi_r(self, value):
-        self._pi_r = float(value)
-
-    @property
-    def pi_d(self):
-        """
-        The total pressure recovery ratio of the diffuser.
-
-        Returns:
-            The total pressure ratio of diffuser outlet to conditions (typically freestream) upstream of the diffuser.
-
-        """
-        pi_d = self.pi_o * self.pi_r
-        return pi_d
+    @pi_d.setter
+    def pi_d(self, value):
+        self._pi_d = float(value)
