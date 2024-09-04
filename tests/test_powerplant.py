@@ -18,7 +18,7 @@ class PlantModules(unittest.TestCase):
         gas_state = gas_model(p=101325, T=288.15)
         freestream_capture = IOType.Fluid(
             state=gas_state,
-            Mach=(speed := 220) / gas_state.speed_of_sound,  # unit circle, 220 m/s
+            Mach=(speed := 90) / gas_state.speed_of_sound,  # unit circle, 90 m/s
             Vdot=3.141592 * speed
         )
 
@@ -41,20 +41,20 @@ class PlantModules(unittest.TestCase):
         gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
 
         # The fluid is given a state and assigned to a flow
-        gas_state = gas_model(p=119046.82753515, T=310.90963859)
+        gas_state = gas_model(p=104290.84303791, T=290.9170672)
         diffuser_exit = IOType.Fluid(
             state=gas_state,
-            Mach=0.13894453308458346,
-            Vdot=634.72676389
+            Mach=0.1462998527139428,
+            Vdot=277.34050556
         )
 
         # Define mechanical work
         shaftpower = IOType.Mechanical()
         shaftpower.nu = 50  # 50 Hertz
-        shaftpower.T = 150  # 150 Newton-metres
+        shaftpower.T = 300e3  # 300,000 Newton-metres
 
         # The flow is passed into the compressor
-        my_compressor = modules.AxialPump()
+        my_compressor = modules.AxialPump0d_STAGE()
         compressor_exit, = my_compressor.forward(diffuser_exit, shaftpower)
 
 #

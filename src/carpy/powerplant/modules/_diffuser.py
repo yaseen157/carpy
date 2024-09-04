@@ -14,8 +14,7 @@ class Diffuser0d(PlantModule):
 
     The model is described as zero-dimensional as it has no spatial dependencies.
     """
-    _Cp = 0.6
-    _pi_d = 0.9
+    _Yp = 0.1
 
     def __init__(self, name: str = None):
         super().__init__(
@@ -23,6 +22,7 @@ class Diffuser0d(PlantModule):
             in_types=IOType.Fluid,
             out_types=IOType.Fluid
         )
+        self.Cp = 0.6
 
     def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
         """
@@ -56,11 +56,12 @@ class Diffuser0d(PlantModule):
             g1 = fluid_in.state.specific_heat_ratio
 
         # Stagnation properties downstream
-        pt2 = pt1 * self.pi_d  # Adiabatic but not isentropic process (some stagnation pressure is lost in friction)
+        q1 = g1 / 2 * p1 * M1 ** 2
+        delta_pt12 = self.Yp * q1
+        pt2 = pt1 - delta_pt12  # Adiabatic but not isentropic process (some stagnation pressure is lost in friction)
         Tt2 = Tt1  # Adiabatic process
 
         # Compute downstream fluid state
-        q1 = g1 / 2 * p1 * M1 ** 2
         delta_p12 = self.Cp * q1
         p2 = p1 + delta_p12
 
@@ -110,16 +111,17 @@ class Diffuser0d(PlantModule):
         self._Cp = float(value)
 
     @property
-    def pi_d(self):
+    def Yp(self):
         """
-        Term accounting for the loss in recovered pressure due to internal losses of the diffuser component.
+        The pressure loss coefficient expresses the difference in stagnation pressures at the front and rear of the
+        component, due to internal friction losses, as a fraction of the input dynamic pressure.
 
         Returns:
-            The total pressure ratio of diffuser outlet to diffuser inlet.
+            Stagnation pressure loss as a function of the inlet dynamic pressure.
 
         """
-        return self._pi_d
+        return self._Yp
 
-    @pi_d.setter
-    def pi_d(self, value):
-        self._pi_d = float(value)
+    @Yp.setter
+    def Yp(self, value):
+        self._Yp = float(value)
