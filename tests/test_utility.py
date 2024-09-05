@@ -184,7 +184,7 @@ class UnitConversion(unittest.TestCase):
         # Float casting
         self.assertEqual(float(mass), 85.4)
         self.assertIsInstance(float(mass), float)
-        self.assertRaises(TypeError, lambda: float(velocity))
+        self.assertRaises(ValueError, lambda: float(velocity))
 
         # Floor
         value = np.floor(mass)
@@ -198,7 +198,7 @@ class UnitConversion(unittest.TestCase):
         # Integer cast
         self.assertEqual(int(mass), 85)
         self.assertIsInstance(int(mass), int)
-        self.assertRaises(TypeError, lambda: int(velocity))
+        self.assertRaises(ValueError, lambda: int(velocity))
 
         # Multiplication
         value = mass * abs(velocity.flat[0])

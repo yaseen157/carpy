@@ -686,7 +686,7 @@ class Quantity(np.ndarray):
 
     def __int__(self):
         """Cast as integer."""
-        return int(self.x)
+        return int(float(self))
 
     def __ipow__(self, other):
         """Inplace exponentiation"""
