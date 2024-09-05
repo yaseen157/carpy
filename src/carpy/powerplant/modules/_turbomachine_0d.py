@@ -4,36 +4,46 @@ References:
     Cambridge: Cambridge University Press, 2005, pp. 276–373.
 
 """
-import warnings
+import numpy as np
 
 from carpy.powerplant import IOType
 from carpy.powerplant.modules import PlantModule
-from carpy.utility import Quantity
 
-from ._diffuser import Diffuser0d
+from carpy.powerplant.modules._diffuser import Diffuser0d
 
-__all__ = ["AxialPump0d_STAGE"]
+__all__ = ["AxialCompressorStage0d"]
 __author__ = "Yaseen Reza"
 
 
-class AxialPump0d_GVANE(Diffuser0d):
+class GuideVane0d(Diffuser0d):
     """
-    Inlet or outlet guide vane (IGV/OGV). Used effectively as the stator in an axial-flow machine to add or remove swirl
-    from a flow.
+    Inlet or outlet guide vane (IGV/OGV) cascade. Used effectively as the stator in an axial-flow machine to add or
+    remove swirl from the flow.
 
     The model is described as zero-dimensional as it has no spatial dependencies.
-    """
 
-    def __init__(self, name: str = None):
-        super().__init__(name=name)
-        self.Cp = 0.4
+    Notes:
+        The coefficient of pressure of the guide vane is +ve for the recovery of static pressure (e.g. flow is slowing
+        down) and -ve for the loss of static pressure (flow is accelerating). To reduce the odds of flow separation,
+        ensure that Cp <= 0.6.
+
+        If the effect of a guide vane is to be ignored, set Cp and Yp (pressure recovery and loss) attributes to zero.
+
+    """
+    _Cp = np.nan
 
 
-class AxialPump0d_ROTOR(PlantModule):
+class Rotor0d(PlantModule):
     """
-    Rotor blade row model for axial-flow turbomachines.
+    Rotor blade cascade for axial-flow turbomachines.
+
+    The model is described as zero-dimensional as it has no spatial dependencies.
+
+    Notes:
+        The flow upstream and downstream of the rotor is assumed to have swirl.
+
     """
-    _eta = 0.89
+    _eta = 0.90
 
     def __init__(self, name: str = None):
         super().__init__(
@@ -86,18 +96,39 @@ class AxialPump0d_ROTOR(PlantModule):
         return self._eta
 
 
-class AxialPump0d_STAGE(PlantModule):
+class AxialCompressorStage0d(PlantModule):
+    """
+    Compressor stage, effectively consisting of a rotor and stator.
+
+    The model is described as zero-dimensional as it has no spatial dependencies.
+
+    Notes:
+        Unless the component downstream of a rotor immediately benefits from swirl (e.g. a subsequent compressor stage
+        or a combustor), the flow upstream and downstream of a rotor de-swirls and aligns with the axial flow direction.
+        This should happen with each inlet/outlet guide vane blade cascade, or even partway through a stator.
+
+        Conventional wisdom collects pairs of rotor and stator cascades into "stages", where inlet and outlet flows
+        typically swirl. This class breaks away from this convention to effectively consider a stage as consecutive
+        cascades of inlet guide vanes, a rotor, and outlet guide vanes. Axial flow in, axial flow out! For the purposes
+        of zero-dimensional design, this makes it easier to consider an abstraction of the compressor stage that does
+        not care if the flow upstream or downstream of the stage is swirling.
+
+    """
+
     def __init__(self, name: str = None):
         super().__init__(
             name=name,
             in_types=(IOType.Fluid, IOType.Mechanical),
             out_types=IOType.Fluid
         )
-        self._IGV = AxialPump0d_GVANE()
+        # Accelerate flow (introduce swirl)
+        self._IGV = GuideVane0d()
         self.IGV.Cp = -0.8
         self.IGV.Yp = 0.1
-        self._rotor = AxialPump0d_ROTOR()
-        self._OGV = AxialPump0d_GVANE()
+        # Reverse swirl direction over the rotor
+        self._rotor = Rotor0d()
+        self._OGV = GuideVane0d()
+        # Decelerate flow (remove swirl)
         self.OGV.Cp = 0.6
         self.OGV.Yp = 0.1
 
@@ -119,13 +150,23 @@ class AxialPump0d_STAGE(PlantModule):
         return state3
 
     @property
-    def IGV(self) -> AxialPump0d_GVANE:
+    def IGV(self) -> GuideVane0d:
         return self._IGV
 
-    @property
-    def OGV(self) -> AxialPump0d_GVANE:
-        return self._OGV
+    @IGV.deleter
+    def IGV(self):
+        self.IGV.Cp = 0.0
+        self.IGV.Yp = 0.0
 
     @property
-    def rotor(self) -> AxialPump0d_ROTOR:
+    def OGV(self) -> GuideVane0d:
+        return self._OGV
+
+    @OGV.deleter
+    def OGV(self):
+        self.OGV.Cp = 0.0
+        self.OGV.Yp = 0.0
+
+    @property
+    def rotor(self) -> Rotor0d:
         return self._rotor

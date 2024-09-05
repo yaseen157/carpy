@@ -54,7 +54,7 @@ class PlantModules(unittest.TestCase):
         shaftpower.T = 15000  # Newton-metres
 
         # Pass flow to a compression stage
-        my_stage = modules.AxialPump0d_STAGE()
+        my_stage = modules.AxialCompressorStage0d()
         stage_exit, = my_stage.forward(diffuser_exit, shaftpower)
         return
 
