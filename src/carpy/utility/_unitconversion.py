@@ -97,6 +97,7 @@ class UnitOfMeasurement:
             valid_combinations = []
             for (prefix_id, inferred_suffix, prefix_system) in inferred_combinations:
 
+                # TODO: This would be a good place to investigate opportunities to speed up unit of measurement creation
                 valid_suffixes = {
                     id: inferred_suffix for (id, symbols) in enumerate(dataframes["dimensions"]["Symbol(s)"])
                     # If the inferred suffix is actually in the Symbol(s) and
@@ -256,6 +257,9 @@ class UnitOfMeasurement:
         if not isinstance(other, cls):
             error_msg = f"Illegal operation, only {cls.__name__} objects may be multiplied (got {type(other).__name__})"
             raise TypeError(error_msg)
+
+        # TODO: Figure out why this function is so slow (probably because instantiating this object via string is
+        #   computationally costly - there has to be a speedier, secret way to call __new__()...)
 
         # Generate new dimensionality, ignoring radian and steradian contribution
         new_dims = np.zeros(len(self._si_ext))
