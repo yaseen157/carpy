@@ -76,12 +76,7 @@ class Diffuser0d(PlantModule):
         M2 = (2 / (g2 - 1) * (Tt2 / T2 - 1)) ** 0.5
 
         fluid_out_state = fluid_in.state(p=p2, T=T2)
-        fluid_out = IOType.Fluid(
-            state=fluid_out_state,
-            Mach=M2,
-            Vdot=fluid_in.mdot / fluid_out_state.density
-        )
-
+        fluid_out = IOType.Fluid(state=fluid_out_state, Mach=M2, mdot=fluid_in.mdot)
         return (fluid_out,)
 
     @property

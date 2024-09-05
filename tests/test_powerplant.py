@@ -50,12 +50,13 @@ class PlantModules(unittest.TestCase):
 
         # Define mechanical work
         shaftpower = IOType.Mechanical()
-        shaftpower.nu = 50  # 50 Hertz
-        shaftpower.T = 300e3  # 300,000 Newton-metres
+        shaftpower.nu = 50  # Hertz
+        shaftpower.T = 15000  # Newton-metres
 
-        # The flow is passed into the compressor
-        my_compressor = modules.AxialPump0d_STAGE()
-        compressor_exit, = my_compressor.forward(diffuser_exit, shaftpower)
+        # Pass flow to a compression stage
+        my_stage = modules.AxialPump0d_STAGE()
+        stage_exit, = my_stage.forward(diffuser_exit, shaftpower)
+        return
 
 #
 #     def test_combustor(self):
