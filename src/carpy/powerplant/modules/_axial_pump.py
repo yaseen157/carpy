@@ -12,7 +12,7 @@ from carpy.utility import Quantity
 
 from ._diffuser import Diffuser0d
 
-__all__ = ["AxialPump0d_GVANE", "AxialPump0d_ROTOR", "AxialPump0d_STAGE"]
+__all__ = ["AxialPump0d_STAGE"]
 __author__ = "Yaseen Reza"
 
 
@@ -33,7 +33,7 @@ class AxialPump0d_ROTOR(PlantModule):
     """
     Rotor blade row model for axial-flow turbomachines.
     """
-    _eta = 0.85
+    _eta = 0.89
 
     def __init__(self, name: str = None):
         super().__init__(
@@ -82,7 +82,7 @@ class AxialPump0d_ROTOR(PlantModule):
 
     @property
     def eta(self):
-        """Isentropic stage efficiency."""
+        """Isentropic rotor efficiency."""
         return self._eta
 
 
@@ -93,18 +93,39 @@ class AxialPump0d_STAGE(PlantModule):
             in_types=(IOType.Fluid, IOType.Mechanical),
             out_types=IOType.Fluid
         )
+        self._IGV = AxialPump0d_GVANE()
+        self.IGV.Cp = -0.8
+        self.IGV.Yp = 0.1
         self._rotor = AxialPump0d_ROTOR()
-        self._stator = AxialPump0d_GVANE()
+        self._OGV = AxialPump0d_GVANE()
+        self.OGV.Cp = 0.6
+        self.OGV.Yp = 0.1
 
     def forward(self, *inputs):
-        state2 = self.rotor.forward(*inputs)
-        state3 = self.stator.forward(*state2)
+        # Input checks
+        inputs += tuple(self.inputs)
+        assert len(inputs) == 2, f"{type(self).__name__} is expecting exactly two inputs (got {inputs})"
+        assert [isinstance(input, self.inputs.legal_types) for input in inputs], f"{self.inputs.legal_types=}"
+        assert type(inputs[0]) is not type(inputs[1]), f"expected inputs to be each of one of {self.inputs.legal_types}"
+        inputs = IOType.collect(*inputs)
+
+        # Unpack input
+        fluid_in: IOType.Fluid = inputs.fluid[0]
+        mech_in: IOType.Mechanical = inputs.mechanical[0]
+
+        state1 = self.IGV.forward(fluid_in)
+        state2 = self.rotor.forward(*state1, mech_in)
+        state3 = self.OGV.forward(*state2)
         return state3
+
+    @property
+    def IGV(self) -> AxialPump0d_GVANE:
+        return self._IGV
+
+    @property
+    def OGV(self) -> AxialPump0d_GVANE:
+        return self._OGV
 
     @property
     def rotor(self) -> AxialPump0d_ROTOR:
         return self._rotor
-
-    @property
-    def stator(self) -> AxialPump0d_GVANE:
-        return self._stator
