@@ -130,9 +130,9 @@ class AxialCompressorStage0d(PlantModule):
         self._OGV = GuideVane0d()
         # Decelerate flow (remove swirl)
         self.OGV.Cp = 0.6
-        self.OGV.Yp = 0.1
+        self.OGV.Yp = 0.2
 
-    def forward(self, *inputs):
+    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
         # Input checks
         inputs += tuple(self.inputs)
         assert len(inputs) == 2, f"{type(self).__name__} is expecting exactly two inputs (got {inputs})"

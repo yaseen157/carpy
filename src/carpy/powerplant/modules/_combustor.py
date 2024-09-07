@@ -20,8 +20,16 @@ class Combustor(PlantModule):
         # Lower limit of zero as the fuel flow rate can drop to zero (no heat addition).
         self._admit_low = 0
 
-    def forward(self, **kwargs):
-        input_chemical, = filter(lambda x: isinstance(x, IOType.Chemical), self.inputs)
-        input_fluid, = filter(lambda x: isinstance(x, IOType.Fluid), self.inputs)
+    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
+        # Input checks
+        inputs += tuple(self.inputs)
+        assert len(inputs) == 2, f"{type(self).__name__} is expecting exactly two inputs (got {inputs})"
+        assert [isinstance(input, self.inputs.legal_types) for input in inputs], f"{self.inputs.legal_types=}"
+        assert type(inputs[0]) is not type(inputs[1]), f"expected inputs to be each of one of {self.inputs.legal_types}"
+        inputs = IOType.collect(*inputs)
+
+        # Unpack input
+        fluid_in: IOType.Fluid = inputs.fluid[0]
+        chem_in: IOType.Chemical = inputs.chemical[0]
 
         return

@@ -141,7 +141,7 @@ class Electrical(AbstractPower):
 
     @C.setter
     def C(self, value):
-        self.X = 1 / value / self.omega
+        self.X = 1 / Quantity(value, "F") / self.omega
 
     @property
     def L(self) -> Quantity:
@@ -152,7 +152,7 @@ class Electrical(AbstractPower):
 
     @L.setter
     def L(self, value):
-        self.X = value * self.omega
+        self.X = Quantity(value, "H") * self.omega
 
     @property
     def power_factor(self):
@@ -171,7 +171,7 @@ class Electrical(AbstractPower):
 
     @Q.setter
     def Q(self, value):
-        self.phi = np.arctan2(value, self.power)
+        self.phi = np.arctan2(Quantity(value, "var"), self.power)
 
     @property
     def R(self) -> Quantity:
@@ -348,7 +348,7 @@ class Fluid(AbstractPower):
 
     @Vdot.setter
     def Vdot(self, value):
-        self.mdot = self.state.density * value
+        self.mdot = self.state.density * Quantity(value, "m^3 s^-1")
 
     @property
     def u(self):
@@ -357,7 +357,7 @@ class Fluid(AbstractPower):
 
     @u.setter
     def u(self, value):
-        self.Mach = value / self.state.speed_of_sound
+        self.Mach = Quantity(value, "m s^-1") / self.state.speed_of_sound
 
     @property
     def q(self):
@@ -366,7 +366,7 @@ class Fluid(AbstractPower):
 
     @q.setter
     def q(self, value):
-        self.u = (2 * value / self.state.density) ** 0.5
+        self.u = (2 * Quantity(value, "Pa") / self.state.density) ** 0.5
 
     @property
     def total_density(self):
@@ -379,7 +379,7 @@ class Fluid(AbstractPower):
     @total_density.setter
     def total_density(self, value):
         gamma = self.state.specific_heat_ratio
-        rt = float(value)
+        rt = Quantity(value, "kg m^-3")
         r_rt = self.state.density / rt
         T_Tt = r_rt ** (gamma - 1)
         self.total_temperature = self.state.temperature / T_Tt
@@ -391,7 +391,7 @@ class Fluid(AbstractPower):
 
     @total_enthalpy.setter
     def total_enthalpy(self, value):
-        ht = float(value)
+        ht = Quantity(value, "J kg^-1")
         self.u = ((ht - self.state.specific_enthalpy) * 2) ** 0.5
 
     @property
@@ -406,7 +406,7 @@ class Fluid(AbstractPower):
     @total_pressure.setter
     def total_pressure(self, value):
         gamma = self.state.specific_heat_ratio
-        pt = float(value)
+        pt = Quantity(value, "Pa")
         p_pt = self.state.pressure / pt
         T_Tt = p_pt ** ((gamma - 1) / gamma)
         self.total_temperature = self.state.temperature / T_Tt
@@ -420,7 +420,7 @@ class Fluid(AbstractPower):
 
     @total_temperature.setter
     def total_temperature(self, value):
-        Tt = float(value)
+        Tt = Quantity(value, "K")
         T_Tt = self.state.temperature / Tt
         self.Mach = (2 / (self.state.specific_heat_ratio - 1) * (1 / T_Tt - 1)) ** 0.5
 

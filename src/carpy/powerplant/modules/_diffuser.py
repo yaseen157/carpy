@@ -71,6 +71,8 @@ class Diffuser0d(PlantModule):
             rhs = (Tstatic / float(Tt2)) ** (g2 / (g2 - 1))
             return abs(lhs - rhs)
 
+        # TODO: Decide if it's even worth having a newton solved temperature, or if it's safe to just assume the gas
+        #   behaves as locally perfect
         T2 = Quantity(newton(helper, Tt2), "K")
         g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=T2)
         M2 = (2 / (g2 - 1) * (Tt2 / T2 - 1)) ** 0.5

@@ -2,7 +2,8 @@
 import unittest
 
 from carpy.physicalchem import species, UnreactiveFluidModel
-from carpy.powerplant import IOType, modules, PowerNetwork
+from carpy.powerplant import IOType, modules
+from carpy.utility import Quantity
 
 
 class PlantModules(unittest.TestCase):
@@ -33,7 +34,7 @@ class PlantModules(unittest.TestCase):
         self.assertGreater(diffuser_exit.state.temperature, freestream_capture.state.temperature)
         return
 
-    def test_axialpump(self):
+    def test_axialcompressor0d(self):
         """Check the operation of a fluid compressor."""
 
         # Define a fluid
@@ -41,11 +42,11 @@ class PlantModules(unittest.TestCase):
         gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
 
         # The fluid is given a state and assigned to a flow
-        gas_state = gas_model(p=104290.84303791, T=290.9170672)
+        gas_state = gas_model(p=104290, T=291)
         diffuser_exit = IOType.Fluid(
             state=gas_state,
-            Mach=0.1462998527139428,
-            Vdot=277.34050556
+            Mach=0.146,
+            Vdot=277
         )
 
         # Define mechanical work
@@ -56,6 +57,31 @@ class PlantModules(unittest.TestCase):
         # Pass flow to a compression stage
         my_stage = modules.AxialCompressorStage0d()
         stage_exit, = my_stage.forward(diffuser_exit, shaftpower)
+
+        self.assertIsInstance(stage_exit, type(diffuser_exit))
+        self.assertLess(stage_exit.Vdot, diffuser_exit.Vdot)
+        self.assertGreater(stage_exit.state.pressure, diffuser_exit.state.pressure)
+        self.assertGreater(stage_exit.state.temperature, diffuser_exit.state.temperature)
+        return
+
+    def test_combustor(self):
+        # Define a fluid
+        gas_model = UnreactiveFluidModel()
+        gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
+
+        # The fluid is given a state and assigned to a flow
+        gas_state = gas_model(p=116112, T=302)
+        compressor_exit = IOType.Fluid(
+            state=gas_state,
+            Mach=0.18,
+            Vdot=258
+        )
+
+        # Define chemical work
+        heating = IOType.Chemical()
+        heating.CV = 42.8e6  # 42.8 Megajoules for aviation fuel
+        heating.mdot = (Quantity(200, "gal_USC hr^-1") / 2) * Quantity(0.8, "g mL^-1")
+
         return
 
 #

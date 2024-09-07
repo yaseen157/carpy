@@ -85,17 +85,17 @@ class UnitOfMeasurement:
                     if x  # x is a boolean
                 )
             ]
-            # The below code is commented out because while filter is a recommended method, its 10x slower than tuple
-            # comprehension for some reason right now...
-            # inferred_combinations = [
-            #     (prefix_id, re.match(rf"{prefix}(\w+)", symbol).groups()[0], prefix_system)
-            #     for (prefix_id, prefix) in valid_prefixes.items()
-            #     for prefix_system in dataframes["prefixes"].filter(pl.col("Symbol") == prefix)["System"]
-            # ]
+
+            # If the inferred suffix contains an explicit system, check that it is compatible with the prefix inferred
+            inferred_combinations = [
+                (prefix_id, *inferred_suffix.split("_")) if "_" in inferred_suffix
+                else (prefix_id, inferred_suffix, inferred_system)
+                for (prefix_id, inferred_suffix, inferred_system) in inferred_combinations
+            ]
 
             # Valid suffixes are the actual units of quantity measurement
             valid_combinations = []
-            for (prefix_id, inferred_suffix, prefix_system) in inferred_combinations:
+            for (prefix_id, inferred_suffix, inferred_system) in inferred_combinations:
 
                 # TODO: This would be a good place to investigate opportunities to speed up unit of measurement creation
                 valid_suffixes = {
@@ -103,7 +103,7 @@ class UnitOfMeasurement:
                     # If the inferred suffix is actually in the Symbol(s) and
                     if inferred_suffix in symbols.split(",") and (
                         # Filter by the known system. If I don't know, it's definitely not Bel (that *needs* a prefix!)
-                        (dataframes["dimensions"]["System"][id] == prefix_system) if prefix_system is not None
+                        (dataframes["dimensions"]["System"][id] == inferred_system) if inferred_system is not None
                         else (dataframes["dimensions"]["System"][id] != "Bel")
                     )
                 }
@@ -422,18 +422,25 @@ class UnitOfMeasurement:
 
 
 class Quantity(np.ndarray):
+    # TODO: documentation, need to explain the purpose of safe casting!
     _carpy_units: UnitOfMeasurement
 
     # =========================
     # numpy array compatibility
     # -------------------------
 
-    def __new__(cls, values, /, units=None):
+    def __new__(cls, values, /, units=None, safe_casting=None):
 
+        # Recast inputs
         unit_of_measurement = UnitOfMeasurement(units)
+        safe_casting = False if safe_casting is None else safe_casting
+
         if isinstance(values, Quantity) and (values.u != unit_of_measurement):
             warn_msg = f"{cls.__name__} object {values} had units recast to '{unit_of_measurement}'"
-            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=3)
+            if safe_casting is True:
+                raise ValueError(warn_msg)
+            else:
+                warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=3)
 
         # Recast the values to a numpy array
         values = np.atleast_1d(values)
@@ -849,7 +856,7 @@ class Quantity(np.ndarray):
             # Ignore the warnings we get about recasting units, and then make sure we apply the original unit
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                remembered_quantity = Quantity(vanilla_result, self.u)
+                remembered_quantity = Quantity(vanilla_result, self.u, safe_casting=False)
 
             return remembered_quantity
 
