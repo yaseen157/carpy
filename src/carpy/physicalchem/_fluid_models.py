@@ -379,7 +379,10 @@ class FluidModel:
     @property
     def Y(self) -> dict[ChemicalSpecies, float]:
         """Chemical composition by mass fraction."""
-        mass_composition = {species: (species.molar_mass / self.molar_mass * Xi).x for (species, Xi) in self.X.items()}
+        mass_composition = {
+            species: float(species.molar_mass / self.molar_mass * Xi)
+            for (species, Xi) in self.X.items()
+        }
         return mass_composition
 
     @Y.setter

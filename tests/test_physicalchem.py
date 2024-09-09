@@ -129,11 +129,21 @@ class MolecularStructures(unittest.TestCase):
 class FluidModels(unittest.TestCase):
 
     def test_unreactive_ideal(self):
+        # ========
+        # Hydrogen
         my_model = UnreactiveFluidModel()
         my_model.X = {species.hydrogen(): 0.9}
 
         # Create fluid state object
-        _ = my_model(p=101325, T=288.15)
+        fluid_state = my_model(p=101325, T=288.15)
+
+        # ==============
+        # Ansatz-mixture
+        my_model = UnreactiveFluidModel()
+        my_model.X = {species.Jet_A_4658(): 1.1}
+
+        # Create fluid state object
+        fluid_state = my_model(p=101325, T=288.15)
         return
 
 

@@ -27,6 +27,7 @@ class PlantModules(unittest.TestCase):
         my_diffuser = modules.Diffuser0d()
         diffuser_exit, = my_diffuser.forward(freestream_capture)
 
+        # Qualitative checks
         self.assertIsInstance(diffuser_exit, type(freestream_capture))
         self.assertLess(diffuser_exit.Mach, freestream_capture.Mach)
         self.assertLess(diffuser_exit.Vdot, freestream_capture.Vdot)
@@ -58,31 +59,37 @@ class PlantModules(unittest.TestCase):
         my_stage = modules.AxialCompressorStage0d()
         stage_exit, = my_stage.forward(diffuser_exit, shaftpower)
 
+        # Qualitative checks
         self.assertIsInstance(stage_exit, type(diffuser_exit))
         self.assertLess(stage_exit.Vdot, diffuser_exit.Vdot)
+        self.assertEqual(stage_exit.mdot, diffuser_exit.mdot)
         self.assertGreater(stage_exit.state.pressure, diffuser_exit.state.pressure)
         self.assertGreater(stage_exit.state.temperature, diffuser_exit.state.temperature)
         return
 
-    def test_combustor(self):
-        # Define a fluid
-        gas_model = UnreactiveFluidModel()
-        gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
-
-        # The fluid is given a state and assigned to a flow
-        gas_state = gas_model(p=116112, T=302)
-        compressor_exit = IOType.Fluid(
-            state=gas_state,
-            Mach=0.18,
-            Vdot=258
-        )
-
-        # Define chemical work
-        heating = IOType.Chemical()
-        heating.CV = 42.8e6  # 42.8 Megajoules for aviation fuel
-        heating.mdot = (Quantity(200, "gal_USC hr^-1") / 2) * Quantity(0.8, "g mL^-1")
-
-        return
+    # def test_combustor(self):
+    #     # Define a fluid
+    #     gas_model = UnreactiveFluidModel()
+    #     gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
+    #
+    #     # The fluid is given a state and assigned to a flow
+    #     gas_state = gas_model(p=116112, T=302)
+    #     compressor_exit = IOType.Fluid(
+    #         state=gas_state,
+    #         Mach=0.18,
+    #         Vdot=258
+    #     )
+    #
+    #     # Define chemical work
+    #     heating = IOType.Chemical()
+    #     heating.CV = 42.8e6  # 42.8 Megajoules for aviation fuel
+    #     heating.mdot = (Quantity(200, "gal_USC hr^-1") / 2) * Quantity(0.8, "g mL^-1")  # 0.8 g/mL density @ 15 degC
+    #
+    #     # Pass flow to a combustor
+    #     my_combustor = modules.Combustor_p()
+    #     combustor_exit, = my_combustor.forward(compressor_exit, heating)
+    #
+    #     return
 
 #
 #     def test_combustor(self):

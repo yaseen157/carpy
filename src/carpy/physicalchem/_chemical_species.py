@@ -51,9 +51,16 @@ class ChemicalSpecies:
         self._LVcritical_T = Quantity(value, "K")
 
     @property
+    def structures(self) -> tuple[Structure]:
+        return self._structures
+
+    @property
     def molar_mass(self) -> Quantity:
         """Molar mass of the species."""
-        return self._structures[0].molar_mass
+        mass = Quantity(0, "g mol^-1")
+        for structure in self.structures:
+            mass += structure.molar_mass
+        return mass
 
     def specific_heat_V(self, p, T) -> Quantity:
         """
@@ -70,7 +77,7 @@ class ChemicalSpecies:
         for i in range(cv.size):
             cv.flat[i] = np.mean([
                 structure.specific_heat_V(p=p.flat[i], T=T.flat[i])
-                for structure in self._structures
+                for structure in self.structures
             ])
         return Quantity(cv, "J kg^{-1} K^{-1}")
 
@@ -89,7 +96,7 @@ class ChemicalSpecies:
         for i in range(u.size):
             u.flat[i] = np.mean([
                 structure.specific_internal_energy(p=p.flat[i], T=T.flat[i])
-                for structure in self._structures
+                for structure in self.structures
             ])
         return Quantity(u, "J kg^{-1}")
 
