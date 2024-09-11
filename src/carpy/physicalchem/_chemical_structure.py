@@ -99,6 +99,9 @@ def discover_molecule(atom: Atom) -> nx.Graph:
         for bond in atom.bonds:
             atom_l, atom_r = bond.atoms
             graph.add_edge(atom_l, atom_r)
+        # Edge case: The atom has no bonds because this molecule is monatomic
+        if not atom.bonds:
+            graph.add_node(atom)
 
     return graph
 
@@ -297,7 +300,10 @@ class PartitionMethods:
         # Polyatomic
         else:
             # TODO: More robust computation of inertia from *larger* polyatomic structures
-            longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_path]
+            try:
+                longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_path]
+            except NotImplementedError:
+                raise
 
             # Central atom should have the most neighbours, sort from most neighbours to least
             longest_path_atoms = sorted(longest_path_atoms, key=lambda x: len(x.neighbours), reverse=True)
