@@ -94,6 +94,12 @@ class Atom:
         ]) - {self}
         return neighbours
 
+    def bind_hydrogen(self) -> None:
+        """Bind all available valence electrons with hydrogen atoms."""
+        num_hydrogen_to_spawn = self.electrons.valence_free
+        [self.bonds.add_covalent(atom=Atom("H"), order_limit=1) for _ in range(num_hydrogen_to_spawn)]
+        return None
+
 
 class ElectronConfiguration(dict):
     """Class for accessing properties of an atom's electron structure."""

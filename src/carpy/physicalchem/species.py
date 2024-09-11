@@ -96,7 +96,35 @@ def xenon():
 
 # =========
 # Compounds
-__all__ += ["R134a", "carbon_dioxide", "dinitrogen_oxide", "methane", "water"]
+__all__ += ["_1methyldecalin", "R134a", "carbon_dioxide", "dinitrogen_oxide", "methane", "water"]
+
+
+def _1methyldecalin():
+    # 1-Methyldecalin
+
+    C1 = Atom("C")  # Methyl connects here
+    C2 = Atom("C")  # Shared between rings, connects to C1
+    C3 = Atom("C")  # Shared between rings, connects to C2
+
+    # Define rings
+    #   ... constituent atoms
+    ring1 = [C1, C2, C3] + [Atom("C") for _ in range(3)]
+    ring2 = [C2, C3] + [Atom("C") for _ in range(4)]
+    #   ... constituent bonds
+    [carbon.bonds.add_covalent(atom=ring1[(i + 1) % len(ring1)], order_limit=1) for i, carbon in enumerate(ring1)]
+    [carbon.bonds.add_covalent(atom=ring2[(i + 1) % len(ring2)], order_limit=1)
+     for i, carbon in enumerate(ring2) if carbon is not C2]
+    #   ... bind free electrons with hydrogen
+    [carbon.bind_hydrogen() for carbon in set(ring1 + ring2) if carbon is not C1]
+
+    # Add the methyl group
+    Cmethyl = Atom("C")
+    C1.bonds.add_covalent(atom=Cmethyl, order_limit=1)
+    C1.bind_hydrogen()
+    Cmethyl.bind_hydrogen()
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C11H20"))
+
+    return species
 
 
 def R134a():

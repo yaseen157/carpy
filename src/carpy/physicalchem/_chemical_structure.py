@@ -107,7 +107,7 @@ def discover_molecule(atom: Atom) -> nx.Graph:
 
 
 class PartitionMethods:
-    _longest_path: list[int]
+    _longest_chain: list[int]
     _ordered_atoms: tuple[Atom, ...]
     atoms: set[Atom]
     bonds: set[CovalentBond]
@@ -301,7 +301,7 @@ class PartitionMethods:
         else:
             # TODO: More robust computation of inertia from *larger* polyatomic structures
             try:
-                longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_path]
+                longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_chain]
             except NotImplementedError:
                 raise
 
@@ -418,8 +418,38 @@ class Structure(PartitionMethods):
         return bonds
 
     @property
-    def _longest_path(self) -> list[int]:
-        """Produce a list of the ._atoms indices that represent the molecule's longest chain of functional groups."""
+    def _longest_chain(self) -> list[int]:
+        """
+        Produce a list of the ._atoms indices that represent the molecule's longest chain of functional groups.
+
+        Notes:
+            The shortest path from molecule to molecule is computed. The longest chains of molecules in this shortest
+            path analysis is recorded as the longest chain. If there are multiple competitors for the molecule's longest
+            chain, this is resolved according to IUPAC longest chain rules.
+
+        """
+        # The longest chains considered should not start from a hydrogen atom
+        possible_sources = [atom for atom in self._ordered_atoms if atom.symbol != "H"]
+
+        # Going over each of the possible source and target atoms, check for the shortest paths between them
+        longest_chains = []
+        max_length = 0
+        for i, start in enumerate(possible_sources):
+            for j, finish in enumerate(possible_sources):
+                if i >= j:
+                    continue  # Ignore paths to self and paths already considered
+
+                # Generate the shortest paths, and record the longest chain of atoms observed
+                path_generator = nx.all_shortest_paths(G=self._graph, source=start, target=finish)
+                for path in path_generator:
+                    if len(path) < max_length:
+                        continue
+                    elif len(path) == max_length:
+                        longest_chains.append(path)
+                    else:
+                        max_length = len(path)
+                        longest_chains = [path]
+
         mat_adjacency = nx.adjacency_matrix(self._graph).toarray().astype(float)
         mask = np.nan
         np.fill_diagonal(mat_adjacency, mask)
