@@ -1,11 +1,11 @@
 from carpy.powerplant._io import IOType
 from carpy.powerplant.modules import PlantModule
 
-__all__ = ["Combustor_p"]
+__all__ = ["CPreactor"]
 __author__ = "Yaseen Reza"
 
 
-class Combustor_p(PlantModule):
+class CPreactor(PlantModule):
     """
     Constant pressure through-flow reactor. Energy from chemical heat release is added to incident flow.
     """

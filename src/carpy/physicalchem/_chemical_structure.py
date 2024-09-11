@@ -414,7 +414,7 @@ class Structure(PartitionMethods):
     @property
     def _longest_path(self) -> list[int]:
         """Produce a list of the ._atoms indices that represent the molecule's longest chain of functional groups."""
-        mat_adjacency = nx.adjacency_matrix(self._graph)
+        mat_adjacency = nx.adjacency_matrix(self._graph).toarray().astype(float)
         mask = np.nan
         np.fill_diagonal(mat_adjacency, mask)
 
@@ -900,14 +900,14 @@ class UnstructuredAlkane(Structure):
         # Invalidate any out of bounds np.nan
         invalid = np.where((2.9816 <= tau) & (tau <= 15), False, True)
         if np.any(invalid):
-            warn_msg = f"Encountered temperatures outside of model bounds"
+            warn_msg = f"Encountered out-of-bounds temperatures for specific heat capacity model of normal alkanes"
             warnings.warn(message=warn_msg, category=RuntimeWarning)
 
         # Mayer's relation can be used because the heat capacity estimations assume ideal gas behaviour
         Rspecific = co.PHYSICAL.R / self.molar_mass
         cv = cp - Rspecific
 
-        return Quantity(cv)
+        return cv
 
     @property
     def inertia_tensor(self):

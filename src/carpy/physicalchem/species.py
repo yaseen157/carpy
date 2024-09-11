@@ -125,6 +125,16 @@ def carbon_dioxide():
     return species
 
 
+def cyclohexane():
+    # C6H12 cyclohexane
+    carbons = [Atom("C") for _ in range(6)]
+    for i, carbon in enumerate(carbons):
+        [carbon.bonds.add_covalent(atom=Atom("H"), order_limit=1) for _ in range(2)]  # Bond hydrogens
+        carbon.bonds.add_covalent(atom=carbons[(i + 1) % len(carbons)], order_limit=1)  # Bond C-C
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C6H12"))
+    return species
+
+
 def dinitrogen_oxide():
     # dinitrogen_oxide
     N1 = Atom("N")

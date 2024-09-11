@@ -67,29 +67,29 @@ class PlantModules(unittest.TestCase):
         self.assertGreater(stage_exit.state.temperature, diffuser_exit.state.temperature)
         return
 
-    # def test_combustor(self):
-    #     # Define a fluid
-    #     gas_model = UnreactiveFluidModel()
-    #     gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
-    #
-    #     # The fluid is given a state and assigned to a flow
-    #     gas_state = gas_model(p=116112, T=302)
-    #     compressor_exit = IOType.Fluid(
-    #         state=gas_state,
-    #         Mach=0.18,
-    #         Vdot=258
-    #     )
-    #
-    #     # Define chemical work
-    #     heating = IOType.Chemical()
-    #     heating.CV = 42.8e6  # 42.8 Megajoules for aviation fuel
-    #     heating.mdot = (Quantity(200, "gal_USC hr^-1") / 2) * Quantity(0.8, "g mL^-1")  # 0.8 g/mL density @ 15 degC
-    #
-    #     # Pass flow to a combustor
-    #     my_combustor = modules.Combustor_p()
-    #     combustor_exit, = my_combustor.forward(compressor_exit, heating)
-    #
-    #     return
+    def test_combustor(self):
+        # Define a fluid
+        gas_model = UnreactiveFluidModel()
+        gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
+
+        # The fluid is given a state and assigned to a flow
+        gas_state = gas_model(p=116112, T=302)
+        compressor_exit = IOType.Fluid(
+            state=gas_state,
+            Mach=0.18,
+            Vdot=258
+        )
+
+        # Define chemical work
+        heating = IOType.Chemical()
+        heating.CV = 42.8e6  # 42.8 Megajoules for aviation fuel
+        heating.mdot = (Quantity(200, "gal_USC hr^-1") / 2) * Quantity(0.8, "g mL^-1")  # 0.8 g/mL density @ 15 degC
+
+        # Pass flow to a combustor
+        my_combustor = modules.CPreactor()
+        combustor_exit, = my_combustor.forward(compressor_exit, heating)
+
+        return
 
 #
 #     def test_combustor(self):
