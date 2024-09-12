@@ -127,7 +127,7 @@ class MolecularStructures(unittest.TestCase):
 
     def test_functionalgroups(self):
         """Test to see if methods can correctly identify the number of functional groups in a chemical species."""
-        
+
         chemspecies = species.methane()
         fgroups = chemspecies.structures[0].functional_groups
         fgroupnames = [name for (name, atoms) in fgroups]
@@ -155,9 +155,11 @@ class MolecularStructures(unittest.TestCase):
         self.assertEqual(fgroupnames.count("alkylyl"), 1)
 
         chemspecies = species._1methyldecalin()
-        fgroups = chemspecies.structures[0].functional_groups
-        fgroupnames = [name for (name, atoms) in fgroups]
-        self.assertEqual(fgroupnames.count("bicyclo"), 1)
+        for _ in range(20):  # Remove doubt in random pathing by running a number of times
+            fgroups = chemspecies.structures[0].functional_groups
+            fgroupnames = [name for (name, atoms) in fgroups]
+            self.assertEqual(fgroupnames.count("bicyclo"), 1)
+            self.assertEqual(fgroupnames.count("alkyl"), 1)
 
         chemspecies = species.R134a()
         fgroups = chemspecies.structures[0].functional_groups

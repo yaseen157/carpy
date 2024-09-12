@@ -78,7 +78,7 @@ def analyse_groups(chemical_structure: Structure):
                     else:
                         break
 
-                    # If we didn't break by this point, it's because we added a carbon and thus the cursor seeks right
+                    # If we got to this point without breaking, it's because the next atom in the path could be parsed
                     cursor += 1
 
                 # Outside the for-loop, make sure to add the final chain
@@ -157,6 +157,9 @@ def analyse_groups(chemical_structure: Structure):
                 else:
                     groups.append((groupname, tuple(new_group)))
                     new_group = []
+            else:
+                # If atom not in cyclic_atoms is the last in the list_of_atoms, append group here
+                groups.append((groupname, tuple(new_group)))
 
     # ... Finally (1/2), delete duplicated groups
     groups = list(set(groups))
