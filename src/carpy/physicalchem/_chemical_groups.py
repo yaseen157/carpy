@@ -95,21 +95,60 @@ def analyse_groups(chemical_structure: Structure):
 
             break
 
+    # Detect cycles, in order from the smallest cycle to largest
+    unclassified_cycles = sorted(map(tuple, nx.simple_cycles(chemical_structure._graph)), key=len, reverse=False)
+    num_nested_cycles = {x: 0 for x in unclassified_cycles}
+    for key in num_nested_cycles.keys():
+        parent = [cycle for cycle in unclassified_cycles if set(key).issubset(set(cycle)) and (key is not cycle)]
+        if parent:
+            num_nested_cycles[parent[0]] += 1
+
+    cyclic_atoms = set()
+    for (cycle, n_cycles) in num_nested_cycles.items():
+        if n_cycles == 0:
+            groups.append(("cyclo", cycle))
+        elif n_cycles == 2:
+            groups.append(("bicyclo", cycle))
+        elif n_cycles == 3:
+            groups.append(("spiro", cycle))
+        cyclic_atoms = cyclic_atoms | set(cycle)
+
     # Clean-up:
-    # ... Delete groups with no members
+
+    #   ... Squash redundant hydrocarbyl groups (as their members are a subset of the members of a larger group)
+    hydrocarbyl_chains = ["alkyl", "alkenyl", "alkylyl"]
+    hydrocarbyl_cycles = ["cyclo", "bicyclo", "spiro"]
+    hydrocarbyl_groups = tuple(filter(lambda x: x[0] in (hydrocarbyl_chains + hydrocarbyl_cycles), groups))
+    for carbyl_group in hydrocarbyl_groups:
+        _, list_of_atoms = carbyl_group  # Unpack contents
+        if [set(list_of_atoms).issubset(set(y)) for (_, y) in hydrocarbyl_groups].count(True) > 1:
+            groups.remove(carbyl_group)
+
+    #   ... hydrocarbyl chains cannot contain members of a cycle - and must be split so as not to contain the cycle
+    hydrocarbyl_groups = tuple(filter(lambda x: x[0] in hydrocarbyl_chains, groups))
+    for hydrocarbyl_group in hydrocarbyl_groups:
+        groupname, list_of_atoms = hydrocarbyl_group  # Unpack contents
+
+        # For groups whose membership intersects but does not fully consist of cyclic atoms
+        if (set(list_of_atoms) & cyclic_atoms) and set(list_of_atoms) - cyclic_atoms:
+            # ...remove the offending group
+            groups.remove(hydrocarbyl_group)
+            # ...re-append members of the offending group that are not party to a cycle
+            new_group = []
+            for atom in list_of_atoms:
+                if atom not in cyclic_atoms:
+                    new_group.append(atom)
+                else:
+                    groups.append((groupname, tuple(new_group)))
+                    new_group = []
+
+    # ... Finally (1/2), delete duplicated groups
+    groups = list(set(groups))
+
+    # ... Finally (2/2), delete groups with no members
     for group in groups:
         _, members = group
         if not members:
             groups.remove(group)
-
-    # ... Delete duplicated groups
-    groups = list(set(groups))
-
-    #   ... Squash redundant hydrocarbyl groups
-    hydrocarbyl_groups = tuple(filter(lambda x: x[0] in ["alkyl", "alkenyl", "alkylyl"], groups))
-    for hydrocarbyl_group in hydrocarbyl_groups:
-        _, list_of_atoms = hydrocarbyl_group
-        if [set(list_of_atoms).issubset(set(y)) for (_, y) in hydrocarbyl_groups].count(True) > 1:
-            groups.remove(hydrocarbyl_group)
 
     return groups
