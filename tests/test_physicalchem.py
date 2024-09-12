@@ -125,6 +125,48 @@ class MolecularStructures(unittest.TestCase):
 
         return
 
+    def test_functionalgroups(self):
+        """Test to see if methods can correctly identify the number of functional groups in a chemical species."""
+        
+        chemspecies = species.methane()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("alkyl"), 1)
+
+        chemspecies = species.ethanol()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("alkyl"), 1)
+        self.assertEqual(fgroupnames.count("hydroxyl"), 1)
+
+        chemspecies = species.propane()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("alkyl"), 1)
+
+        chemspecies = species.ethene()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("alkenyl"), 1)
+
+        chemspecies = species.acetylene()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("alkylyl"), 1)
+
+        chemspecies = species._1methyldecalin()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("bicyclo"), 1)
+
+        chemspecies = species.R134a()
+        fgroups = chemspecies.structures[0].functional_groups
+        fgroupnames = [name for (name, atoms) in fgroups]
+        self.assertEqual(fgroupnames.count("alkyl"), 1)
+        self.assertEqual(fgroupnames.count("fluoro"), 4)
+
+        return
+
 
 class FluidModels(unittest.TestCase):
 
