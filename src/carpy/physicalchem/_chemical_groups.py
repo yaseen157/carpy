@@ -1,5 +1,6 @@
 from __future__ import annotations
 import typing
+import warnings
 
 import networkx as nx
 
@@ -20,6 +21,7 @@ class FunctionalGroup:
 
 def analyse_groups(chemical_structure: Structure):
     groups = []
+    halogen_map = {"F": "fluoro", "Cl": "chloro", "Br": "bromo", "I": "iodo"}
 
     # The longest chains considered should not start from a hydrogen atom
     possible_sources = [atom for atom in chemical_structure.atoms if atom.symbol != "H"]
@@ -43,57 +45,72 @@ def analyse_groups(chemical_structure: Structure):
         cursor = 0
         while cursor < len(path):
 
-            path_bonds = [  # Convert a path of n atoms into a list of (n-1) bonds
-                bond for i in range(len(path) - 1)
-                for bond in path[i].bonds if path[i + 1] in bond.atoms
-            ]
-
             # Root is carbon
             if path[cursor].symbol == "C":
                 hydrocarbyl_chain = [path[cursor]]
 
-                # If it is the only member, we found an alkyl
-                # if len(path) == 1:
-                #     groups.append(("alkyl", hydrocarbyl_chain))
-                #     cursor += 1
-
-                # Else we need to look at the carbon continuations
-                for cursor in range(cursor, len(path) - 1):
+                # We need to look at the carbon continuations
+                for j in range(cursor, len(path) - 1):
 
                     # If the next atom is a carbon, inspect the bond for more information on the classification
-                    if path[cursor + 1].symbol == "C":
-                        bond = (path[cursor].bonds & path[cursor + 1].bonds).pop()
+                    if path[j + 1].symbol == "C":
+                        bond = (path[j].bonds & path[j + 1].bonds).pop()
 
                         # Simple Alkyl continuation
                         if bond.order == 1:
-                            hydrocarbyl_chain.append(path[cursor + 1])
+                            hydrocarbyl_chain.append(path[j + 1])
 
                         # Alkenyl
                         elif bond.order == 2:
                             groups.append(("alkyl", tuple(hydrocarbyl_chain[:-1])))
-                            hydrocarbyl_chain = [path[cursor], path[cursor + 1]]  # Reset the chain
+                            hydrocarbyl_chain = [path[j], path[j + 1]]  # Reset the chain
                             groups.append(("alkenyl", tuple(hydrocarbyl_chain)))
                             del hydrocarbyl_chain[0]
 
                         # Alkynyl
                         elif bond.order == 3:
                             groups.append(("alkyl", tuple(hydrocarbyl_chain[:-1])))
-                            hydrocarbyl_chain = [path[cursor], path[cursor + 1]]  # Reset the chain
+                            hydrocarbyl_chain = [path[j], path[j + 1]]  # Reset the chain
                             groups.append(("alkylyl", tuple(hydrocarbyl_chain)))
                             del hydrocarbyl_chain[0]
 
                     # Break the hydrocarbyl analysis (the next atom in the path was not carbon)
                     else:
                         break
+
+                    # If we didn't break by this point, it's because we added a carbon and thus the cursor seeks right
+                    cursor += 1
+
                 # Outside the for-loop, make sure to add the final chain
                 groups.append(("alkyl", tuple(hydrocarbyl_chain)))
 
-                # path_bonds = [  # Convert a path of n atoms into a list of (n-1) bonds
-                #     bond for i in range(len(path) - 1)
-                #     for bond in path[i].bonds if path[i + 1] in bond.atoms
-                # ]
+            # Root is oxygen
+            elif (O1 := path[cursor]).symbol == "O":
 
-            break
+                O1_carbons = O1.get_neighbours(filter="C")
+                O1_hydrogens = O1.get_neighbours(filter="H")
+
+                # R-COH is present in hydroxyl, carboxyl, hemiacetal, and hemiketal
+                if len(O1_carbons) == 1 and len(O1_hydrogens) == 1:
+
+                    # Hydroxyl
+                    C1 = O1_carbons.pop()
+                    if len(C1_oxygens := C1.get_neighbours(filter="O")) == 1:
+                        groups.append(("hydroxyl", tuple(C1_oxygens | O1_hydrogens)))
+
+                    else:
+                        warn_msg = f"Found a C-O bound but cannot yet determine the nature of the functional group"
+                        warnings.warn(message=warn_msg, category=RuntimeWarning)
+
+            # Root is a halogen
+            elif (X1 := path[cursor]).symbol in halogen_map:
+
+                # Haloalkanes
+                if X1.get_neighbours(filter="C"):
+                    groups.append((halogen_map[X1.symbol], (X1,)))
+
+            # By default, every time an atom in a path is considered, cursor should seek right to the next atom
+            cursor += 1
 
     # Detect cycles, in order from the smallest cycle to largest
     unclassified_cycles = sorted(map(tuple, nx.simple_cycles(chemical_structure._graph)), key=len, reverse=False)
@@ -114,14 +131,13 @@ def analyse_groups(chemical_structure: Structure):
         cyclic_atoms = cyclic_atoms | set(cycle)
 
     # Clean-up:
-
     #   ... Squash redundant hydrocarbyl groups (as their members are a subset of the members of a larger group)
     hydrocarbyl_chains = ["alkyl", "alkenyl", "alkylyl"]
     hydrocarbyl_cycles = ["cyclo", "bicyclo", "spiro"]
     hydrocarbyl_groups = tuple(filter(lambda x: x[0] in (hydrocarbyl_chains + hydrocarbyl_cycles), groups))
     for carbyl_group in hydrocarbyl_groups:
         _, list_of_atoms = carbyl_group  # Unpack contents
-        if [set(list_of_atoms).issubset(set(y)) for (_, y) in hydrocarbyl_groups].count(True) > 1:
+        if [set(list_of_atoms).issubset(set(y)) for (_, y) in groups].count(True) > 1:
             groups.remove(carbyl_group)
 
     #   ... hydrocarbyl chains cannot contain members of a cycle - and must be split so as not to contain the cycle

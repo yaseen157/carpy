@@ -129,8 +129,9 @@ def R134a():
     # R134a
     C1 = Atom("C")
     C2 = Atom("C")
-    C1.bonds.add_covalent(C2)
+    C1.bonds.add_covalent(C2, order_limit=1)
     [C1.bonds.add_covalent(Atom("F"), order_limit=1) for _ in range(3)]
+    C2.bonds.add_covalent(Atom("F"), order_limit=1)
     C2.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2F4"))
 
@@ -183,12 +184,10 @@ def dinitrogen_oxide():
 
 def ethane():
     # ethane
-    C1 = Atom("C")
-    C2 = Atom("C")
-    C1.bonds.add_covalent(atom=C2, order_limit=1)
-    C1.bind_hydrogen()
-    C2.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H6"))
+    carbons = [Atom("C") for _ in range(2)]
+    [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
+    [carbon.bind_hydrogen() for carbon in carbons]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C2H6"))
     return species
 
 
@@ -242,6 +241,15 @@ def methane():
 
     species.LVcritical_p = 4_640e3
     species.LVcritical_T = 190.8
+    return species
+
+
+def propane():
+    # propane
+    carbons = [Atom("C") for _ in range(3)]
+    [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
+    [carbon.bind_hydrogen() for carbon in carbons]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C3H8"))
     return species
 
 
