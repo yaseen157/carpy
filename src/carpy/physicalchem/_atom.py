@@ -84,20 +84,22 @@ class Atom:
         """The steric number of the atom, the sum of this atom's bonds (not their multiplicity) and lone pairs."""
         return len(self.bonds) + self.electrons.lone_pairs
 
-    @property
-    def neighbours(self) -> set[Atom]:
+    def get_neighbours(self, filter=None) -> set[Atom]:
         """Set of neighbouring atoms."""
+        if filter is not None and not isinstance(filter, tuple):
+            filter = (filter,)
+
         neighbours = set([
             atom
             for atoms in [bond.atoms for bond in self.bonds]
-            for atom in atoms
+            for atom in atoms if (filter is None or atom.symbol in filter)
         ]) - {self}
         return neighbours
 
     def bind_hydrogen(self) -> None:
         """Bind all available valence electrons with hydrogen atoms."""
-        num_hydrogen_to_spawn = self.electrons.valence_free
-        [self.bonds.add_covalent(atom=Atom("H"), order_limit=1) for _ in range(num_hydrogen_to_spawn)]
+        num_open_spaces = self.electrons.valence_limit - self.electrons.valence
+        [self.bonds.add_covalent(atom=Atom("H"), order_limit=1) for _ in range(num_open_spaces)]
         return None
 
 

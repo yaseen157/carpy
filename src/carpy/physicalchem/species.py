@@ -1,12 +1,11 @@
 """Module containing chemical species definitions for gases."""
 from carpy.physicalchem import Atom, Structure, ChemicalSpecies
 
-__all__ = []
 __author__ = "Yaseen Reza"
+
 
 # ===============
 # Elemental gases
-__all__ += ["argon", "chlorine", "fluorine", "helium", "hydrogen", "krypton", "neon", "nitrogen", "oxygen", "xenon"]
 
 
 def argon():
@@ -96,7 +95,6 @@ def xenon():
 
 # =========
 # Compounds
-__all__ += ["_1methyldecalin", "R134a", "carbon_dioxide", "dinitrogen_oxide", "methane", "water"]
 
 
 def _1methyldecalin():
@@ -133,8 +131,7 @@ def R134a():
     C2 = Atom("C")
     C1.bonds.add_covalent(C2)
     [C1.bonds.add_covalent(Atom("F"), order_limit=1) for _ in range(3)]
-    C2.bonds.add_covalent(Atom("H"))
-    [C2.bonds.add_covalent(Atom("H"), order_limit=1) for _ in range(2)]
+    C2.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2F4"))
 
     species.LVcritical_p = 4_059e3
@@ -157,8 +154,8 @@ def cyclohexane():
     # C6H12 cyclohexane
     carbons = [Atom("C") for _ in range(6)]
     for i, carbon in enumerate(carbons):
-        [carbon.bonds.add_covalent(atom=Atom("H"), order_limit=1) for _ in range(2)]  # Bond hydrogens
         carbon.bonds.add_covalent(atom=carbons[(i + 1) % len(carbons)], order_limit=1)  # Bond C-C
+        carbon.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C6H12"))
     return species
 
@@ -184,10 +181,46 @@ def dinitrogen_oxide():
     return species
 
 
+def ethane():
+    # ethane
+    C1 = Atom("C")
+    C2 = Atom("C")
+    C1.bonds.add_covalent(atom=C2, order_limit=1)
+    C1.bind_hydrogen()
+    C2.bind_hydrogen()
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H6"))
+    return species
+
+
+def ethanol():
+    # ethanol
+    C1 = Atom("C")
+    C2 = Atom("C")
+    O1 = Atom("O")
+    C1.bonds.add_covalent(atom=C2, order_limit=1)
+    C1.bind_hydrogen()
+    C2.bonds.add_covalent(atom=O1, order_limit=1)
+    C2.bind_hydrogen()
+    O1.bind_hydrogen()
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H5OH"))
+    return species
+
+
+def ethene():
+    # ethene
+    C1 = Atom("C")
+    C2 = Atom("C")
+    C1.bonds.add_covalent(atom=C2, order_limit=2)
+    C1.bind_hydrogen()
+    C2.bind_hydrogen()
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H4"))
+    return species
+
+
 def methane():
     # methane
     C1 = Atom("C")
-    [C1.bonds.add_covalent(Atom("H")) for _ in range(4)]
+    C1.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CH4"))
 
     species.LVcritical_p = 4_640e3
@@ -208,8 +241,6 @@ def water():
 
 # ========
 # Mixtures
-
-__all__ += ["JetA"]
 
 
 def Jet_A_4658():
