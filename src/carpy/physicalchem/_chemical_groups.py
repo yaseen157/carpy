@@ -79,7 +79,7 @@ def analyse_groups(chemical_structure: Structure):
                         elif bond.order == 3:
                             groups.append(("alkyl", tuple(hydrocarbyl_chain[:-1])))
                             hydrocarbyl_chain = [path[cursor], path[cursor + 1]]  # Reset the chain
-                            groups.append(("alkenyl", tuple(hydrocarbyl_chain)))
+                            groups.append(("alkylyl", tuple(hydrocarbyl_chain)))
                             del hydrocarbyl_chain[0]
 
                     # Break the hydrocarbyl analysis (the next atom in the path was not carbon)

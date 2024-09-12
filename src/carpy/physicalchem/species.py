@@ -217,6 +217,23 @@ def ethene():
     return species
 
 
+ethylene = ethene
+
+
+def ethyne():
+    # ethyne
+    C1 = Atom("C")
+    C2 = Atom("C")
+    C1.bonds.add_covalent(atom=C2, order_limit=3)
+    C1.bind_hydrogen()
+    C2.bind_hydrogen()
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2"))
+    return species
+
+
+acetylene = ethyne
+
+
 def methane():
     # methane
     C1 = Atom("C")
