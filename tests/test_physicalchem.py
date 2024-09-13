@@ -84,7 +84,7 @@ class MolecularStructures(unittest.TestCase):
         # Two atoms partake in it
         self.assertEqual(len(bond.atoms), 2)
         # ...and are the constituents of the molecule
-        self.assertEqual(set(bond.atoms), nitrogen.atoms)
+        self.assertEqual(set(bond.atoms), set(nitrogen.atoms))
         for atom in nitrogen.atoms:
             # Homonuclear diatomic has an oxidation state of zero
             self.assertEqual(atom.oxidation_state, 0)
@@ -107,7 +107,7 @@ class MolecularStructures(unittest.TestCase):
         # Two atoms partake in it
         self.assertEqual(len(bond.atoms), 2)
         # ...and are the constituents of the molecule
-        self.assertEqual(set(bond.atoms), carbonmonoxide.atoms)
+        self.assertEqual(set(bond.atoms), set(carbonmonoxide.atoms))
         for atom in carbonmonoxide.atoms:
             # Carbon in the molecule has an oxidation state of two
             if atom.symbol == "C":

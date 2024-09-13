@@ -114,6 +114,8 @@ class CovalentBond:
         if np.isnan(_k):
             warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
             warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
+            # Make an assumption on the force constant
+            _k = 5 * self.order  # Assume 5 newtons per centimetre per order of the bond
 
         k = Quantity(_k, units="N cm^{-1}")
 

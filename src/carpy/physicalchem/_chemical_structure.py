@@ -108,9 +108,7 @@ def discover_molecule(atom: Atom) -> nx.Graph:
 
 
 class PartitionMethods:
-    _longest_chain: list[int]
-    _ordered_atoms: tuple[Atom, ...]
-    atoms: set[Atom]
+    atoms: tuple[Atom]
     bonds: set[CovalentBond]
     functional_groups: list[tuple[str, tuple[Atom, ...]]]
 
@@ -261,12 +259,17 @@ class PartitionMethods:
         cv = self._cv_1d * dof_trans
 
         # Rotation contribution
-        dof_rot = np.isfinite(self.theta_rot.x).sum()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing
-            principal_activations = partition_function(Tcharacteristic=self.theta_rot)
-        # Slice the 3D principle activations by degree of freedoms to ignore the np.posinf 2 DoF linear molecules get
-        cv += self._cv_1d * np.nansum(principal_activations[:dof_rot], axis=0)
+        try:
+            dof_rot = np.isfinite(self.theta_rot.x).sum()
+        except NotImplementedError:
+            dof_rot = 3
+            cv += self._cv_1d * dof_rot  # Assume molecule is so complicated, it must have three DoF at reasonable temps
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing
+                principal_activations = partition_function(Tcharacteristic=self.theta_rot)
+            # Slice the 3D principle activations by DoFs to ignore the np.posinf that 2 DoF linear molecules have
+            cv += self._cv_1d * np.nansum(principal_activations[:dof_rot], axis=0)
 
         # Vibration contribution
         dof_vib = 2 * (3 * len(self.atoms) - (dof_trans + dof_rot))
@@ -283,60 +286,51 @@ class PartitionMethods:
 
     @cached_property
     def inertia_tensor(self):
+        # SETUP
+        atom2id = {atom: i for (i, atom) in enumerate(self.atoms)}  # Mapping from atom objects to unique array id
         atom_mass = np.zeros(len(self.atoms))
         atom_xyz = np.zeros((len(self.atoms), 3))
 
-        # Monatomic
-        if len(self.atoms) == 1:
-            monatom, = self.atoms
-            atom_mass[0] = monatom.atomic_mass
+        # COMPUTE POSITIONS
+        # TODO: Figure out how to make this work/generalise for molecules
+        # There may or may not be functional groups that will help define the molecule's shape in 3D space
+        for (group_name, group_atoms) in self.functional_groups:
+            group_select = np.array([atom2id[atom] for atom in group_atoms])  # Indices to select atoms of the group
 
-        # Diatomic
-        elif len(self.atoms) == 2:
-            atom1, atom2 = self.atoms
+            # cyclo
+            if group_name == "cyclo":
 
-            atom_mass[0] = atom1.atomic_mass
-            atom_mass[1] = atom2.atomic_mass
-            atom_xyz[1] = np.array([0, 0, float(list(atom1.bonds)[0].length)])
+                # hexa-carbyl
+                if len(group_atoms) == 6 and all([x.symbol == "C" for x in group_atoms]):
 
-        # Polyatomic
+                    # benzene
+                    if all([len(atom.get_neighbours()) == 3 for atom in group_atoms]):
+                        pass
 
+                    # cyclohexane
+                    elif all([len(atom.get_neighbours()) == 4 for atom in group_atoms]):
+                        pass
+
+            # error_msg = f"{self} does not know how to arrange atoms in the '{group_name}' functional group"
+            # raise NotImplementedError(error_msg)
+
+        # COMPUTE POSITIONS (stop-gap measure while work is required for large molecules)
+        central_atom_index = np.argmax([len(atom.get_neighbours()) for atom in self.atoms])
+        central_atom_neighbours = self.atoms[central_atom_index].get_neighbours()
+        if len(central_atom_neighbours) + 1 != len(self.atoms):
+            error_msg = f"Could not identify central atom of structure, molecule is too complicated to parse"
+            raise NotImplementedError(error_msg)
         else:
-            # TODO: More robust computation of inertia from *larger* polyatomic structures
-            try:
-                longest_path_atoms = [atom for (i, atom) in enumerate(self._ordered_atoms) if i in self._longest_chain]
-            except NotImplementedError:
-                raise
+            central_atom = self.atoms[central_atom_index]
+        # Distribute mass
+        atom_mass[0] = central_atom.atomic_mass
+        r_neighbour = n_vertex_3dsphere(n=central_atom.steric_number)
+        for i, neighbour in enumerate(central_atom.get_neighbours()):
+            bond_to_neighbour, = central_atom.bonds[neighbour]
+            atom_mass[i + 1] = neighbour.atomic_mass
+            atom_xyz[i + 1] = r_neighbour[i] * bond_to_neighbour.length
 
-            # Central atom should have the most neighbours, sort from most neighbours to least
-            longest_path_atoms = sorted(longest_path_atoms, key=lambda x: len(x.get_neighbours()), reverse=True)
-            central_atom_candidates = [
-                atom for atom in longest_path_atoms
-                if len(atom.get_neighbours) == len(longest_path_atoms[0].get_neighbours())
-            ]
-
-            # One central atom candidate
-            if len(central_atom_candidates) == 1:
-                central_atom: Atom
-                central_atom, = central_atom_candidates
-
-                # Symmetric difference should be empty if central atom is bonded to every atom in the structure
-                if {atom for bond in central_atom.bonds for atom in bond.atoms} ^ self.atoms:
-                    error_msg = f"Could not locate central atom of molecule"
-                    raise RuntimeError(error_msg)
-
-                # Distribute mass
-                atom_mass[0] = central_atom.atomic_mass
-                r_neighbour = n_vertex_3dsphere(n=central_atom.steric_number)
-                for i, neighbour in enumerate(central_atom.get_neighbours()):
-                    bond_to_neighbour, = central_atom.bonds[neighbour]
-                    atom_mass[i + 1] = neighbour.atomic_mass
-                    atom_xyz[i + 1] = r_neighbour[i] * bond_to_neighbour.length
-
-            else:
-                error_msg = f"Molecules of this complexity cannot be processed yet, sorry."
-                raise NotImplementedError(error_msg)
-
+        # COMPUTE INERTIA
         # Compute centre of mass and adjust atomic reference frame to it
         com_xyz = (atom_mass[:, None] * atom_xyz).sum(axis=0) / atom_mass.sum()
         atom_xyz = atom_xyz - com_xyz  # atomic reference frame origin is now coincident with centre of mass
@@ -407,56 +401,15 @@ class Structure(PartitionMethods):
         return rtn_str
 
     @property
-    def _ordered_atoms(self) -> tuple[Atom, ...]:
-        """Tuple for list of atoms in the molecule. A tuple provides a consistent order of atoms where sets do not."""
+    def atoms(self) -> tuple[Atom, ...]:
+        """Tuple of atoms that constitute the molecule's chemical structure."""
         return tuple(self._graph.nodes)
-
-    @property
-    def atoms(self) -> set[Atom]:
-        """Unordered set of atoms that constitute the molecule's chemical structure."""
-        atoms = set(self._ordered_atoms)
-        return atoms
 
     @property
     def bonds(self) -> set:
         """Unordered set of bonds that constitute the molecule's chemical structure."""
         bonds = {bond for atom in self.atoms for bond in atom.bonds}
         return bonds
-
-    @property
-    def _longest_chain(self) -> list[int]:
-        """
-        Produce a list of the ._atoms indices that represent the molecule's longest chain of functional groups.
-
-        Notes:
-            The shortest path from molecule to molecule is computed. The longest chains of molecules in this shortest
-            path analysis is recorded as the longest chain. If there are multiple competitors for the molecule's longest
-            chain, this is resolved according to IUPAC longest chain rules.
-
-        """
-        # The longest chains considered should not start from a hydrogen atom
-        possible_sources = [atom for atom in self.atoms if atom.symbol != "H"]
-
-        # Going over each of the possible source and target atoms, check for the shortest paths between them
-        longest_chains = []
-        max_length = 0
-        for i, start in enumerate(possible_sources):
-            for j, finish in enumerate(possible_sources):
-                if i >= j:
-                    continue  # Ignore paths to self and paths already considered
-
-                # Generate the shortest paths, and record the longest chain of atoms observed
-                path_generator = nx.all_shortest_paths(G=self._graph, source=start, target=finish)
-                for path in path_generator:
-                    if len(path) < max_length:
-                        continue
-                    elif len(path) == max_length:
-                        longest_chains.append(path)
-                    else:
-                        max_length = len(path)
-                        longest_chains = [path]
-
-        raise NotImplementedError
 
     @property
     def functional_groups(self) -> list[tuple[str, tuple[Atom, ...]]]:
