@@ -112,6 +112,7 @@ class PartitionMethods:
     _ordered_atoms: tuple[Atom, ...]
     atoms: set[Atom]
     bonds: set[CovalentBond]
+    functional_groups: list[tuple[str, tuple[Atom, ...]]]
 
     def __init__(self):
         # 1 dimensional heat capacity
@@ -299,6 +300,7 @@ class PartitionMethods:
             atom_xyz[1] = np.array([0, 0, float(list(atom1.bonds)[0].length)])
 
         # Polyatomic
+
         else:
             # TODO: More robust computation of inertia from *larger* polyatomic structures
             try:
@@ -354,6 +356,9 @@ class PartitionMethods:
 
         # Diagonalise the inertia tensor, i.e. get inertia for the principle axes
         # Solve for eigenvalues (and eigenvectors)
+        if np.any(~np.isfinite(inertia_tensor)):
+            error_msg = f"Elements of the molecule's inertia tensor were deemed to be not finite (erroneous)"
+            raise RuntimeError(error_msg)
         evalues, _ = np.linalg.eig(inertia_tensor)
 
         # If molecule has a non-zero inertia tensor, check to see if we need to roll the array till Izz == 0

@@ -154,7 +154,7 @@ class MolecularStructures(unittest.TestCase):
         fgroupnames = [name for (name, atoms) in fgroups]
         self.assertEqual(fgroupnames.count("alkylyl"), 1)
 
-        chemspecies = species._1methyldecalin()
+        chemspecies = species._1_methyldecalin()
         for _ in range(20):  # Remove doubt in random pathing by running a number of times
             fgroups = chemspecies.structures[0].functional_groups
             fgroupnames = [name for (name, atoms) in fgroups]

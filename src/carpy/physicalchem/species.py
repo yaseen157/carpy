@@ -97,7 +97,7 @@ def xenon():
 # Compounds
 
 
-def _1methyldecalin():
+def _1_methyldecalin():
     # 1-Methyldecalin
 
     C1 = Atom("C")  # Methyl connects here
@@ -121,7 +121,26 @@ def _1methyldecalin():
     C1.bind_hydrogen()
     Cmethyl.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C11H20"))
+    return species
 
+
+def _2_methyldecane():
+    alkane = [Atom("C") for _ in range(10)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    methyl = Atom("C")
+    alkane[1].bonds.add_covalent(atom=methyl, order_limit=1)
+    [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
+    return species
+
+
+def _5_methylnonane():
+    alkane = [Atom("C") for _ in range(9)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    methyl = Atom("C")
+    alkane[4].bonds.add_covalent(atom=methyl, order_limit=1)
+    [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
     return species
 
 
@@ -244,12 +263,90 @@ def methane():
     return species
 
 
+def n_heptylcyclohexane():
+    # Form the cyclohexane ring's carbon bonds
+    ringC = [Atom("C") for _ in range(6)]
+    [carbon.bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=1) for i, carbon in enumerate(ringC)]
+    # Create and then attach the alkane
+    alkane = [Atom("C") for _ in range(7)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    ringC[0].bonds.add_covalent(atom=alkane[0], order_limit=1)
+    # Saturate with hydrogen
+    [carbon.bind_hydrogen() for carbon in ringC + alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C13H26"))
+    return species
+
+
+def n_hexadecane():
+    alkane = [Atom("C") for _ in range(16)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    [carbon.bind_hydrogen() for carbon in alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C16H34"))
+    return species
+
+
+def n_hexylcyclohexane():
+    # Form the cyclohexane ring's carbon bonds
+    ringC = [Atom("C") for _ in range(6)]
+    [carbon.bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=1) for i, carbon in enumerate(ringC)]
+    # Create and then attach the alkane
+    alkane = [Atom("C") for _ in range(6)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    ringC[0].bonds.add_covalent(atom=alkane[0], order_limit=1)
+    # Saturate with hydrogen
+    [carbon.bind_hydrogen() for carbon in ringC + alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C12H24"))
+    return species
+
+
+def n_tetradecane():
+    alkane = [Atom("C") for _ in range(14)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    [carbon.bind_hydrogen() for carbon in alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C14H30"))
+    return species
+
+
+def ortho_xylene():
+    ringC = [Atom("C") for _ in range(6)]
+    Cmethyl1, Cmethyl2 = Atom("C"), Atom("C")
+    ringC[0].bonds.add_covalent(atom=Cmethyl1, order_limit=1)
+    ringC[1].bonds.add_covalent(atom=Cmethyl2, order_limit=1)
+    [ringC[i].bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=(i % 2) + 1) for i in range(len(ringC))]
+    [carbon.bind_hydrogen() for carbon in ringC + [Cmethyl1, Cmethyl2]]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C8H10"))
+    return species
+
+
 def propane():
     # propane
     carbons = [Atom("C") for _ in range(3)]
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
     [carbon.bind_hydrogen() for carbon in carbons]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C3H8"))
+    return species
+
+
+def tetralin():
+    C1 = Atom("C")  # Shared between both rings
+    C2 = Atom("C")  # Shared between both rings
+
+    # Define rings
+    #   ... constituent atoms
+    ring1 = [C1, C2] + [Atom("C") for _ in range(4)]
+    ring2 = [C1, C2] + [Atom("C") for _ in range(4)]
+    #   ... constituent bonds
+    [carbon.bonds.add_covalent(atom=ring1[(i + 1) % len(ring1)], order_limit=1) for i, carbon in enumerate(ring1)]
+    for i, carbon in enumerate(ring2):
+        if i == 0:
+            continue  # It would have already bonded C1 and C2 as part of ring1 bonding
+        atom_l, atom_r = carbon, ring2[(i + 1) % len(ring2)]
+        order = (i % 2) + 1
+        atom_l.bonds.add_covalent(atom=atom_r, order_limit=order)
+    #   ... bind free electrons with hydrogen
+    [carbon.bind_hydrogen() for carbon in set(ring1 + ring2)]
+
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C10H12"))
     return species
 
 
