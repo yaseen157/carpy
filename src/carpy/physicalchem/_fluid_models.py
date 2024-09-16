@@ -371,8 +371,8 @@ class FluidModel:
 
         # Now that X has been defined, we can set the equation of state
         # For equations of state, recompute an effective critical temperature and pressure using W.B. Kay's rule
-        p_c = Quantity(sum(species.LVcritical_p * Xi for (species, Xi) in self.X.items()), "Pa")
-        T_c = Quantity(sum(species.LVcritical_T * Xi for (species, Xi) in self.X.items()), "K")
+        p_c = Quantity(sum([species.LVcritical_p * Xi for (species, Xi) in self.X.items()]), "Pa")
+        T_c = Quantity(sum([species.LVcritical_T * Xi for (species, Xi) in self.X.items()]), "K")
         self._EOS = self._EOS_cls(p_c=p_c, T_c=T_c)
         return
 
