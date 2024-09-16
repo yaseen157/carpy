@@ -4,6 +4,12 @@ from carpy.physicalchem import Atom, Structure, ChemicalSpecies
 __author__ = "Yaseen Reza"
 
 
+# TODO: Annoyingly, the chemeo results provide mean values when multiple data points are present, but the mean values do
+#   not exclude outliers! Walk through all of the chemeo results and manually remove outliers
+
+# TODO: Implement the Joback method to predict liquid-vapour critical pressure and temperature
+
+
 # ===============
 # Elemental gases
 
@@ -121,6 +127,11 @@ def _1_methyldecalin():
     C1.bind_hydrogen()
     Cmethyl.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C11H20"))
+
+    # https://www.chemeo.com/cid/27-791-4/1-Methyldecahydronaphthalene
+    species.LVcritical_p = 2637.96e3
+    species.LVcritical_T = 695.39
+
     return species
 
 
@@ -131,6 +142,11 @@ def _2_methyldecane():
     alkane[1].bonds.add_covalent(atom=methyl, order_limit=1)
     [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
+
+    # https://www.chemeo.com/cid/25-589-1/Decane-2-methyl
+    species.LVcritical_p = 1947.51e3
+    species.LVcritical_T = 629.90
+
     return species
 
 
@@ -141,6 +157,11 @@ def _5_methylnonane():
     alkane[4].bonds.add_covalent(atom=methyl, order_limit=1)
     [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
+
+    # https://www.chemeo.com/cid/59-163-6/Nonane-5-methyl
+    species.LVcritical_p = 2140e3
+    species.LVcritical_T = 609.70
+
     return species
 
 
@@ -177,6 +198,11 @@ def cyclohexane():
         carbon.bonds.add_covalent(atom=carbons[(i + 1) % len(carbons)], order_limit=1)  # Bond C-C
         carbon.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C6H12"))
+
+    # https://www.chemeo.com/cid/66-104-3/Cyclohexane
+    species.LVcritical_p = 4079.98e3
+    species.LVcritical_T = 553.64
+
     return species
 
 
@@ -207,6 +233,11 @@ def ethane():
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
     [carbon.bind_hydrogen() for carbon in carbons]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C2H6"))
+
+    # https://www.chemeo.com/cid/31-101-4/Ethane
+    species.LVcritical_p = 4897.94e3
+    species.LVcritical_T = 305.48
+
     return species
 
 
@@ -221,6 +252,11 @@ def ethanol():
     C2.bind_hydrogen()
     O1.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H5OH"))
+
+    # https://www.chemeo.com/cid/35-653-8/Ethanol
+    species.LVcritical_p = ((6569.98 * 21 - 12060) / 20) * 1e3  # Removed the clear outlier(s)
+    species.LVcritical_T = 514.5
+
     return species
 
 
@@ -232,6 +268,11 @@ def ethene():
     C1.bind_hydrogen()
     C2.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H4"))
+
+    # https://www.chemeo.com/cid/56-863-2/Ethylene
+    species.LVcritical_p = 5052.64e3
+    species.LVcritical_T = 282.47
+
     return species
 
 
@@ -246,6 +287,11 @@ def ethyne():
     C1.bind_hydrogen()
     C2.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2"))
+
+    # https://www.chemeo.com/cid/24-570-2/Acetylene
+    species.LVcritical_p = 6138e3
+    species.LVcritical_T = 308.66
+
     return species
 
 
@@ -274,6 +320,11 @@ def n_heptylcyclohexane():
     # Saturate with hydrogen
     [carbon.bind_hydrogen() for carbon in ringC + alkane]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C13H26"))
+
+    # https://www.chemeo.com/cid/52-961-7/Heptylcyclohexane
+    species.LVcritical_p = 1956.14e3
+    species.LVcritical_T = 706.34
+
     return species
 
 
@@ -282,6 +333,11 @@ def n_hexadecane():
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     [carbon.bind_hydrogen() for carbon in alkane]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C16H34"))
+
+    # https://www.chemeo.com/cid/30-657-9/Hexadecane
+    species.LVcritical_p = 1400.33e3
+    species.LVcritical_T = 723.00
+
     return species
 
 
@@ -296,6 +352,11 @@ def n_hexylcyclohexane():
     # Saturate with hydrogen
     [carbon.bind_hydrogen() for carbon in ringC + alkane]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C12H24"))
+
+    # https://www.chemeo.com/cid/10-612-0/Cyclohexane-hexyl
+    species.LVcritical_p = 2130e3
+    species.LVcritical_T = 691.80
+
     return species
 
 
@@ -304,6 +365,11 @@ def n_tetradecane():
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     [carbon.bind_hydrogen() for carbon in alkane]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C14H30"))
+
+    # https://www.chemeo.com/cid/65-264-7/Tetradecane
+    species.LVcritical_p = 1524.20e3
+    species.LVcritical_T = 693.16
+
     return species
 
 
@@ -315,6 +381,11 @@ def ortho_xylene():
     [ringC[i].bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=(i % 2) + 1) for i in range(len(ringC))]
     [carbon.bind_hydrogen() for carbon in ringC + [Cmethyl1, Cmethyl2]]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C8H10"))
+
+    # https://www.chemeo.com/cid/62-853-6/o-Xylene
+    species.LVcritical_p = 3732e3
+    species.LVcritical_T = 630.30
+
     return species
 
 
@@ -324,6 +395,11 @@ def propane():
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
     [carbon.bind_hydrogen() for carbon in carbons]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C3H8"))
+
+    # https://www.chemeo.com/cid/13-317-5/Propane
+    species.LVcritical_p = 4251.67e3
+    species.LVcritical_T = 369.99
+
     return species
 
 
@@ -347,6 +423,11 @@ def tetralin():
     [carbon.bind_hydrogen() for carbon in set(ring1 + ring2)]
 
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C10H12"))
+
+    # https://www.chemeo.com/cid/34-290-2/Naphthalene-1-2-3-4-tetrahydro
+    species.LVcritical_p = 3682.50e3
+    species.LVcritical_T = 720.52
+
     return species
 
 
