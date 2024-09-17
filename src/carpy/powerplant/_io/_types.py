@@ -292,9 +292,9 @@ class Fluid(AbstractPower):
         # The total fluid power should come from the product of stagnation pressure and flow rate. Consider that in a
         #   U-tube of water static pressure contributes to the instantaneous pressure head, whereas the dynamic pressure
         #   is responsible for velocity head. Assuming no contribution from elevation head, their sum is the total head.
-        total_power = (
-                self.power_pressure +
-                self.power_velocity
+        total_power = np.nansum(
+            self.power_pressure,
+            self.power_velocity
         )
         return total_power
 

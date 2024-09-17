@@ -424,6 +424,8 @@ class UnitOfMeasurement:
 class Quantity(np.ndarray):
     # TODO: documentation, need to explain the purpose of safe casting!
     _carpy_units: UnitOfMeasurement
+    x: property
+    u: property
 
     # =========================
     # numpy array compatibility
@@ -445,7 +447,7 @@ class Quantity(np.ndarray):
         # Recast the values to a numpy array
         values = np.atleast_1d(values)
 
-        # If values were unicode or string, attempt to recast as float
+        # If values were Unicode or string, attempt to recast as float
         if values.dtype.kind in {"U", "S"}:
             try:
                 values = values.astype(np.float64)
@@ -663,14 +665,16 @@ class Quantity(np.ndarray):
         cls = type(self)
         if isinstance(other, cls):
             assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
-        return super(Quantity, self).__ge__(other)
+            return self.x >= other.x
+        return self.x >= other
 
     def __gt__(self, other):
         """Greater than."""
         cls = type(self)
         if isinstance(other, cls):
             assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
-        return super(Quantity, self).__gt__(other)
+            return self.x > other.x
+        return self.x > other
 
     def __iadd__(self, other):
         """Inplace addition."""
@@ -722,14 +726,16 @@ class Quantity(np.ndarray):
         cls = type(self)
         if isinstance(other, cls):
             assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
-        return super(Quantity, self).__le__(other)
+            return self.x <= other.x
+        return self.x <= other
 
     def __lt__(self, other):
         """Less than."""
         cls = type(self)
         if isinstance(other, cls):
             assert self.u == other.u, f"Cannot compare Quantity arrays with units '{self.u}' and '{other.u}'"
-        return super(Quantity, self).__lt__(other)
+            return self.x < other.x
+        return self.x < other
 
     def __mod__(self, other):
         """Modulo."""
@@ -902,7 +908,7 @@ class Quantity(np.ndarray):
     def to(self, units: str) -> np.ndarray:
         """Return a numpy array in the chosen units."""
         new_uom = UnitOfMeasurement(units)
-        if (self.u == new_uom):
+        if self.u == new_uom:
             new_value = new_uom.to_uom(self.x)
             return new_value
         else:

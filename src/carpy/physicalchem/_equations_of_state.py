@@ -214,6 +214,31 @@ class EquationOfState:
         alpha = Quantity((1 / Vm) * dVmdT_p, "K^{-1}")
         return alpha
 
+    def is_vapour(self, p, T):
+        """
+        Args:
+            p: Pressure, in Pascal.
+            T: Absolute temperature, in Kelvin.
+
+        Returns:
+            Isobaric (volumetric) thermal expansion coefficient.
+
+        """
+        p = Quantity(p, "Pa")
+        T = Quantity(T, "K")
+
+        # Dong and Lienhard
+        T_r = self.T_r(T=T)
+        w = 0.200  # TODO: Omega should be computed from boiling temperature (at 1 atm), or from user specification
+        p_rs = np.exp(
+            5.37270 * (1 - 1 / T_r)
+            + w * (7.49408 - 11.181777 * T_r ** 3 + 3.68769 * T_r ** 6 + 17.92998 * np.log(T_r))
+        )
+        p_r = self.p_r(p=p)
+
+        # If (reduced) pressure is less than the saturation pressure, we are surely a vapour
+        return p_r < p_rs
+
 
 class IdealGas(EquationOfState):
     """A class implementing the ideal gas equation of state, a.k.a. the ideal gas law."""

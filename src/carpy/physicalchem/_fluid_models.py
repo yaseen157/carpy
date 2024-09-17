@@ -32,7 +32,7 @@ class FluidModel:
 
     def __new__(cls, *args, **kwargs):
         if cls is not FluidModel:
-            return super().__new__(cls, *args, **kwargs)
+            return super(FluidModel, cls).__new__(cls)
         error_msg = f"As a template, '{cls.__name__}' should not be instantiated directly - try one of the children!"
         raise NotImplementedError(error_msg)
 
@@ -371,8 +371,8 @@ class FluidModel:
 
         # Now that X has been defined, we can set the equation of state
         # For equations of state, recompute an effective critical temperature and pressure using W.B. Kay's rule
-        p_c = Quantity(sum([species.LVcritical_p * Xi for (species, Xi) in self.X.items()]), "Pa")
-        T_c = Quantity(sum([species.LVcritical_T * Xi for (species, Xi) in self.X.items()]), "K")
+        p_c = Quantity(sum([species.p_c * Xi for (species, Xi) in self.X.items()]), "Pa")
+        T_c = Quantity(sum([species.T_c * Xi for (species, Xi) in self.X.items()]), "K")
         self._EOS = self._EOS_cls(p_c=p_c, T_c=T_c)
         return
 
@@ -536,6 +536,9 @@ class FluidState:
 
     @pressure.setter
     def pressure(self, value):
+        if ~np.isfinite(value):
+            error_msg = f"Illegal assignment to {type(self).__name__}.pressure, expected finite value (got {value})"
+            raise ValueError(error_msg)
         self._pressure = Quantity(value, "Pa")
 
     @property
@@ -545,6 +548,9 @@ class FluidState:
 
     @temperature.setter
     def temperature(self, value):
+        if ~np.isfinite(value):
+            error_msg = f"Illegal assignment to {type(self).__name__}.pressure, expected finite value (got {value})"
+            raise ValueError(error_msg)
         self._temperature = Quantity(value, "K")
 
 

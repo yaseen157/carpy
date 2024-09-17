@@ -17,72 +17,72 @@ __author__ = "Yaseen Reza"
 def argon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ar"))
 
-    species.LVcritical_p = 4_870e3
-    species.LVcritical_T = 150.8
+    species.p_c = 4_870e3
+    species.T_c = 150.8
     return species
 
 
 def chlorine():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Cl2"))
 
-    species.LVcritical_p = 7_700e3
-    species.LVcritical_T = 143.8
+    species.p_c = 7_700e3
+    species.T_c = 143.8
     return species
 
 
 def fluorine():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("F2"))
 
-    species.LVcritical_p = 4_870e3
-    species.LVcritical_T = 144.3
+    species.p_c = 4_870e3
+    species.T_c = 144.3
     return species
 
 
 def helium():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("He"))
 
-    species.LVcritical_p = 227e3
-    species.LVcritical_T = 5.19
+    species.p_c = 227e3
+    species.T_c = 5.19
     return species
 
 
 def hydrogen():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("H2"))
 
-    species.LVcritical_p = 1_300e3
-    species.LVcritical_T = 33.20
+    species.p_c = 1_300e3
+    species.T_c = 33.20
     return species
 
 
 def krypton():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Kr"))
 
-    species.LVcritical_p = 5_500e3
-    species.LVcritical_T = 209.3
+    species.p_c = 5_500e3
+    species.T_c = 209.3
     return species
 
 
 def neon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ne"))
 
-    species.LVcritical_p = 2_760e3
-    species.LVcritical_T = 44.40
+    species.p_c = 2_760e3
+    species.T_c = 44.40
     return species
 
 
 def nitrogen():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("N2"))
 
-    species.LVcritical_p = 3_390e3
-    species.LVcritical_T = 126.2
+    species.p_c = 3_390e3
+    species.T_c = 126.2
     return species
 
 
 def oxygen():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("O2"))
 
-    species.LVcritical_p = 5_050e3
-    species.LVcritical_T = 154.6
+    species.p_c = 5_050e3
+    species.T_c = 154.6
     return species
 
 
@@ -94,8 +94,8 @@ def radon():
 def xenon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Xe"))
 
-    species.LVcritical_p = 5_840e3
-    species.LVcritical_T = 289.8
+    species.p_c = 5_840e3
+    species.T_c = 289.8
     return species
 
 
@@ -129,8 +129,8 @@ def _1_methyldecalin():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C11H20"))
 
     # https://www.chemeo.com/cid/27-791-4/1-Methyldecahydronaphthalene
-    species.LVcritical_p = 2637.96e3
-    species.LVcritical_T = 695.39
+    species.p_c = 2637.96e3
+    species.T_c = 695.39
 
     return species
 
@@ -144,8 +144,8 @@ def _2_methyldecane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
 
     # https://www.chemeo.com/cid/25-589-1/Decane-2-methyl
-    species.LVcritical_p = 1947.51e3
-    species.LVcritical_T = 629.90
+    species.p_c = 1947.51e3
+    species.T_c = 629.90
 
     return species
 
@@ -159,8 +159,8 @@ def _5_methylnonane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
 
     # https://www.chemeo.com/cid/59-163-6/Nonane-5-methyl
-    species.LVcritical_p = 2140e3
-    species.LVcritical_T = 609.70
+    species.p_c = 2140e3
+    species.T_c = 609.70
 
     return species
 
@@ -175,8 +175,8 @@ def R134a():
     C2.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2F4"))
 
-    species.LVcritical_p = 4_059e3
-    species.LVcritical_T = 374.21
+    species.p_c = 4_059e3
+    species.T_c = 374.21
     return species
 
 
@@ -186,8 +186,8 @@ def carbon_dioxide():
     [C1.bonds.add_covalent(Atom("O"), order_limit=2) for _ in range(2)]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CO2"))
 
-    species.LVcritical_p = 7_380e3
-    species.LVcritical_T = 304.19
+    species.p_c = 7_380e3
+    species.T_c = 304.19
     return species
 
 
@@ -200,8 +200,8 @@ def cyclohexane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C6H12"))
 
     # https://www.chemeo.com/cid/66-104-3/Cyclohexane
-    species.LVcritical_p = 4079.98e3
-    species.LVcritical_T = 553.64
+    species.p_c = 4079.98e3
+    species.T_c = 553.64
 
     return species
 
@@ -222,8 +222,8 @@ def dinitrogen_oxide():
     structure_2 = Structure.from_atoms(atom=N1, formula="N2O")
     species = ChemicalSpecies(structures=(structure_1, structure_2))
 
-    species.LVcritical_p = 7_240e3
-    species.LVcritical_T = 309.5
+    species.p_c = 7_240e3
+    species.T_c = 309.5
     return species
 
 
@@ -235,8 +235,8 @@ def ethane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C2H6"))
 
     # https://www.chemeo.com/cid/31-101-4/Ethane
-    species.LVcritical_p = 4897.94e3
-    species.LVcritical_T = 305.48
+    species.p_c = 4897.94e3
+    species.T_c = 305.48
 
     return species
 
@@ -254,8 +254,8 @@ def ethanol():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H5OH"))
 
     # https://www.chemeo.com/cid/35-653-8/Ethanol
-    species.LVcritical_p = ((6569.98 * 21 - 12060) / 20) * 1e3  # Removed the clear outlier(s)
-    species.LVcritical_T = 514.5
+    species.p_c = ((6569.98 * 21 - 12060) / 20) * 1e3  # Removed the clear outlier(s)
+    species.T_c = 514.5
 
     return species
 
@@ -270,8 +270,8 @@ def ethene():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H4"))
 
     # https://www.chemeo.com/cid/56-863-2/Ethylene
-    species.LVcritical_p = 5052.64e3
-    species.LVcritical_T = 282.47
+    species.p_c = 5052.64e3
+    species.T_c = 282.47
 
     return species
 
@@ -289,8 +289,8 @@ def ethyne():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2"))
 
     # https://www.chemeo.com/cid/24-570-2/Acetylene
-    species.LVcritical_p = 6138e3
-    species.LVcritical_T = 308.66
+    species.p_c = 6138e3
+    species.T_c = 308.66
 
     return species
 
@@ -304,8 +304,8 @@ def methane():
     C1.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CH4"))
 
-    species.LVcritical_p = 4_640e3
-    species.LVcritical_T = 190.8
+    species.p_c = 4_640e3
+    species.T_c = 190.8
     return species
 
 
@@ -322,8 +322,8 @@ def n_heptylcyclohexane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C13H26"))
 
     # https://www.chemeo.com/cid/52-961-7/Heptylcyclohexane
-    species.LVcritical_p = 1956.14e3
-    species.LVcritical_T = 706.34
+    species.p_c = 1956.14e3
+    species.T_c = 706.34
 
     return species
 
@@ -335,8 +335,8 @@ def n_hexadecane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C16H34"))
 
     # https://www.chemeo.com/cid/30-657-9/Hexadecane
-    species.LVcritical_p = 1400.33e3
-    species.LVcritical_T = 723.00
+    species.p_c = 1400.33e3
+    species.T_c = 723.00
 
     return species
 
@@ -354,8 +354,8 @@ def n_hexylcyclohexane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C12H24"))
 
     # https://www.chemeo.com/cid/10-612-0/Cyclohexane-hexyl
-    species.LVcritical_p = 2130e3
-    species.LVcritical_T = 691.80
+    species.p_c = 2130e3
+    species.T_c = 691.80
 
     return species
 
@@ -367,8 +367,8 @@ def n_tetradecane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C14H30"))
 
     # https://www.chemeo.com/cid/65-264-7/Tetradecane
-    species.LVcritical_p = 1524.20e3
-    species.LVcritical_T = 693.16
+    species.p_c = 1524.20e3
+    species.T_c = 693.16
 
     return species
 
@@ -383,8 +383,8 @@ def ortho_xylene():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C8H10"))
 
     # https://www.chemeo.com/cid/62-853-6/o-Xylene
-    species.LVcritical_p = 3732e3
-    species.LVcritical_T = 630.30
+    species.p_c = 3732e3
+    species.T_c = 630.30
 
     return species
 
@@ -397,8 +397,8 @@ def propane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C3H8"))
 
     # https://www.chemeo.com/cid/13-317-5/Propane
-    species.LVcritical_p = 4251.67e3
-    species.LVcritical_T = 369.99
+    species.p_c = 4251.67e3
+    species.T_c = 369.99
 
     return species
 
@@ -425,8 +425,8 @@ def tetralin():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C10H12"))
 
     # https://www.chemeo.com/cid/34-290-2/Naphthalene-1-2-3-4-tetrahydro
-    species.LVcritical_p = 3682.50e3
-    species.LVcritical_T = 720.52
+    species.p_c = 3682.50e3
+    species.T_c = 720.52
 
     return species
 
@@ -437,8 +437,8 @@ def water():
     [O1.bonds.add_covalent(Atom("H")) for _ in range(2)]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=O1, formula="H2O"))
 
-    species.LVcritical_p = 22_060e3
-    species.LVcritical_T = 647.096
+    species.p_c = 22_060e3
+    species.T_c = 647.096
     return species
 
 
@@ -461,11 +461,10 @@ def Jet_A_4658():
         Huber, M.L., Lemmon, E.W. and Bruno, T.J., 2010. Surrogate mixture models for the thermophysical properties of
         aviation fuel Jet-A. Energy & Fuels, 24(6), pp.3565-3571. https://doi.org/10.1021/ef100208c
 
-
     """
     structure = Structure.from_molecular_formula("C11.3H21.1")
     species = ChemicalSpecies(structures=structure)
 
-    species.LVcritical_p = 2_399e3  # 2,399 kPa
-    species.LVcritical_T = 676.2  # 676.2 K
+    species.p_c = 2_399e3  # 2,399 kPa
+    species.T_c = 676.2  # 676.2 K
     return species

@@ -11,8 +11,8 @@ __author__ = "Yaseen Reza"
 
 class ChemicalSpecies:
     """Unique chemical species."""
-    _LVcritical_p = Quantity(np.nan, "Pa")
-    _LVcritical_T = Quantity(np.nan, "K")
+    _critical_p = Quantity(np.nan, "Pa")
+    _critical_T = Quantity(np.nan, "K")
 
     def __init__(self, structures: Structure | tuple[Structure, ...]):
         if not isinstance(structures, tuple):
@@ -25,30 +25,30 @@ class ChemicalSpecies:
         return repr_str
 
     @property
-    def LVcritical_p(self) -> Quantity:
+    def p_c(self) -> Quantity:
         """
         The substance's liquid-vapour critical pressure.
 
         At the critical point, there is no distinction between liquid and vapour phases of the pure substance.
         """
-        return self._LVcritical_p
+        return self._critical_p
 
-    @LVcritical_p.setter
-    def LVcritical_p(self, value):
-        self._LVcritical_p = Quantity(value, "Pa")
+    @p_c.setter
+    def p_c(self, value):
+        self._critical_p = Quantity(value, "Pa")
 
     @property
-    def LVcritical_T(self) -> Quantity:
+    def T_c(self) -> Quantity:
         """
         The substance's liquid-vapour critical temperature.
 
         At the critical point, there is no distinction between liquid and vapour phases of the pure substance.
         """
-        return self._LVcritical_T
+        return self._critical_T
 
-    @LVcritical_T.setter
-    def LVcritical_T(self, value):
-        self._LVcritical_T = Quantity(value, "K")
+    @T_c.setter
+    def T_c(self, value):
+        self._critical_T = Quantity(value, "K")
 
     @property
     def structures(self) -> tuple[Structure]:

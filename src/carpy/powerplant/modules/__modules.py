@@ -17,8 +17,7 @@ class PlantModule:
     Methods:
         inputs: Instance property. Describes the set of other power plant modules that are feeding this module.
         outputs: Instance property. Describes the set of other power plant modules that this module feeds.
-        //admittance: Instance property. The proportion of input power that is permitted to flow through the module.
-        admit_low: Instance property. The minimum proportion of the input that must pass through the module.
+        admit_low: Instance property. A parameter that defines the lower bound for a module's generic control.
 
     """
     _inputs: IOBus
@@ -57,12 +56,12 @@ class PlantModule:
 
     @property
     def inputs(self) -> IOBus:
-        """Inputs to this plant module."""
+        """Fixed inputs to this plant module."""
         return self._inputs
 
     @property
     def outputs(self) -> IOBus:
-        """Outputs from this plant module."""
+        """Fixed outputs from this plant module."""
         return self._outputs
 
     # @property
