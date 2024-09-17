@@ -284,7 +284,8 @@ class Fluid(AbstractPower):
     """
     Fluidal power, i.e. the product of stagnation pressure and volumetric flow rate.
 
-    This type is fully defined when 'Mach', 'mdot', and fluid 'state' and attributes are set.
+    This type is fully defined when 'Mach', 'mdot', and fluid 'state' and attributes are set. Optionally, Mach number
+    may be omitted, in which case the fluid has no length or area scale.
     """
 
     @property
