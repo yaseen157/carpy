@@ -161,7 +161,7 @@ class MolecularStructures(unittest.TestCase):
             self.assertEqual(fgroupnames.count("bicyclo"), 1)
             self.assertEqual(fgroupnames.count("alkyl"), 1)
 
-        chemspecies = species.R134a()
+        chemspecies = species.R_134a()
         fgroups = chemspecies.structures[0].functional_groups
         fgroupnames = [name for (name, atoms) in fgroups]
         self.assertEqual(fgroupnames.count("alkyl"), 1)

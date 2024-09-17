@@ -22,21 +22,27 @@ class EquationOfState:
     _critical_p: Quantity
     _critical_T: Quantity
     _critical_Vm: Quantity
+    _T_boil: Quantity
     _pressure: typing.Callable
     _temperature: typing.Callable
     _molar_volume: typing.Callable
 
-    def __init__(self, p_c, T_c, **kwargs):
+    def __init__(self, p_c, T_c, T_boil, **kwargs):
         """
         Args:
             p_c: Critical pressure of the fluid, in Pascal.
             T_c: Critical temperature of the fluid, in Kelvin.
+            T_boil: Normal boiling temperature, i.e. temperature of phase transition under 1 atmosphere of pressure.
+
         """
         p_c = p_c if p_c is not None else np.nan
         self._critical_p = Quantity(p_c, "Pa")
 
         T_c = T_c if T_c is not None else np.nan
         self._critical_T = Quantity(T_c, "K")
+
+        T_boil = T_boil if T_boil is not None else np.nan
+        self._T_boil = Quantity(T_boil, "K")
 
     def __repr__(self):
         repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
@@ -61,6 +67,32 @@ class EquationOfState:
         self._critical_T = Quantity(value, "K")
 
     @property
+    def T_boil(self):
+        """Normal boiling point temperature, under 1 atmosphere of pressure."""
+        return self._T_boil
+
+    @T_boil.setter
+    def T_boil(self, value):
+        self._T_boil = Quantity(value, "K")
+
+    @property
+    def omega(self) -> float:
+        p_rs = self.p_r(p=Quantity(1, "atm"))
+        T_r = self.T_r(T=self.T_boil)
+
+        # Dong and Lienhard's relation
+        numerator = np.log(p_rs) - 5.372_70 * (1 - 1 / T_r)
+        denominator = 7.494_08 - 11.181_777 * T_r ** 3 + 3.687_69 * T_r ** 6 + 17.929_98 * np.log(T_r)
+        omega = float(numerator / denominator)
+        return omega
+
+    @omega.setter
+    def omega(self, value):
+        _ = value
+        error_msg = f"Setting acentric factor is not possible at this time, please use the T_boil parameter instead"
+        raise NotImplementedError(error_msg)
+
+    @property
     def Vm_c(self) -> Quantity:
         """Molar volume of substance at the effective critical point."""
         return self._critical_Vm
@@ -74,6 +106,20 @@ class EquationOfState:
         p = np.atleast_1d(p)
         p_r = (p / self.p_c).x
         return p_r
+
+    def p_rs(self, p, T) -> np.ndarray:
+        """Reduced saturation pressure, i.e. p_saturation / p_c"""
+        _ = p  # Ignore p
+        T = np.atleast_1d(T)
+
+        T_r = self.T_r(T=T)
+        # Dong and Lienhard's relation
+        # numerator = np.log(p_rs) -
+        RHS = 5.372_70 * (1 - 1 / T_r)
+        RHS += self.omega * (7.494_08 - 11.181_777 * T_r ** 3 + 3.687_69 * T_r ** 6 + 17.929_98 * np.log(T_r))
+        p_rs = np.exp(RHS)
+
+        return p_rs
 
     def T_r(self, T) -> float:
         """Reduced temperature, i.e. T / T_c"""
@@ -243,21 +289,24 @@ class EquationOfState:
 class IdealGas(EquationOfState):
     """A class implementing the ideal gas equation of state, a.k.a. the ideal gas law."""
 
-    def __init__(self, p_c=None, T_c=None, **kwargs):
-        super().__init__(p_c=p_c, T_c=T_c)
+    def __init__(self, p_c=None, T_c=None, T_boil=None, **kwargs):
+        super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
         self._critical_Vm = self.molar_volume(p=self.p_c, T=self.T_c)
         return
 
-    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
+    @staticmethod
+    def _pressure(T: Quantity, Vm: Quantity) -> Quantity:
         p = co.PHYSICAL.R * T / Vm
         return p
 
-    def _temperature(self, p: Quantity, Vm: Quantity) -> Quantity:
+    @staticmethod
+    def _temperature(p: Quantity, Vm: Quantity) -> Quantity:
         T = p * Vm / co.PHYSICAL.R
         return T
 
-    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+    @staticmethod
+    def _molar_volume(p: Quantity, T: Quantity) -> Quantity:
         Vm = co.PHYSICAL.R * T / p
         return Vm
 
@@ -265,7 +314,7 @@ class IdealGas(EquationOfState):
 class VanderWaals(EquationOfState):
     """A class implementing the van der Waals equation of state."""
 
-    def __init__(self, p_c=None, T_c=None, *, a=None, b=None, **kwargs):
+    def __init__(self, p_c=None, T_c=None, T_boil=None, *, a=None, b=None, **kwargs):
         if p_c is None and T_c is None:
             if a is not None and b is not None:
                 T_c = (a / b) / ((27 / 8) * co.PHYSICAL.R)
@@ -273,7 +322,7 @@ class VanderWaals(EquationOfState):
             elif a or b:
                 error_msg = f"Incomplete specification of 'a' and 'b' for {type(self).__name__} equation of state"
                 raise ValueError(error_msg)
-        super().__init__(p_c, T_c)
+        super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
     @property
     def _critical_Vm(self) -> Quantity:
@@ -387,18 +436,6 @@ class RedlichKwong(EquationOfState):
 class SoaveRedlichKwong(RedlichKwong):
     """A class implementing the Soave-modification of the Redlich-Kwong equation of state."""
 
-    def __init__(self, p_c, T_c, *, omega: float = 0, **kwargs):
-        """
-        Args:
-            p_c: Critical pressure of the fluid, in Pascal.
-            T_c: Critical temperature of the fluid, in Kelvin.
-            omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
-
-        """
-        super().__init__(p_c=p_c, T_c=T_c)
-        self._omega = omega
-        return
-
     @property
     def _critical_Vm(self) -> Quantity:
         Vm_c = self.molar_volume(p=self.p_c, T=self.T_c)
@@ -409,19 +446,19 @@ class SoaveRedlichKwong(RedlichKwong):
         """Parameters as defined in the Soave-Redlich-Kwong equation of state."""
         a = self._Omega_a * co.PHYSICAL.R ** 2 * self.T_c ** 2 / self.p_c
         b = self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c
-        return dict([("a", a), ("b", b), ("omega", self._omega)])
+        return dict([("a", a), ("b", b)])
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
-        a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
+        a, b = (constants := self.constants)["a"], constants["b"]
 
         # Compute Soave modification for hydrocarbons, alpha, from acentric factor, omega
-        alpha = (1 + (0.480 + 1.574 * omega - 0.176 * omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
+        alpha = (1 + (0.480 + 1.574 * self.omega - 0.176 * self.omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
 
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / (Vm * (Vm + b))
         return p
 
     def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
-        a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
+        a, b = (constants := self.constants)["a"], constants["b"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
         molar_volumes = np.zeros(pressures.shape)
@@ -430,7 +467,7 @@ class SoaveRedlichKwong(RedlichKwong):
             p = pressures.flat[i]
             T = temperatures.flat[i]
 
-            alpha = (1 + (0.480 + 1.574 * omega - 0.176 * omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
+            alpha = (1 + (0.480 + 1.574 * self.omega - 0.176 * self.omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
 
             # Polynomial to solve for molar volume
             par_a = (p / alpha).item()
@@ -454,22 +491,21 @@ class SRKmodPeneloux(SoaveRedlichKwong):
 
     _c: Quantity
 
-    def __init__(self, p_c, T_c, *, omega: float = 0, c=None, **kwargs):
+    def __init__(self, p_c=None, T_c=None, T_boil=None, *, c=None, **kwargs):
         """
         Args:
             p_c: Critical pressure of the fluid, in Pascal.
             T_c: Critical temperature of the fluid, in Kelvin.
-            omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
+            T_boil: Normal boiling temperature, i.e. temperature of phase transition under 1 atmosphere of pressure.
             c: Molar volume offset in metres cubed per mole. Optional, uses estimate for petroleum gas and oil.
-
         """
-        super().__init__(p_c=p_c, T_c=T_c, omega=omega)
+        super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
         if c is not None:
             self.c = c
         else:
             # c parameter for petroleum gas and oils can be estimated with Rackett compressibility factor Z_RA
-            Z_RA = 0.290_56 - 0.08775 * omega
+            Z_RA = 0.290_56 - 0.08775 * self.omega
             self.c = 0.40768 * co.PHYSICAL.R * T_c / p_c * (0.294_41 - Z_RA)
 
         return
@@ -488,13 +524,13 @@ class SRKmodPeneloux(SoaveRedlichKwong):
         """Parameters as defined in the Soave-Redlich-Kwong equation of state."""
         a = self._Omega_a * co.PHYSICAL.R ** 2 * self.T_c ** 2 / self.p_c
         b = (self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c) - self.c
-        return dict([("a", a), ("b", b), ("omega", self._omega), ("c", self.c)])
+        return dict([("a", a), ("b", b), ("c", self.c)])
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
-        a, b, omega, c = (constants := self.constants)["a"], constants["b"], constants["omega"], constants["c"]
+        a, b, c = (constants := self.constants)["a"], constants["b"], constants["c"]
 
         # Compute Soave modification for hydrocarbons, alpha, from acentric factor, omega
-        alpha = (1 + (0.480 + 1.574 * omega - 0.176 * omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
+        alpha = (1 + (0.480 + 1.574 * self.omega - 0.176 * self.omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
 
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / ((Vm + c) * (Vm + b + 2 * c))
         return p
@@ -511,36 +547,24 @@ class PengRobinson(SoaveRedlichKwong):
     _Omega_a = (8 + 40 * _eta_c) / (49 - 37 * _eta_c)
     _Omega_b = _eta_c / (3 + _eta_c)
 
-    def __init__(self, p_c, T_c, *, omega: float = 0, **kwargs):
-        """
-        Args:
-            p_c: Critical pressure of the fluid, in Pascal.
-            T_c: Critical temperature of the fluid, in Kelvin.
-            omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
-
-        """
-        super().__init__(p_c=p_c, T_c=T_c)
-        self._omega = omega
-        return
-
     @property
     def constants(self) -> dict[str, Quantity]:
         """Parameters as defined in the Peng-Robinson equation of state."""
         a = self._Omega_a * co.PHYSICAL.R ** 2 * self.T_c ** 2 / self.p_c
         b = self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c
-        return dict([("a", a), ("b", b), ("omega", self._omega)])
+        return dict([("a", a), ("b", b)])
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
-        a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
+        a, b = (constants := self.constants)["a"], constants["b"]
 
-        kappa = 0.37464 + 1.54226 * omega - 0.26992 * omega ** 2
+        kappa = 0.37464 + 1.54226 * self.omega - 0.26992 * self.omega ** 2
         alpha = (1 + kappa * (1 - self.T_r(T) ** 0.5)) ** 2
 
         p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / (Vm ** 2 + 2 * b * Vm - b ** 2)
         return p
 
     def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
-        a, b, omega = (constants := self.constants)["a"], constants["b"], constants["omega"]
+        a, b = (constants := self.constants)["a"], constants["b"]
 
         pressures, temperatures = np.broadcast_arrays(p, T)
         molar_volumes = np.zeros(pressures.shape)
@@ -549,7 +573,7 @@ class PengRobinson(SoaveRedlichKwong):
             p = pressures.flat[i]
             T = temperatures.flat[i]
 
-            kappa = 0.37464 + 1.54226 * omega - 0.26992 * omega ** 2
+            kappa = 0.37464 + 1.54226 * self.omega - 0.26992 * self.omega ** 2
             alpha = (1 + kappa * (1 - self.T_r(T) ** 0.5)) ** 2
 
             # Polynomial to solve for molar volume
@@ -578,7 +602,7 @@ class HydrogenGas(EquationOfState):
     """
 
     def __init__(self, *args, **kwargs):
-        super().__init__(p_c=Quantity(13, "bar"), T_c=Quantity(-240, "degC"))
+        super().__init__(p_c=Quantity(13, "bar"), T_c=Quantity(-240, "degC"), T_boil=Quantity(-252.9, "degC"))
 
     @property
     def _critical_Vm(self) -> Quantity:
@@ -629,41 +653,3 @@ class HydrogenGas(EquationOfState):
             molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
-
-
-class ElliotSureshDonohue(EquationOfState):
-    _z_m = 9.5
-    _k1 = 1.7745
-    _k2 = 1.0617
-    _k3 = 1.90476
-
-    def __init__(self, p_c, T_c, *, omega: float = 0, **kwargs):
-        """
-        Args:
-            p_c: Critical pressure of the fluid, in Pascal.
-            T_c: Critical temperature of the fluid, in Kelvin.
-            omega: Acentric factor for fluid species. Optional, defaults to zero (spherical molecule).
-
-        """
-        super().__init__(p_c=p_c, T_c=T_c)
-        self._omega = omega
-
-        # shape factor c, where c = 1 for spherical molecules
-        c = 1 + 3.535 * self._omega + 0.533 * self._omega ** 2
-
-        # shape parameter q
-        q = 1 + self._k3 * (c - 1)
-
-        # characteristic size parameter b
-        sqrt_c = c ** 0.5
-        Z_c = ((((-0.173 / sqrt_c + 0.217) / sqrt_c - 0.186) / sqrt_c + 0.115) / sqrt_c + 1) / 3
-        A_q = (1.9 * (9.5 * q - self._k1) + 4 * c * self._k1) * (4 * c - 1.9)
-        B_q = 1.9 * self._k1 + 3 * A_q / (4 * c - 1.9)
-        C_q = (9.5 * q - self._k1) / Z_c
-        Phi = Z_c ** 2 / 2 / A_q * (-B_q + (B_q ** 2 + 4 * A_q * C_q) ** 0.5)
-        b = co.PHYSICAL.R * self.T_c / self.p_c * Phi
-
-        # Y_c = (co.PHYSICAL.R * self.T_c / b) ** 2 * Z_c ** 3 / A_q
-        # Y = np.exp(epsilon / k /T) - self._k2
-        error_msg = f"The {type(self).__name__} equation of state model is unavailable at this time"
-        raise NotImplementedError(error_msg)

@@ -371,9 +371,14 @@ class FluidModel:
 
         # Now that X has been defined, we can set the equation of state
         # For equations of state, recompute an effective critical temperature and pressure using W.B. Kay's rule
-        p_c = Quantity(sum([species.p_c * Xi for (species, Xi) in self.X.items()]), "Pa")
-        T_c = Quantity(sum([species.T_c * Xi for (species, Xi) in self.X.items()]), "K")
-        self._EOS = self._EOS_cls(p_c=p_c, T_c=T_c)
+        p_c = Quantity(0, "Pa")
+        T_c = Quantity(0, "K")
+        T_boil = Quantity(0, "K")  # The rule doesn't include boiling temperature, but let's just assume it does
+        for (species, Xi) in self.X.items():
+            p_c += species.p_c * Xi
+            T_c += species.T_c * Xi
+            T_boil += species.T_boil * Xi
+        self._EOS = self._EOS_cls(p_c=p_c, T_c=T_c, T_boil=T_boil)
         return
 
     @property

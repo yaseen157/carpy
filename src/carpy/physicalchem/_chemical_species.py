@@ -1,28 +1,18 @@
 """Module that allows for the representation of molecules and atoms as "chemical species" with define structure(s)."""
 import numpy as np
 
-from carpy.physicalchem._atom import Atom
 from carpy.physicalchem._chemical_structure import Structure
 from carpy.utility import Quantity
 
-__all__ = ["ChemicalSpecies", "AtomicSpecies"]
+__all__ = ["ChemicalSpecies"]
 __author__ = "Yaseen Reza"
 
 
-class ChemicalSpecies:
-    """Unique chemical species."""
+class ThermophysicalProperties:
+    """Base class for the definition of thermophysical properties of a chemical species."""
     _critical_p = Quantity(np.nan, "Pa")
     _critical_T = Quantity(np.nan, "K")
-
-    def __init__(self, structures: Structure | tuple[Structure, ...]):
-        if not isinstance(structures, tuple):
-            structures = (structures,)
-        self._structures = structures
-
-    def __repr__(self):
-        structure_formulae = {structure._formula for structure in self._structures}
-        repr_str = f"{type(self).__name__}({'; '.join(structure_formulae)})"
-        return repr_str
+    _T_boil = Quantity(np.nan, "K")
 
     @property
     def p_c(self) -> Quantity:
@@ -49,6 +39,29 @@ class ChemicalSpecies:
     @T_c.setter
     def T_c(self, value):
         self._critical_T = Quantity(value, "K")
+
+    @property
+    def T_boil(self):
+        """Normal boiling point temperature, under 1 atmosphere of pressure."""
+        return self._T_boil
+
+    @T_boil.setter
+    def T_boil(self, value):
+        self._T_boil = Quantity(value, "K")
+
+
+class ChemicalSpecies(ThermophysicalProperties):
+    """Unique chemical species."""
+
+    def __init__(self, structures: Structure | tuple[Structure, ...]):
+        if not isinstance(structures, tuple):
+            structures = (structures,)
+        self._structures = structures
+
+    def __repr__(self):
+        structure_formulae = {structure._formula for structure in self._structures}
+        repr_str = f"{type(self).__name__}({'; '.join(structure_formulae)})"
+        return repr_str
 
     @property
     def structures(self) -> tuple[Structure]:
@@ -99,20 +112,3 @@ class ChemicalSpecies:
                 for structure in self.structures
             ])
         return Quantity(u, "J kg^{-1}")
-
-
-class AtomicSpecies(ChemicalSpecies):
-    """Unique chemical species, an atom in particular."""
-
-    def __init__(self, symbol_or_atom: str | Atom):
-
-        if isinstance(symbol_or_atom, str):
-            atom = Atom(symbol_or_atom)
-        elif isinstance(symbol_or_atom, Atom):
-            atom = symbol_or_atom
-        else:
-            error_msg = f"Expected type 'str' or '{Atom.__name__}' (got type {type(symbol_or_atom).__name__} instead)"
-            raise ValueError(error_msg)
-
-        structure = Structure.from_atoms(atom=atom, formula=atom.element.symbol)
-        super().__init__(structures=structure)

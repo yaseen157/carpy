@@ -4,9 +4,6 @@ from carpy.physicalchem import Atom, Structure, ChemicalSpecies
 __author__ = "Yaseen Reza"
 
 
-# TODO: Annoyingly, the chemeo results provide mean values when multiple data points are present, but the mean values do
-#   not exclude outliers! Walk through all of the chemeo results and manually remove outliers
-
 # TODO: Implement the Joback method to predict liquid-vapour critical pressure and temperature
 
 
@@ -17,85 +14,114 @@ __author__ = "Yaseen Reza"
 def argon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ar"))
 
-    species.p_c = 4_870e3
-    species.T_c = 150.8
+    # https://www.chemeo.com/cid/60-629-7/Argon
+    species.p_c = (3785.33 * 4 - 489.79) / 3 * 1e3  # Removed outlier(s)
+    species.T_c = 150.81
+    species.T_boil = 87.36
     return species
 
 
 def chlorine():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Cl2"))
 
-    species.p_c = 7_700e3
-    species.T_c = 143.8
+    # https://www.chemeo.com/cid/12-072-8/Chlorine
+    species.p_c = 7_986.47e3
+    species.T_c = 416.92
+    species.T_boil = 239.31
     return species
 
 
 def fluorine():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("F2"))
 
-    species.p_c = 4_870e3
-    species.T_c = 144.3
+    # https://www.chemeo.com/cid/65-487-0/fluorine
+    species.p_c = 5_172e3
+    species.T_c = 144.06
+    species.T_boil = 85.12
     return species
 
 
 def helium():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("He"))
 
-    species.p_c = 227e3
-    species.T_c = 5.19
+    # https://www.chemeo.com/cid/13-404-8/helium
+    species.p_c = 227.4e3
+    species.T_c = 5.20
+
+    # https://cryo.gsfc.nasa.gov/introduction/liquid_helium.html
+    species.T_boil = 4.2
     return species
 
 
 def hydrogen():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("H2"))
 
-    species.p_c = 1_300e3
-    species.T_c = 33.20
+    # https://www.chemeo.com/cid/17-951-7/Hydrogen
+    species.p_c = 1_296.50e3
+    species.T_c = 33.08
+    species.T_boil = 20.28
     return species
 
 
 def krypton():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Kr"))
 
-    species.p_c = 5_500e3
-    species.T_c = 209.3
+    # https://www.chemeo.com/cid/51-384-9/Krypton
+    species.p_c = 5_510.10e3
+    species.T_c = 209.44
+    species.T_boil = 119.86
     return species
 
 
 def neon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ne"))
 
+    # https://www.chemeo.com/cid/33-545-0/neon
     species.p_c = 2_760e3
     species.T_c = 44.40
+    species.T_boil = 27.07
     return species
 
 
 def nitrogen():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("N2"))
 
-    species.p_c = 3_390e3
-    species.T_c = 126.2
+    # https://www.chemeo.com/cid/18-589-9/Nitrogen
+    species.p_c = (2160.32 * 5 - 306.98 - 306.82) / 3 * 1e3  # Removed outlier(s)
+    species.T_c = 126.65
+    species.T_boil = 77.37
+
     return species
 
 
 def oxygen():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("O2"))
 
-    species.p_c = 5_050e3
-    species.T_c = 154.6
+    # https://www.chemeo.com/cid/56-977-6/Oxygen
+    species.p_c = 5_013.38e3
+    species.T_c = 154.72
+    species.T_boil = 90.2
     return species
 
 
 def radon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Rn"))
+
+    # https://www.chemeo.com/cid/13-944-9/radon
+    species.p_c = 6_280e3
+    species.T_c = 377
+    species.T_boil = 211.4
+
     return species
 
 
 def xenon():
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Xe"))
 
+    # https://www.chemeo.com/cid/16-240-7/Xenon
     species.p_c = 5_840e3
-    species.T_c = 289.8
+    species.T_c = 289.74
+    species.T_boil = 165.06
     return species
 
 
@@ -131,6 +157,7 @@ def _1_methyldecalin():
     # https://www.chemeo.com/cid/27-791-4/1-Methyldecahydronaphthalene
     species.p_c = 2637.96e3
     species.T_c = 695.39
+    species.T_boil = 478.00
 
     return species
 
@@ -146,6 +173,7 @@ def _2_methyldecane():
     # https://www.chemeo.com/cid/25-589-1/Decane-2-methyl
     species.p_c = 1947.51e3
     species.T_c = 629.90
+    species.T_boil = 462.33
 
     return species
 
@@ -161,12 +189,13 @@ def _5_methylnonane():
     # https://www.chemeo.com/cid/59-163-6/Nonane-5-methyl
     species.p_c = 2140e3
     species.T_c = 609.70
+    species.T_boil = (437.83 * 6 - 435.65) / 5  # Removed outlier(s)
 
     return species
 
 
-def R134a():
-    # R134a
+def R_134a():
+    # R-134a
     C1 = Atom("C")
     C2 = Atom("C")
     C1.bonds.add_covalent(C2, order_limit=1)
@@ -175,9 +204,14 @@ def R134a():
     C2.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2F4"))
 
-    species.p_c = 4_059e3
-    species.T_c = 374.21
+    species.p_c = (4055.42 * 17 - 4029) / 16 * 1e3  # Removed outlier(s)
+    species.T_c = (374.07 * 15 - 373.05) / 14  # Removed outlier(s)
+    species.T_boil = 246.77
     return species
+
+
+HFA_134a = R_134a
+norflurane = R_134a
 
 
 def carbon_dioxide():
@@ -186,8 +220,10 @@ def carbon_dioxide():
     [C1.bonds.add_covalent(Atom("O"), order_limit=2) for _ in range(2)]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CO2"))
 
-    species.p_c = 7_380e3
-    species.T_c = 304.19
+    # https://www.chemeo.com/cid/25-906-8/Carbon-dioxide
+    species.p_c = 7_381.94e3
+    species.T_c = 304.22
+    species.T_boil = 194.70
     return species
 
 
@@ -200,8 +236,9 @@ def cyclohexane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C6H12"))
 
     # https://www.chemeo.com/cid/66-104-3/Cyclohexane
-    species.p_c = 4079.98e3
-    species.T_c = 553.64
+    species.p_c = (4079.98 * 11 - 4200) / 10 * 1e3  # Removed outlier(s)
+    species.T_c = (553.64 * 23 - 555.10) / 22  # Removed outlier(s)
+    species.T_boil = (353.78 * 132 - 356.65 - 342.1 - 345.2 - 358.7) / 128  # Removed outlier(s)
 
     return species
 
@@ -222,8 +259,11 @@ def dinitrogen_oxide():
     structure_2 = Structure.from_atoms(atom=N1, formula="N2O")
     species = ChemicalSpecies(structures=(structure_1, structure_2))
 
-    species.p_c = 7_240e3
-    species.T_c = 309.5
+    # https://www.chemeo.com/cid/17-856-3/Nitrous-oxide
+    species.p_c = 7_249.4e3
+    species.T_c = 309.56
+    species.T_boil = 184.67
+
     return species
 
 
@@ -235,8 +275,9 @@ def ethane():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C2H6"))
 
     # https://www.chemeo.com/cid/31-101-4/Ethane
-    species.p_c = 4897.94e3
-    species.T_c = 305.48
+    species.p_c = (4897.94 * 30 - 5090 - 5100 - 4580) / 27 * 1e3  # Removed outlier(s)
+    species.T_c = (305.48 * 48 - 304.26 - 307 - 307.7 - 308.2) / 44  # Removed outlier(s)
+    species.T_boil = 184.61
 
     return species
 
@@ -254,8 +295,9 @@ def ethanol():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H5OH"))
 
     # https://www.chemeo.com/cid/35-653-8/Ethanol
-    species.p_c = ((6569.98 * 21 - 12060) / 20) * 1e3  # Removed the clear outlier(s)
-    species.T_c = 514.5
+    species.p_c = ((6569.98 * 21 - 12060) / 20) * 1e3  # Removed outlier(s)
+    species.T_c = (514.55 * 42 - 523 - 531.90) / 40  # Removed outlier(s)
+    species.T_boil = (351.44 * 49 - 350.15 - 351.91) / 47  # Removed outlier(s)
 
     return species
 
@@ -270,8 +312,9 @@ def ethene():
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H4"))
 
     # https://www.chemeo.com/cid/56-863-2/Ethylene
-    species.p_c = 5052.64e3
-    species.T_c = 282.47
+    species.p_c = (5052.64 * 12 - 5119.95) / 11 * 1e3  # Removed outlier(s)
+    species.T_c = (282.47 * 11 - 283.10) / 10  # Removed outlier(s)
+    species.T_boil = (169.28 * 10 - 168.08 - 170.45) / 8  # Removed outlier(s)
 
     return species
 
@@ -291,6 +334,7 @@ def ethyne():
     # https://www.chemeo.com/cid/24-570-2/Acetylene
     species.p_c = 6138e3
     species.T_c = 308.66
+    species.T_boil = 189.01
 
     return species
 
@@ -304,8 +348,10 @@ def methane():
     C1.bind_hydrogen()
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CH4"))
 
-    species.p_c = 4_640e3
-    species.T_c = 190.8
+    # https://www.chemeo.com/cid/27-471-9/Methane
+    species.p_c = 4_599e3
+    species.T_c = (190.58 * 24 - 173.70 - 199.70) / 22  # Removed outlier(s)
+    species.T_boil = (111.44 * 11 - 109.20) / 10  # Removed outlier(s)
     return species
 
 
@@ -324,6 +370,7 @@ def n_heptylcyclohexane():
     # https://www.chemeo.com/cid/52-961-7/Heptylcyclohexane
     species.p_c = 1956.14e3
     species.T_c = 706.34
+    species.T_boil = 510
 
     return species
 
@@ -337,6 +384,7 @@ def n_hexadecane():
     # https://www.chemeo.com/cid/30-657-9/Hexadecane
     species.p_c = 1400.33e3
     species.T_c = 723.00
+    species.T_boil = 554.38
 
     return species
 
@@ -356,6 +404,7 @@ def n_hexylcyclohexane():
     # https://www.chemeo.com/cid/10-612-0/Cyclohexane-hexyl
     species.p_c = 2130e3
     species.T_c = 691.80
+    species.T_boil = 496.48
 
     return species
 
@@ -368,7 +417,8 @@ def n_tetradecane():
 
     # https://www.chemeo.com/cid/65-264-7/Tetradecane
     species.p_c = 1524.20e3
-    species.T_c = 693.16
+    species.T_c = (693.16 * 12 - 696.90) / 11  # Removed outlier(s)
+    species.T_boil = (523.11 * 10 - 510) / 9  # Removed outlier(s)
 
     return species
 
@@ -385,6 +435,7 @@ def ortho_xylene():
     # https://www.chemeo.com/cid/62-853-6/o-Xylene
     species.p_c = 3732e3
     species.T_c = 630.30
+    species.T_boil = 417.53
 
     return species
 
@@ -398,7 +449,8 @@ def propane():
 
     # https://www.chemeo.com/cid/13-317-5/Propane
     species.p_c = 4251.67e3
-    species.T_c = 369.99
+    species.T_c = (369.99 * 39 - 364.59 - 373.30 - 375) / 36  # Removed outlier(s)
+    species.T_boil = 231
 
     return species
 
@@ -427,6 +479,7 @@ def tetralin():
     # https://www.chemeo.com/cid/34-290-2/Naphthalene-1-2-3-4-tetrahydro
     species.p_c = 3682.50e3
     species.T_c = 720.52
+    species.T_boil = 481.11
 
     return species
 
@@ -439,6 +492,7 @@ def water():
 
     species.p_c = 22_060e3
     species.T_c = 647.096
+    species.T_boil = 373.15
     return species
 
 
