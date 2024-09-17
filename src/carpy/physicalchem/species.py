@@ -487,7 +487,7 @@ def tetralin():
 def water():
     # water
     O1 = Atom("O")
-    [O1.bonds.add_covalent(Atom("H")) for _ in range(2)]
+    [O1.bonds.add_covalent(Atom("H"), order_limit=1) for _ in range(2)]
     species = ChemicalSpecies(structures=Structure.from_atoms(atom=O1, formula="H2O"))
 
     species.p_c = 22_060e3

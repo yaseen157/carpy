@@ -101,7 +101,7 @@ class EquationOfState:
     def Vm_c(self, value):
         self._critical_Vm = Quantity(value, "m^{3} mol^{-1}")
 
-    def p_r(self, p) -> float:
+    def p_r(self, p) -> np.ndarray:
         """Reduced pressure, i.e. p / p_c"""
         p = np.atleast_1d(p)
         p_r = (p / self.p_c).x
@@ -121,13 +121,13 @@ class EquationOfState:
 
         return p_rs
 
-    def T_r(self, T) -> float:
+    def T_r(self, T) -> np.ndarray:
         """Reduced temperature, i.e. T / T_c"""
         T = np.atleast_1d(T)
         T_r = (T / self.T_c).x
         return T_r
 
-    def Vm_r(self, Vm) -> float:
+    def Vm_r(self, Vm) -> np.ndarray:
         """Reduced volume, i.e. Vm / Vm_c"""
         Vm = np.atleast_1d(Vm)
         Vm_r = (Vm / self.Vm_c).x
@@ -273,14 +273,10 @@ class EquationOfState:
         p = Quantity(p, "Pa")
         T = Quantity(T, "K")
 
-        # Dong and Lienhard
-        T_r = self.T_r(T=T)
-        w = 0.200  # TODO: Omega should be computed from boiling temperature (at 1 atm), or from user specification
-        p_rs = np.exp(
-            5.37270 * (1 - 1 / T_r)
-            + w * (7.49408 - 11.181777 * T_r ** 3 + 3.68769 * T_r ** 6 + 17.92998 * np.log(T_r))
-        )
         p_r = self.p_r(p=p)
+
+        # Compute reduced saturation pressure
+        p_rs = self.p_rs(p=p, T=T)
 
         # If (reduced) pressure is less than the saturation pressure, we are surely a vapour
         return p_r < p_rs
@@ -349,20 +345,28 @@ class VanderWaals(EquationOfState):
         return T
 
     def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+
+        p, T = np.broadcast_arrays(p, T, subok=True)
+
         # Find reduced state variables
         p_r = self.p_r(p)
         T_r = self.T_r(T)
 
-        p_r, T_r = np.broadcast_arrays(p_r, T_r)
         Vm = np.zeros(p_r.shape)
         for i in range(Vm.size):
             # Polynomial ax^3 + bx^2 + cx + d = 0
             a, b, c, d = (1, -(1 / 3 + 8 / 3 * T_r.flat[i] / p_r.flat[i]), 3 / p_r.flat[i], -1 / p_r.flat[i])
             roots = np.roots((a, b, c, d))
+
+            # Ignore negative solution, non-physical
             roots = roots[np.isreal(roots)].real
             roots[roots <= 0] = np.nan
 
-            Vm.flat[i] = np.nanmax(roots) * self.Vm_c
+            # Vapour state must be maximum of remaining roots
+            if self.is_vapour(p=p.flat[i], T=T.flat[i]):
+                Vm.flat[i] = np.nanmax(roots) * self.Vm_c
+            else:
+                Vm.flat[i] = np.nanmin(roots) * self.Vm_c
 
         return Quantity(Vm, "m^{3} mol^{-1}")
 
@@ -428,7 +432,10 @@ class RedlichKwong(EquationOfState):
             roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
-            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
+            if self.is_vapour(p=p, T=T):
+                molar_volumes.flat[i] = np.nanmax(roots)
+            else:
+                molar_volumes.flat[i] = np.nanmin(roots)
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
@@ -481,7 +488,10 @@ class SoaveRedlichKwong(RedlichKwong):
             roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
-            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
+            if self.is_vapour(p=p, T=T):
+                molar_volumes.flat[i] = np.nanmax(roots)
+            else:
+                molar_volumes.flat[i] = np.nanmin(roots)
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
@@ -588,7 +598,10 @@ class PengRobinson(SoaveRedlichKwong):
             roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
-            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
+            if self.is_vapour(p=p, T=T):
+                molar_volumes.flat[i] = np.nanmax(roots)
+            else:
+                molar_volumes.flat[i] = np.nanmin(roots)
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
@@ -650,6 +663,9 @@ class HydrogenGas(EquationOfState):
             roots[roots <= 0] = np.nan
 
             # Vapour state must be maximum of remaining roots
-            molar_volumes.flat[i] = np.nanmax(roots)  # Maximum must be vapour state
+            if self.is_vapour(p=p, T=T):
+                molar_volumes.flat[i] = np.nanmax(roots)
+            else:
+                molar_volumes.flat[i] = np.nanmin(roots)
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
