@@ -260,14 +260,18 @@ class EquationOfState:
         alpha = Quantity((1 / Vm) * dVmdT_p, "K^{-1}")
         return alpha
 
-    def is_vapour(self, p, T):
+    def is_vapour(self, p, T) -> np.ndarray:
         """
         Args:
             p: Pressure, in Pascal.
             T: Absolute temperature, in Kelvin.
 
         Returns:
-            Isobaric (volumetric) thermal expansion coefficient.
+            Array of values that are True if the model predicts that the substance is in its vapour phase.
+
+        Notes:
+            This method will return True even if the fluid is supercritical - its objective is to define the switching
+            point for solutions to cubic (or similar) equations of state.
 
         """
         p = Quantity(p, "Pa")
@@ -651,7 +655,7 @@ class HydrogenGas(EquationOfState):
             par_a = T_r ** 0.5 * p_r
             par_b = -(par_a / 8 + (par_a / p_r) ** 3)
             par_c = 27 / 64
-            par_d = par_c / 8
+            par_d = -par_c / 8
             roots = np.roots((par_a, par_b, par_c, par_d))
 
             # Ignore non-physical

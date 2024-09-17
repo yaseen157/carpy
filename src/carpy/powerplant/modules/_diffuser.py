@@ -65,16 +65,9 @@ class Diffuser0d(PlantModule):
         delta_p12 = self.Cp * q1
         p2 = p1 + delta_p12
 
-        def helper(Tstatic):
-            g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=Tstatic)
-            lhs = p2 / pt2
-            rhs = (Tstatic / float(Tt2)) ** (g2 / (g2 - 1))
-            return abs(lhs - rhs)
-
-        # TODO: Decide if it's even worth having a newton solved temperature, or if it's safe to just assume the gas
-        #   behaves as locally perfect
-        T2 = Quantity(newton(helper, Tt2), "K")
-        g2 = fluid_in.state.model.specific_heat_ratio(p=p2, T=T2)
+        # Assume that gamma did not change much over the diffuser
+        g2 = g1
+        T2 = Tt2 * (p2 / pt2) ** ((g2 - 1) / g2)
         M2 = (2 / (g2 - 1) * (Tt2 / T2 - 1)) ** 0.5
 
         fluid_out_state = fluid_in.state(p=p2, T=T2)

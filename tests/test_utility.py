@@ -72,10 +72,16 @@ class Maths(unittest.TestCase):
 class Miscellaneous(unittest.TestCase):
     """Tests for miscellaneous utilities."""
 
-    @staticmethod
-    def test_pathing():
+    def test_pathing(self):
         anchor = PathAnchor()
+        # Correct filename?
+        self.assertEqual(anchor.filename, "test_utility.py")
+        self.assertEqual(anchor.filename_stem, "test_utility")
+        self.assertEqual(anchor.filename_ext, ".py")
 
+        # Correct filepath?
+        self.assertTrue(anchor.filepath.endswith("test_utility.py"))
+        self.assertTrue("carpy" in anchor.filepath)
         return
 
 
@@ -180,6 +186,9 @@ class UnitConversion(unittest.TestCase):
         self.assertTrue(mass == 85.4)
         self.assertFalse(mass == 2 * mass)
         self.assertFalse(np.any(mass == velocity))
+        self.assertIsInstance(mass == mass, np.ndarray)
+        self.assertIsInstance(mass == 85.4, np.ndarray)
+        self.assertIsInstance(mass == 2 * mass, np.ndarray)
 
         # Float casting
         self.assertEqual(float(mass), 85.4)
