@@ -345,11 +345,17 @@ class UnitOfMeasurement:
     @property
     def args(self) -> tuple[str]:
         """An args tuple that could be used to instantiate a new object with identical units."""
-        instantiable_string = " ".join([
-            f"{symbol}" if power == 1 else f"{symbol}^" + "{" + str(power) + "}"
+        instantiable_string = self.mathtext.replace("$", "")
+        return (instantiable_string,)
+
+    @property
+    def mathtext(self) -> str:
+        """Returns matplotlib compatible Mathtext."""
+        text = " ".join([
+            f"{symbol}" if power == 1 else f"{symbol}$^" + "{" + str(power) + "}$"
             for (symbol, power) in self._symbols_powers.items()
         ])
-        return (instantiable_string,)
+        return text
 
     @property
     def is_dimensionless(self) -> bool:
@@ -437,7 +443,7 @@ class Quantity(np.ndarray):
         unit_of_measurement = UnitOfMeasurement(units)
         safe_casting = False if safe_casting is None else safe_casting
 
-        if isinstance(values, Quantity) and (values.u != unit_of_measurement):
+        if isinstance(values, Quantity) and hasattr(values, "u") and (values.u != unit_of_measurement):
             warn_msg = f"{cls.__name__} object {values} had units recast to '{unit_of_measurement}'"
             if safe_casting is True:
                 raise ValueError(warn_msg)
@@ -868,6 +874,21 @@ class Quantity(np.ndarray):
 
         return wrapper
 
+    def __format__(self, format_spec):
+        # If the input format_spec is undefined, use the original formatting rules
+        if format_spec == "":
+            return super(Quantity, self).__format__(format_spec)
+
+        # Otherwise, create a formatter for NumPy objects using the built-in format objects
+        target_format = ("{:%s}" % format_spec).format
+        formatter = {"int": target_format, "float": target_format, "complex": target_format}
+
+        # noinspection PyTypeChecker
+        with np.printoptions(formatter=formatter):
+            formatted_text = str(self)
+
+        return formatted_text
+
     def __getattribute__(self, item):
         # Produce what the original __getattribute__ method would have
         result = super(Quantity, self).__getattribute__(item)
@@ -878,6 +899,21 @@ class Quantity(np.ndarray):
             result = self._wrap_units(result)
 
         return result
+
+    def __getitem__(self, item):
+
+        # If the item is an integer or a tuple, make sure to wrap the result
+        if isinstance(item, (int, tuple, np.integer)):
+            result = super(Quantity, self).__getitem__(item)
+
+            # Ignore the warnings we get about recasting units, and then make sure we apply the original unit
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                remembered_quantity = Quantity(result, self.u, safe_casting=False)
+
+            return remembered_quantity
+
+        return super(Quantity, self).__getitem__(item)
 
     # =================================================
     # Other methods not directly interacting with numpy
@@ -914,6 +950,11 @@ class Quantity(np.ndarray):
         else:
             error_msg = f"Units of '{self.u}' and '{new_uom}' are dimensionally incompatible"
             raise ValueError(error_msg)
+
+    @property
+    def m(self) -> str:
+        """Return a string containing the Mathtext representation of the Quantity's units."""
+        return self.u.mathtext
 
     @property
     def u(self) -> UnitOfMeasurement:

@@ -1,5 +1,6 @@
 """A module defining several equations of state for fluids."""
 import typing
+import warnings
 
 import numpy as np
 from scipy.optimize import minimize_scalar
@@ -8,7 +9,7 @@ from carpy.utility import Quantity, constants as co, gradient1d
 
 __all__ = [
     "EquationOfState", "IdealGas", "VanderWaals", "RedlichKwong",
-    "SoaveRedlichKwong", "SRKmodPeneloux", "PengRobinson", "HydrogenGas"]
+    "SoaveRedlichKwong", "SRKmodPeneloux", "PengRobinson", "BaigangH2"]
 __author__ = "Yaseen Reza"
 
 
@@ -282,8 +283,8 @@ class EquationOfState:
         # Compute reduced saturation pressure
         p_rs = self.p_rs(p=p, T=T)
 
-        # If (reduced) pressure is less than the saturation pressure, we are surely a vapour
-        return p_r < p_rs
+        # If (reduced) pressure is less than or equal to the saturation pressure, the vapour phase exists
+        return p_r <= p_rs
 
 
 class IdealGas(EquationOfState):
@@ -610,7 +611,7 @@ class PengRobinson(SoaveRedlichKwong):
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
 
 
-class HydrogenGas(EquationOfState):
+class BaigangH2(EquationOfState):
     """
     An equation of state developed particularly for hydrogen gas.
 
@@ -619,6 +620,13 @@ class HydrogenGas(EquationOfState):
     """
 
     def __init__(self, *args, **kwargs):
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if args or kwargs:
+                warn_msg = f"Input arguments to {type(self).__name__} are ignored"
+                warnings.warn(message=warn_msg, category=RuntimeWarning)
+
         super().__init__(p_c=Quantity(13, "bar"), T_c=Quantity(-240, "degC"), T_boil=Quantity(-252.9, "degC"))
 
     @property
