@@ -589,8 +589,12 @@ class Quantity(np.ndarray):
 
         elif len(inputs) == 1:
 
+            # Eliminate units
+            if ufunc.__name__ in ["isfinite"]:
+                results = (results[0].x,)  # Hopefully these functions only run with one result at index zero...
+
             # Carry units over
-            if ufunc.__name__ in ["negative", "positive", "absolute", "fabs"]:
+            elif ufunc.__name__ in ["negative", "positive", "absolute", "fabs"]:
                 results[0]._carpy_units = inputs[0].u * UnitOfMeasurement(None)
 
             # Halve units
@@ -902,44 +906,32 @@ class Quantity(np.ndarray):
 
     def __getitem__(self, item):
 
-        # If the item is an integer or a tuple, make sure to wrap the result
-        if isinstance(item, (int, tuple, np.integer)):
-            result = super(Quantity, self).__getitem__(item)
+        result = super(Quantity, self).__getitem__(item)
 
-            # Ignore the warnings we get about recasting units, and then make sure we apply the original unit
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                remembered_quantity = Quantity(result, self.u, safe_casting=False)
+        # Ignore the warnings we get about recasting units, and then make sure we apply the original unit
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # Gotcha: result is in base SI value, so make sure to apply the base SI version of units
+            remembered_quantity = Quantity(result, self.u.units_si, safe_casting=False)
 
-            return remembered_quantity
-
-        return super(Quantity, self).__getitem__(item)
+        return remembered_quantity
 
     # =================================================
     # Other methods not directly interacting with numpy
     # -------------------------------------------------
 
     def __repr__(self):
-        """For maths purposes, display SI."""
-        repr1 = super(Quantity, self).__repr__()
-        if self._carpy_units is None:
-            repr2 = None
-        else:
-            repr2 = self._carpy_units.units_si
-            repr2 = "no_unit" if repr2 == "" else repr2
-        return f"{repr1.rstrip()[:-1]}, {repr2})"
+        """For debugging purposes, the repr string should display values in SI units."""
+        prefix = f"{type(self).__name__}("
+        middle = str(self.x)
+        suffix = ")" if self.u is None else f", {self.u.units_si})"
+        return prefix + middle + suffix
 
     def __str__(self):
-        """For display purposes, display whatever the original unit was."""
-        # No units object set for some reason
-        if self._carpy_units is None:
-            return super(Quantity, self).__str__()
-        # Else, units object is defined
-        rtn_str1 = self._carpy_units.to_uom(self.x).__str__()
-        rtn_str2, = self._carpy_units.args
-        if rtn_str2:
-            return f"{rtn_str1} {rtn_str2}"
-        return rtn_str1
+        """For display purposes, the str string should display values in the original units of class instantiation."""
+        text = str(self.u.to_uom(self.x))
+        suffix = "" if self.u is None else f" {self.u.args[0]}"
+        return text + suffix
 
     def to(self, units: str) -> np.ndarray:
         """Return a numpy array in the chosen units."""

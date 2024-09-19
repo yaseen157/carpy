@@ -369,16 +369,23 @@ class FluidModel:
         molar_composition = {species: Xi / summation for (species, Xi) in molar_composition.items()}
         self._X = molar_composition
 
-        # Now that X has been defined, we can set the equation of state
-        # For equations of state, recompute an effective critical temperature and pressure using W.B. Kay's rule
-        p_c = Quantity(0, "Pa")
-        T_c = Quantity(0, "K")
-        T_boil = Quantity(0, "K")  # The rule doesn't include boiling temperature, but let's just assume it does
-        for (species, Xi) in self.X.items():
-            p_c += species.p_c * Xi
-            T_c += species.T_c * Xi
-            T_boil += species.T_boil * Xi
-        self._EOS = self._EOS_cls(p_c=p_c, T_c=T_c, T_boil=T_boil)
+        # Now that X has been defined, we can set the new equation of state
+        new_EOS = self._EOS_cls()
+        if not hasattr(self, "_EOS"):
+            self._EOS = new_EOS  # If this is the first time we're setting the EOS, new_EOS *is* the only EOS
+
+        # W.B. Kay's rule sets precedent for computing effective critical temperature and pressure of a composite
+        #   substance as a linear combination of the critical temperature and pressure per species. We'll assume that
+        #   all properties of species can be linearly combined in this fashion
+        for k in self.EOS.parameters.keys():
+            # If a parameter cannot be found as a property of the species itself, copy value over from the existing EOS
+            new_EOS.parameters[k] = sum([
+                getattr(species, k) * Xi if hasattr(species, k) else self.EOS.parameters[k] * Xi
+                for (species, Xi) in self.X.items()
+            ])
+
+        # Overwrite the equation of state model
+        self._EOS = new_EOS
         return
 
     @property

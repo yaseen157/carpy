@@ -143,6 +143,17 @@ class UnitConversion(unittest.TestCase):
             )
         return
 
+    def test_indexing(self):
+        """Try out the __getitem__ methods."""
+
+        distances = Quantity((0, 1, 2), "km")
+
+        # Integer slicing
+        self.assertTrue(distances[1] == 1_000)
+        self.assertIsInstance(distances[1], Quantity, "integer slice operation did not return a Quantity object")
+
+        return
+
     def test_operations(self):
         """Methods to ensure that Quantity objects can do basic maths things."""
 

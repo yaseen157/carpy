@@ -9,7 +9,8 @@ from carpy.utility import Quantity, constants as co, gradient1d
 
 __all__ = [
     "EquationOfState", "IdealGas", "VanderWaals", "RedlichKwong",
-    "SoaveRedlichKwong", "SRKmodPeneloux", "PengRobinson", "BaigangH2"]
+    "SoaveRedlichKwong", "SRKmodPeneloux", "PengRobinson", "BaigangH2"
+]
 __author__ = "Yaseen Reza"
 
 
@@ -20,10 +21,8 @@ class EquationOfState:
     Cubic equations of state are thermodynamic models for fluid pressure can be expressed as a cubic function of the
     molar volume.
     """
-    _critical_p: Quantity
-    _critical_T: Quantity
+    _eos_parameters: dict[str, Quantity]
     _critical_Vm: Quantity
-    _T_boil: Quantity
     _pressure: typing.Callable
     _temperature: typing.Callable
     _molar_volume: typing.Callable
@@ -36,45 +35,48 @@ class EquationOfState:
             T_boil: Normal boiling temperature, i.e. temperature of phase transition under 1 atmosphere of pressure.
 
         """
-        p_c = p_c if p_c is not None else np.nan
-        self._critical_p = Quantity(p_c, "Pa")
+        self._eos_parameters = dict()  # Every equation of state needs its own dictionary of model parameters
 
-        T_c = T_c if T_c is not None else np.nan
-        self._critical_T = Quantity(T_c, "K")
-
-        T_boil = T_boil if T_boil is not None else np.nan
-        self._T_boil = Quantity(T_boil, "K")
+        # Input sanitisation
+        self.p_c = p_c if p_c is not None else np.nan
+        self.T_c = T_c if T_c is not None else np.nan
+        self.T_boil = T_boil if T_boil is not None else np.nan
 
     def __repr__(self):
         repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
         return repr_str
 
     @property
+    def parameters(self) -> dict[str, Quantity]:
+        """Parameters of the model that fully define it."""
+        return self._eos_parameters
+
+    @property
     def p_c(self) -> Quantity:
         """Pressure of substance at the effective critical point."""
-        return self._critical_p
+        return self._eos_parameters["p_c"]
 
     @p_c.setter
     def p_c(self, value):
-        self._critical_p = Quantity(value, "Pa")
+        self._eos_parameters["p_c"] = Quantity(value, "Pa")
 
     @property
     def T_c(self) -> Quantity:
         """Absolute temperature of substance at the effective critical point."""
-        return self._critical_T
+        return self._eos_parameters["T_c"]
 
     @T_c.setter
     def T_c(self, value):
-        self._critical_T = Quantity(value, "K")
+        self._eos_parameters["T_c"] = Quantity(value, "K")
 
     @property
     def T_boil(self):
         """Normal boiling point temperature, under 1 atmosphere of pressure."""
-        return self._T_boil
+        return self._eos_parameters["T_boil"]
 
     @T_boil.setter
     def T_boil(self, value):
-        self._T_boil = Quantity(value, "K")
+        self._eos_parameters["T_boil"] = Quantity(value, "K")
 
     @property
     def omega(self) -> float:
@@ -388,8 +390,12 @@ class VanderWaals(EquationOfState):
 
 class RedlichKwong(EquationOfState):
     """A class implementing the Redlich-Kwong equation of state."""
+
     _Omega_a = (9 * (2 ** (1 / 3) - 1)) ** -1  # ~0.42748..
     _Omega_b = 1 / _Omega_a / 27  # ~0.08664
+
+    def __init__(self, p_c=None, T_c=None, T_boil=None, **kwargs):
+        super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
     @property
     def _critical_Vm(self) -> Quantity:
@@ -514,8 +520,6 @@ class SoaveRedlichKwong(RedlichKwong):
 class SRKmodPeneloux(SoaveRedlichKwong):
     """A class implementing the Peneloux-Rauzy-Freze (1982) modification to Soave-Redlich-Kwong volumes."""
 
-    _c: Quantity
-
     def __init__(self, p_c=None, T_c=None, T_boil=None, *, c=None, **kwargs):
         """
         Args:
@@ -526,23 +530,31 @@ class SRKmodPeneloux(SoaveRedlichKwong):
         """
         super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
+        self.c = c if c is not None else np.nan
+
         if c is not None:
             self.c = c
         else:
             # c parameter for petroleum gas and oils can be estimated with Rackett compressibility factor Z_RA
             Z_RA = 0.290_56 - 0.08775 * self.omega
-            self.c = 0.40768 * co.PHYSICAL.R * T_c / p_c * (0.294_41 - Z_RA)
+            self.c = 0.40768 * co.PHYSICAL.R * self.T_c / self.p_c * (0.294_41 - Z_RA)
 
         return
 
     @property
     def c(self):
         """Peneloux et al. volume correction parameter"""
-        return self._c
+        c = self._eos_parameters.get("c", np.nan)
+        if np.isfinite(c):
+            pass
+        else:
+            c = Quantity(0, "m^3 mol^-1")
+
+        return c
 
     @c.setter
     def c(self, value):
-        self._c = Quantity(value, "m^3 mol^-1")
+        self._eos_parameters["c"] = Quantity(value, "m^3 mol^-1")
 
     @property
     def constants(self) -> dict[str, Quantity]:

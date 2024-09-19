@@ -1,4 +1,4 @@
-from carpy.physicalchem import UnreactiveFluidModel, VanderWaals, species
+from carpy.physicalchem import UnreactiveFluidModel, species, SRKmodPeneloux
 from carpy.powerplant._io import IOType
 from carpy.powerplant.modules import PlantModule
 
@@ -25,7 +25,7 @@ class FuelModels:
             of aviation fuel Jet-A. Energy & Fuels, 24(6), pp.3565-3571. https://doi.org/10.1021/ef100208c
 
         """
-        fluid_model = UnreactiveFluidModel(eos_class=VanderWaals)
+        fluid_model = UnreactiveFluidModel(eos_class=SRKmodPeneloux)
         fluid_model.X = {
             species.n_heptylcyclohexane(): 0.279,
             species._1_methyldecalin(): 0.013,
@@ -70,9 +70,5 @@ class CPreactor(PlantModule):
 
 
 if __name__ == "__main__":
-    # fuel = FuelModels.Jet_A()
-    # print(fuel.density(p=83e3, T=50))
-
-    water = UnreactiveFluidModel(eos_class=VanderWaals)
-    water.X = {species.water(): 1}
-    print(water.density(p=101325, T=373))
+    fuel = FuelModels.Jet_A()
+    print(fuel.density(p=101325, T=273.15 + 15))
