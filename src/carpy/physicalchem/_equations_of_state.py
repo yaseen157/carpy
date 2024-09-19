@@ -122,6 +122,16 @@ class EquationOfState:
 
         return p_rs
 
+    def p_s(self, p, T) -> np.ndarray:
+        """Saturation pressure."""
+        p = np.atleast_1d(p)
+        T = np.atleast_1d(T)
+
+        p_rs = self.p_rs(p=p, T=T)
+        p_s = p_rs * self.p_c
+
+        return p_s
+
     def T_r(self, T) -> np.ndarray:
         """Reduced temperature, i.e. T / T_c"""
         T = np.atleast_1d(T)
