@@ -311,7 +311,7 @@ class Fluid(AbstractPower):
         dynamic_power = q * self.Vdot
         return dynamic_power
 
-    _Mach: float = 0
+    _Mach: float = np.nan
     _mdot = Quantity(0, "kg s^-1")
     _state: FluidState = None
 
@@ -359,6 +359,19 @@ class Fluid(AbstractPower):
     @u.setter
     def u(self, value):
         self.Mach = Quantity(value, "m s^-1") / self.state.speed_of_sound
+
+    @property
+    def A(self):
+        """Effective flow area."""
+        return self.Vdot / self.u
+
+    @A.setter
+    def A(self, value):
+        error_msg = (
+            f"The effective flow area cannot be set as it is a quantity derived from the flow speed and flow rate. "
+            f"Setting the effective flow area in isolation is an ambiguous operation"
+        )
+        raise AttributeError(error_msg)
 
     @property
     def q(self):
