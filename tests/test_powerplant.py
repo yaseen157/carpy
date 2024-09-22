@@ -1,7 +1,7 @@
 """Tests for library powerplant analysis methods."""
 import unittest
 
-from carpy.physicalchem import species, UnreactiveFluidModel
+from carpy.physicalchem import species, fluids, eostate, UnreactiveFluidModel
 from carpy.powerplant import IOType, modules
 from carpy.utility import Quantity
 
@@ -25,7 +25,8 @@ class PlantModules(unittest.TestCase):
 
         # The flow is passed into the diffuser
         my_diffuser = modules.Diffuser0d()
-        diffuser_exit, = my_diffuser.forward(freestream_capture)
+        my_diffuser.inputs.add(freestream_capture)
+        diffuser_exit, = my_diffuser.forward()
 
         # Qualitative checks
         self.assertIsInstance(diffuser_exit, type(freestream_capture))
@@ -57,7 +58,8 @@ class PlantModules(unittest.TestCase):
 
         # Pass flow to a compression stage
         my_stage = modules.AxialCompressorStage0d()
-        stage_exit, = my_stage.forward(diffuser_exit, shaftpower)
+        my_stage.inputs.add(shaftpower)
+        stage_exit, = my_stage.forward(diffuser_exit)
 
         # Qualitative checks
         self.assertIsInstance(stage_exit, type(diffuser_exit))
@@ -67,48 +69,29 @@ class PlantModules(unittest.TestCase):
         self.assertGreater(stage_exit.state.temperature, diffuser_exit.state.temperature)
         return
 
-    # def test_combustor(self):
-    #     # Define a fluid
-    #     gas_model = UnreactiveFluidModel()
-    #     gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
-    #
-    #     # The fluid is given a state and assigned to a flow
-    #     gas_state = gas_model(p=116112, T=302)
-    #     compressor_exit = IOType.Fluid(
-    #         state=gas_state,
-    #         Mach=0.18,
-    #         Vdot=258
-    #     )
-    #
-    #     # Define chemical work
-    #     heating = IOType.Chemical()
-    #     heating.CV = 42.8e6  # 42.8 Megajoules for aviation fuel
-    #     heating.mdot = (Quantity(200, "gal_USC hr^-1") / 2) * Quantity(0.8, "g mL^-1")  # 0.8 g/mL density @ 15 degC
-    #
-    #     # Pass flow to a combustor
-    #     my_combustor = modules.CPreactor()
-    #     combustor_exit, = my_combustor.forward(compressor_exit, heating)
-    #
-    #     return
+    def test_combustor(self):
+        # Define a fluid
+        gas_model = UnreactiveFluidModel()
+        gas_model.X = {species.nitrogen(): 78, species.oxygen(): 21}
 
-#
-#     def test_combustor(self):
-#         """A simple combustor heat addition test."""
-#         combustor = modules.Combustor()
-#
-#         fluid_in = IOType.Fluid()
-#         fluid_in.pressure = 6e5
-#         fluid_in.mdot = 2.4
-#         fluid_in.Vdot = 3
-#
-#         fuel = IOType.Chemical()
-#         fuel.mdot = 0.1
-#         fuel.CV = 43e6
-#
-#         combustor <<= fluid_in
-#         combustor <<= fuel
-#         combustor.forward()
-#         return
+        # The fluid is given a state and assigned to a flow
+        gas_state = gas_model(p=116112, T=302)
+        compressor_exit = IOType.Fluid(
+            state=gas_state,
+            Mach=0.18,
+            Vdot=258
+        )
+
+        # Add fuel
+        fuel = fluids.Jet_A(eos_class=eostate.SRKmodPeneloux)
+
+        # Set up the combustor and pass the flow to it
+        mycombustor = modules.ConstPCombustor()
+        mycombustor.injector.inputs.add(fuel)
+        combustor_exit, = mycombustor.forward(compressor_exit)
+
+        return
+
 #
 #     def test_simple_solar(self):
 #         """A linear, acyclic solar network with no time dependencies."""

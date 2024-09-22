@@ -1,4 +1,9 @@
-"""Module that allows for the representation of molecules and atoms as "chemical species" with define structure(s)."""
+"""
+Part of a group of modules that implements chemical understanding at an atomic level.
+
+This module defines a chemical species, i.e. what might be considered a molecule with one or more resonant chemical
+structures.
+"""
 import numpy as np
 
 from carpy.physicalchem._chemical_structure import Structure
@@ -48,6 +53,8 @@ class ThermophysicalProperties:
     @T_boil.setter
     def T_boil(self, value):
         self._T_boil = Quantity(value, "K")
+
+    # TODO: The way to get SRKmodP to auto compute c-offsets is to define a reference temp, press, molar vol. attribute
 
 
 class ChemicalSpecies(ThermophysicalProperties):

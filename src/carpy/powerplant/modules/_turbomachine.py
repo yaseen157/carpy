@@ -88,6 +88,10 @@ class Rotor0d(PlantModule):
 
         rotor_out_state = fluid_in.state(p=p2, T=T2)
         rotor_out = IOType.Fluid(state=rotor_out_state, u=u2, mdot=fluid_in.mdot)
+
+        # Pack output
+        self.outputs.clear()
+        self.outputs.add(rotor_out)
         return (rotor_out,)
 
     @property
@@ -147,6 +151,10 @@ class AxialCompressorStage0d(PlantModule):
         state1 = self.IGV.forward(fluid_in)
         state2 = self.rotor.forward(*state1, mech_in)
         state3 = self.OGV.forward(*state2)
+
+        # Pack output
+        self.outputs.clear()
+        self.outputs.add(*state3)
         return state3
 
     @property

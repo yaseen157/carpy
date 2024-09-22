@@ -1,3 +1,8 @@
+"""
+Part of a group of modules that implements chemical understanding at an atomic level.
+
+This module implements a holistic approach the identification of functional groups within a chemical structure.
+"""
 from __future__ import annotations
 import typing
 import warnings

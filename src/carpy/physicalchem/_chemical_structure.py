@@ -1,17 +1,25 @@
-"""Module enabling the structuring of atoms and subsequent determination of the chemical attributes of these 'forms'."""
+"""
+Part of a group of modules that implements chemical understanding at an atomic level.
+
+This module enables the structuring of atoms in 3D space as constituents of a larger chemical structure. Additionally,
+further chemical attributes are inferred from this spatial awareness of molecular structure.
+"""
 from __future__ import annotations
 from functools import cached_property
 import re
+import typing
 import warnings
 
 import networkx as nx
 import numpy as np
 import periodictable as pt
 
-from carpy.physicalchem._atom import Atom
-from carpy.physicalchem._chemical_bonding import CovalentBond
+from carpy.physicalchem._chemical_primitives import Atom
 from carpy.physicalchem._chemical_groups import analyse_groups
 from carpy.utility import Unicodify, Quantity, broadcast_vector, constants as co
+
+if typing.TYPE_CHECKING:
+    from ._chemical_primitives import CovalentBond
 
 __all__ = ["Structure"]
 __author__ = "Yaseen Reza"

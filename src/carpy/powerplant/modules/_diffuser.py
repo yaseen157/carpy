@@ -72,6 +72,10 @@ class Diffuser0d(PlantModule):
 
         fluid_out_state = fluid_in.state(p=p2, T=T2)
         fluid_out = IOType.Fluid(state=fluid_out_state, Mach=M2, mdot=fluid_in.mdot)
+
+        # Pack output
+        self.outputs.clear()
+        self.outputs.add(fluid_out)
         return (fluid_out,)
 
     @property

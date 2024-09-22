@@ -22,7 +22,6 @@ class EquationOfState:
     molar volume.
     """
     _eos_parameters: dict[str, Quantity]
-    _critical_Vm: Quantity
     _pressure: typing.Callable
     _temperature: typing.Callable
     _molar_volume: typing.Callable
@@ -98,11 +97,7 @@ class EquationOfState:
     @property
     def Vm_c(self) -> Quantity:
         """Molar volume of substance at the effective critical point."""
-        return self._critical_Vm
-
-    @Vm_c.setter
-    def Vm_c(self, value):
-        self._critical_Vm = Quantity(value, "m^{3} mol^{-1}")
+        return self.molar_volume(p=self.p_c, T=self.T_c)
 
     def p_r(self, p) -> np.ndarray:
         """Reduced pressure, i.e. p / p_c"""
@@ -304,8 +299,6 @@ class IdealGas(EquationOfState):
 
     def __init__(self, p_c=None, T_c=None, T_boil=None, **kwargs):
         super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
-
-        self._critical_Vm = self.molar_volume(p=self.p_c, T=self.T_c)
         return
 
     @staticmethod
@@ -338,7 +331,7 @@ class VanderWaals(EquationOfState):
         super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
     @property
-    def _critical_Vm(self) -> Quantity:
+    def Vm_c(self) -> Quantity:
         Vm_c = self.constants["b"] * 3
         return Vm_c
 
@@ -398,7 +391,7 @@ class RedlichKwong(EquationOfState):
         super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
 
     @property
-    def _critical_Vm(self) -> Quantity:
+    def Vm_c(self) -> Quantity:
         Z_c = 1 / 3
         Vm_c = Z_c * (co.PHYSICAL.R * self.T_c) / self.p_c
         return Vm_c
@@ -463,11 +456,6 @@ class RedlichKwong(EquationOfState):
 
 class SoaveRedlichKwong(RedlichKwong):
     """A class implementing the Soave-modification of the Redlich-Kwong equation of state."""
-
-    @property
-    def _critical_Vm(self) -> Quantity:
-        Vm_c = self.molar_volume(p=self.p_c, T=self.T_c)
-        return Vm_c
 
     @property
     def constants(self) -> dict[str, Quantity]:
@@ -652,7 +640,7 @@ class BaigangH2(EquationOfState):
         super().__init__(p_c=Quantity(13, "bar"), T_c=Quantity(-240, "degC"), T_boil=Quantity(-252.9, "degC"))
 
     @property
-    def _critical_Vm(self) -> Quantity:
+    def Vm_c(self) -> Quantity:
         Z_c = 0.305
         Vm_c = Z_c * (co.PHYSICAL.R * self.T_c) / self.p_c
         return Vm_c

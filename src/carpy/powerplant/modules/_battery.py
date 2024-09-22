@@ -20,6 +20,3 @@ class Battery(PlantModule):
             in_types=IOType.Electrical,
             out_types=IOType.Electrical,
         )
-
-        # Lower limit of zero due to presence of a charge controller
-        self._admit_low = 0

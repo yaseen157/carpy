@@ -64,24 +64,6 @@ class PlantModule:
         """Fixed outputs from this plant module."""
         return self._outputs
 
-    # @property
-    # def admittance(self) -> float:
-    #     """Proportion of input that is allowed to pass through the module."""
-    #     return self._admittance
-    #
-    # @admittance.setter
-    # def admittance(self, value):
-    #     clipped = np.clip((value := float(value)), self._admit_low, 1.0)
-    #     warn_msg = f"admittance of '{value}' was clipped as it was not between admit limits [{self.admit_low}, 1.0]"
-    #     if value != clipped:
-    #         warnings.warn(message=warn_msg, category=RuntimeWarning)
-    #     self._admittance = clipped
-
-    @property
-    def admit_low(self) -> float:
-        """The lower bound of the module's admittance term."""
-        return self._admit_low
-
     def __ilshift__(self, other):
         """Use to indicate that other plant module feeds self."""
 
@@ -119,16 +101,6 @@ class PlantModule:
             raise TypeError(error_msg)
 
         return self
-
-    # TODO: Figure out if it's even a good idea to use ixor. Maybe it's better to explicitly define two way links?
-    # def __ixor__(self, other):
-    #     """Use to indicate bidirectional connection between own and other plant module."""
-    #     error_msg = f"Object of type {type(self).__name__} may not make bidirectional connections to {type(other)=}"
-    #     if isinstance(other, IOType.AbstractPower):
-    #         raise TypeError(error_msg)
-    #     self.__ilshift__(other)
-    #     self.__irshift__(other)
-    #     return self
 
     def forward(self, *inputs):
         """Template for plant module power propagation."""

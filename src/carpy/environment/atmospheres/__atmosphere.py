@@ -1,7 +1,7 @@
 """Module implementing the basis class for modelling static atmospheres."""
 import typing
 
-from carpy.physicalchem import UnreactiveFluidModel
+from carpy.physicalchem import UnreactiveFluidModel, eostate
 from carpy.utility import Quantity
 
 __all__ = ["StaticAtmosphereModel"]
@@ -34,7 +34,7 @@ class StaticAtmosphereModel:
     _dynamic_viscosity: typing.Callable
 
     def __init__(self, *args, **kwargs):
-        self._fluid_model = UnreactiveFluidModel()
+        self._fluid_model = UnreactiveFluidModel(eos_class=eostate.IdealGas)
 
     def __getattr__(self, item):
         # print(f"hooked a call to {self.__repr__()}.{item}!!!")
