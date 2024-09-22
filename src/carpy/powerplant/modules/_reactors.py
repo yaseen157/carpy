@@ -50,7 +50,6 @@ class ConstPCombustor(PlantModule):
         secondary_flow, = self.injector.forward()
 
         # Determine the carbon, hydrogen, and oxygen content of each flow, scaled by the volumetric (molar) flow rate
-        CHO_elements = dict()
         CHO_ndot = dict()
         not_CHO_ndot = dict()
 
