@@ -75,6 +75,11 @@ class ChemicalSpecies(ThermophysicalProperties):
         return self._structures
 
     @property
+    def composition_formulaic(self) -> Structure.composition_formulaic:
+        """The structure's formulaic composition, i.e. the count of each constituent atoms as grouped by element."""
+        return self.structures[0].composition_formulaic
+
+    @property
     def molar_mass(self) -> Quantity:
         """Molar mass of the species."""
         mass = Quantity(0, "g mol^-1")

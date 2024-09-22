@@ -83,11 +83,16 @@ class PlantModules(unittest.TestCase):
         )
 
         # Add fuel
-        fuel = fluids.Jet_A(eos_class=eostate.SRKmodPeneloux)
+        fuel_model = fluids.Jet_A(eos_class=eostate.SRKmodPeneloux)
+        fuel_state = fuel_model(p=101325, T=300)
+        fuel_delivery = IOType.Fluid(
+            state=fuel_state,
+            mdot=Quantity(3e3, "lb hr^-1")
+        )
 
         # Set up the combustor and pass the flow to it
         mycombustor = modules.ConstPCombustor()
-        mycombustor.injector.inputs.add(fuel)
+        mycombustor.injector.inputs.add(fuel_delivery)
         combustor_exit, = mycombustor.forward(compressor_exit)
 
         return

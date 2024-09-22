@@ -4,7 +4,7 @@ import typing
 
 import numpy as np
 
-from carpy.powerplant._io import IOBus, IOType
+from carpy.powerplant import IOBus, IOType
 
 __all__ = ["PlantModule"]
 __author__ = "Yaseen Reza"

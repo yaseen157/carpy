@@ -11,7 +11,7 @@ __author__ = "Yaseen Reza"
 # Elemental gases
 
 
-def argon():
+def argon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ar"))
 
     # https://www.chemeo.com/cid/60-629-7/Argon
@@ -21,7 +21,7 @@ def argon():
     return species
 
 
-def chlorine():
+def chlorine() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Cl2"))
 
     # https://www.chemeo.com/cid/12-072-8/Chlorine
@@ -31,7 +31,7 @@ def chlorine():
     return species
 
 
-def fluorine():
+def fluorine() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("F2"))
 
     # https://www.chemeo.com/cid/65-487-0/fluorine
@@ -41,7 +41,7 @@ def fluorine():
     return species
 
 
-def helium():
+def helium() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("He"))
 
     # https://www.chemeo.com/cid/13-404-8/helium
@@ -53,7 +53,7 @@ def helium():
     return species
 
 
-def hydrogen():
+def hydrogen() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("H2"))
 
     # https://www.chemeo.com/cid/17-951-7/Hydrogen
@@ -63,7 +63,7 @@ def hydrogen():
     return species
 
 
-def krypton():
+def krypton() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Kr"))
 
     # https://www.chemeo.com/cid/51-384-9/Krypton
@@ -73,7 +73,7 @@ def krypton():
     return species
 
 
-def neon():
+def neon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ne"))
 
     # https://www.chemeo.com/cid/33-545-0/neon
@@ -83,7 +83,7 @@ def neon():
     return species
 
 
-def nitrogen():
+def nitrogen() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("N2"))
 
     # https://www.chemeo.com/cid/18-589-9/Nitrogen
@@ -94,7 +94,7 @@ def nitrogen():
     return species
 
 
-def oxygen():
+def oxygen() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("O2"))
 
     # https://www.chemeo.com/cid/56-977-6/Oxygen
@@ -104,7 +104,7 @@ def oxygen():
     return species
 
 
-def radon():
+def radon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Rn"))
 
     # https://www.chemeo.com/cid/13-944-9/radon
@@ -115,7 +115,7 @@ def radon():
     return species
 
 
-def xenon():
+def xenon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Xe"))
 
     # https://www.chemeo.com/cid/16-240-7/Xenon
@@ -129,7 +129,7 @@ def xenon():
 # Compounds
 
 
-def _1_methyldecalin():
+def _1_methyldecalin() -> ChemicalSpecies:
     # 1-Methyldecalin
 
     C1 = Atom("C")  # Methyl connects here
@@ -162,7 +162,7 @@ def _1_methyldecalin():
     return species
 
 
-def _2_methyldecane():
+def _2_methyldecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(10)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     methyl = Atom("C")
@@ -178,7 +178,7 @@ def _2_methyldecane():
     return species
 
 
-def _5_methylnonane():
+def _5_methylnonane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(9)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     methyl = Atom("C")
@@ -194,7 +194,7 @@ def _5_methylnonane():
     return species
 
 
-def R_134a():
+def R_134a() -> ChemicalSpecies:
     # R-134a
     C1 = Atom("C")
     C2 = Atom("C")
@@ -214,7 +214,7 @@ HFA_134a = R_134a
 norflurane = R_134a
 
 
-def carbon_dioxide():
+def carbon_dioxide() -> ChemicalSpecies:
     # carbon_dioxide
     C1 = Atom("C")
     [C1.bonds.add_covalent(Atom("O"), order_limit=2) for _ in range(2)]
@@ -227,7 +227,7 @@ def carbon_dioxide():
     return species
 
 
-def cyclohexane():
+def cyclohexane() -> ChemicalSpecies:
     # C6H12 cyclohexane
     carbons = [Atom("C") for _ in range(6)]
     for i, carbon in enumerate(carbons):
@@ -243,7 +243,7 @@ def cyclohexane():
     return species
 
 
-def dinitrogen_oxide():
+def dinitrogen_oxide() -> ChemicalSpecies:
     # dinitrogen_oxide
     N1 = Atom("N")
     N2 = Atom("N")
@@ -267,7 +267,7 @@ def dinitrogen_oxide():
     return species
 
 
-def ethane():
+def ethane() -> ChemicalSpecies:
     # ethane
     carbons = [Atom("C") for _ in range(2)]
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
@@ -282,7 +282,7 @@ def ethane():
     return species
 
 
-def ethanol():
+def ethanol() -> ChemicalSpecies:
     # ethanol
     C1 = Atom("C")
     C2 = Atom("C")
@@ -302,7 +302,7 @@ def ethanol():
     return species
 
 
-def ethene():
+def ethene() -> ChemicalSpecies:
     # ethene
     C1 = Atom("C")
     C2 = Atom("C")
@@ -322,7 +322,7 @@ def ethene():
 ethylene = ethene
 
 
-def ethyne():
+def ethyne() -> ChemicalSpecies:
     # ethyne
     C1 = Atom("C")
     C2 = Atom("C")
@@ -342,7 +342,7 @@ def ethyne():
 acetylene = ethyne
 
 
-def methane():
+def methane() -> ChemicalSpecies:
     # methane
     C1 = Atom("C")
     C1.bind_hydrogen()
@@ -355,7 +355,7 @@ def methane():
     return species
 
 
-def n_heptylcyclohexane():
+def n_heptylcyclohexane() -> ChemicalSpecies:
     # Form the cyclohexane ring's carbon bonds
     ringC = [Atom("C") for _ in range(6)]
     [carbon.bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=1) for i, carbon in enumerate(ringC)]
@@ -375,7 +375,7 @@ def n_heptylcyclohexane():
     return species
 
 
-def n_hexadecane():
+def n_hexadecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(16)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     [carbon.bind_hydrogen() for carbon in alkane]
@@ -389,7 +389,7 @@ def n_hexadecane():
     return species
 
 
-def n_hexylcyclohexane():
+def n_hexylcyclohexane() -> ChemicalSpecies:
     # Form the cyclohexane ring's carbon bonds
     ringC = [Atom("C") for _ in range(6)]
     [carbon.bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=1) for i, carbon in enumerate(ringC)]
@@ -409,7 +409,7 @@ def n_hexylcyclohexane():
     return species
 
 
-def n_tetradecane():
+def n_tetradecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(14)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     [carbon.bind_hydrogen() for carbon in alkane]
@@ -423,7 +423,7 @@ def n_tetradecane():
     return species
 
 
-def ortho_xylene():
+def ortho_xylene() -> ChemicalSpecies:
     ringC = [Atom("C") for _ in range(6)]
     Cmethyl1, Cmethyl2 = Atom("C"), Atom("C")
     ringC[0].bonds.add_covalent(atom=Cmethyl1, order_limit=1)
@@ -440,7 +440,7 @@ def ortho_xylene():
     return species
 
 
-def propane():
+def propane() -> ChemicalSpecies:
     # propane
     carbons = [Atom("C") for _ in range(3)]
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
@@ -455,7 +455,7 @@ def propane():
     return species
 
 
-def tetralin():
+def tetralin() -> ChemicalSpecies:
     C1 = Atom("C")  # Shared between both rings
     C2 = Atom("C")  # Shared between both rings
 
@@ -484,7 +484,7 @@ def tetralin():
     return species
 
 
-def water():
+def water() -> ChemicalSpecies:
     # water
     O1 = Atom("O")
     [O1.bonds.add_covalent(Atom("H"), order_limit=1) for _ in range(2)]
@@ -500,7 +500,7 @@ def water():
 # Mixtures
 
 
-def Jet_A_4658():
+def Jet_A_4658() -> ChemicalSpecies:
     """
     A representative model for Jet-A aviation turbine fuel.
 

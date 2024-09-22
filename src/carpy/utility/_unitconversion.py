@@ -206,7 +206,7 @@ class UnitOfMeasurement:
         self._symbols_powers = dict()
 
         if isinstance(symbols, type(self)):
-            symbols, = symbols.args  # Copy the string of and say sayonara to the original input object
+            symbols = symbols.units  # Copy the string of and say sayonara to the original input object
         elif symbols is None or symbols == "":
             return  # Nothing to be done, just leave
 
@@ -233,8 +233,7 @@ class UnitOfMeasurement:
         return
 
     def __repr__(self):
-        units, = self.args
-        return units
+        return self.units
 
     def __eq__(self, other):
         """Asserts compatibility of units for operators requiring similar dims. Radian/steradians ignored."""
@@ -343,19 +342,34 @@ class UnitOfMeasurement:
         return dims
 
     @property
-    def args(self) -> tuple[str]:
-        """An args tuple that could be used to instantiate a new object with identical units."""
-        instantiable_string = self.mathtext.replace("$", "")
-        return (instantiable_string,)
-
-    @property
     def mathtext(self) -> str:
-        """Returns matplotlib compatible Mathtext."""
+        """Returns matplotlib compatible Mathtext with the original units of instantiation."""
         text = " ".join([
             f"{symbol}" if power == 1 else f"{symbol}$^" + "{" + str(power) + "}$"
             for (symbol, power) in self._symbols_powers.items()
         ])
         return text
+
+    @property
+    def mathtext_si(self) -> str:
+        """Returns matplotlib compatible Mathtext in equivalent SI base units."""
+        dim_powers = self.dims
+        text = " ".join([
+            f"{symbol}" if power == 1 else f"{symbol}$^" + "{" + str(power) + "}$"
+            for (symbol, power) in zip(self._si_ext, dim_powers)
+            if power != 0
+        ])
+        return text
+
+    @property
+    def units(self) -> str:
+        """Returns a simple ASCII representation of the originally instantiated units."""
+        return self.mathtext.replace("$", "")
+
+    @property
+    def units_si(self) -> str:
+        """Returns a simple ASCII representation of the equivalent SI base units."""
+        return self.mathtext_si.replace("$", "")
 
     @property
     def is_dimensionless(self) -> bool:
@@ -369,7 +383,7 @@ class UnitOfMeasurement:
         values = np.atleast_1d(values)
 
         # Map imperial temperatures, if appropriate
-        if self.args[0] == "degF":
+        if self.units == "degF":
             values = values - 32
 
         # In general
@@ -385,7 +399,7 @@ class UnitOfMeasurement:
             )
 
         # Map non-SI temperatures, if appropriate
-        if self.args[0] in ["degC", "degF"]:
+        if self.units in ["degC", "degF"]:
             values = values + 273.15
 
         return values
@@ -395,7 +409,7 @@ class UnitOfMeasurement:
         values = np.atleast_1d(values)
 
         # Map non-SI temperatures, if appropriate
-        if self.args[0] in ["degC", "degF"]:
+        if self.units in ["degC", "degF"]:
             values = values - 273.15
 
         # In general
@@ -411,20 +425,10 @@ class UnitOfMeasurement:
             )
 
         # Map imperial temperatures, if appropriate
-        if self.args[0] == "degF":
+        if self.units == "degF":
             values = values + 32
 
         return values
-
-    @property
-    def units_si(self) -> str:
-        dim_powers = self.dims
-        si_string = " ".join([
-            f"{symbol}" if power == 1 else f"{symbol}^" + "{" + str(power) + "}"
-            for (symbol, power) in zip(self._si_ext, dim_powers)
-            if power != 0
-        ])
-        return si_string
 
 
 class Quantity(np.ndarray):
@@ -924,13 +928,13 @@ class Quantity(np.ndarray):
         """For debugging purposes, the repr string should display values in SI units."""
         prefix = f"{type(self).__name__}("
         middle = str(self.x)
-        suffix = ")" if self.u is None else f", {self.u.units_si})"
+        suffix = ")" if ~np.any(self.u.dims) else f", {self.u.units_si})"
         return prefix + middle + suffix
 
     def __str__(self):
         """For display purposes, the str string should display values in the original units of class instantiation."""
         text = str(self.u.to_uom(self.x))
-        suffix = "" if self.u is None else f" {self.u.args[0]}"
+        suffix = "" if ~np.any(self.u.dims) else f" {self.u.units}"
         return text + suffix
 
     def to(self, units: str) -> np.ndarray:
@@ -942,11 +946,6 @@ class Quantity(np.ndarray):
         else:
             error_msg = f"Units of '{self.u}' and '{new_uom}' are dimensionally incompatible"
             raise ValueError(error_msg)
-
-    @property
-    def m(self) -> str:
-        """Return a string containing the Mathtext representation of the Quantity's units."""
-        return self.u.mathtext
 
     @property
     def u(self) -> UnitOfMeasurement:

@@ -22,7 +22,7 @@ def traverse_edges(module: PlantModule) -> set[PlantModule]:
     while queue:
         node_source = queue.pop(0)
 
-        if isinstance(node_source, IOType.AbstractPower):
+        if isinstance(node_source, IOType.AbstractFlow):
             continue  # An abstract power definition node is a dead end
 
         # Visit all neighbours of this node
@@ -52,7 +52,7 @@ def discover_network(module: PlantModule) -> Graphs.Graph:
     }
     for root_component in subnet:
 
-        if isinstance(root_component, IOType.AbstractPower):
+        if isinstance(root_component, IOType.AbstractFlow):
             continue  # An abstract power definition node is one way, an output from another module
 
         # We don't want to doubly record inputs and outputs, so go over just module outputs (getting abstract power too)
@@ -61,7 +61,7 @@ def discover_network(module: PlantModule) -> Graphs.Graph:
 
         # And the exception to above is when the abstract power neighbour is the input
         for input_ in root_component.inputs:
-            if isinstance(input_, IOType.AbstractPower):
+            if isinstance(input_, IOType.AbstractFlow):
                 # I really don't know what PyCharm is complaining about when it doesn't like input_ as a key
                 # noinspection PyTypeChecker
                 graph.new_link(obj2node[input_], obj2node[root_component], directed=True)
@@ -94,7 +94,7 @@ class PowerNetwork:
 
         # Using the magnitude of power in sources and sinks, tabulate deficit (P < 0) and excess (P >= 0) power
         balance_sheet = {
-            i: (-1 if i in sinks else 1) * node.obj.power if isinstance(node.obj, IOType.AbstractPower) else 0.0
+            i: (-1 if i in sinks else 1) * node.obj.power if isinstance(node.obj, IOType.AbstractFlow) else 0.0
             for i, node in enumerate(self._graph.node_map.keys())
         }
 

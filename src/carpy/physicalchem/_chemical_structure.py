@@ -14,7 +14,7 @@ import networkx as nx
 import numpy as np
 import periodictable as pt
 
-from carpy.physicalchem._chemical_primitives import Atom
+from carpy.physicalchem._chemical_primitives import Atom, organic_sort
 from carpy.physicalchem._chemical_groups import analyse_groups
 from carpy.utility import Unicodify, Quantity, broadcast_vector, constants as co
 
@@ -418,6 +418,14 @@ class Structure(PartitionMethods):
         """Unordered set of bonds that constitute the molecule's chemical structure."""
         bonds = {bond for atom in self.atoms for bond in atom.bonds}
         return bonds
+
+    @property
+    def composition_formulaic(self) -> dict[pt.core.Element, int]:
+        """The structure's formulaic composition, i.e. the count of each constituent atoms as grouped by element."""
+        composition = dict()
+        for element in [atom.element for atom in organic_sort(*self.atoms)]:
+            composition[element] = composition.get(element, 0) + 1
+        return composition
 
     @property
     def functional_groups(self) -> list[tuple[str, tuple[Atom, ...]]]:

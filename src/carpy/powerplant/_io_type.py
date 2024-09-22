@@ -6,12 +6,12 @@ import numpy as np
 from carpy.physicalchem import FluidState
 from carpy.utility import Quantity
 
-__all__ = ["AbstractPower", "Chemical", "Electrical", "Mechanical", "Thermal", "Radiant", "Fluid", "collect"]
+__all__ = ["IOType"]
 __author__ = "Yaseen Reza"
 
 
-class AbstractPower:
-    """Base class for describing types of power that can be input or output of a power plant module."""
+class AbstractFlow:
+    """Base class for describing types of flow that can be input or output of a power plant module."""
     _power: property
 
     def __init__(self, **kwargs):
@@ -24,7 +24,7 @@ class AbstractPower:
         return
 
     def __repr__(self):
-        repr_str = f"<{AbstractPower.__name__} '{type(self).__name__}' @ {hex(id(self))}>"
+        repr_str = f"<{AbstractFlow.__name__} '{type(self).__name__}' @ {hex(id(self))}>"
         return repr_str
 
     def __irshift__(self, other):
@@ -47,7 +47,7 @@ class AbstractPower:
         raise ValueError(error_msg)
 
 
-class Chemical(AbstractPower):
+class Chemical(AbstractFlow):
     """
     Chemical power, defined by calorific value and mass flow rate.
 
@@ -80,7 +80,7 @@ class Chemical(AbstractPower):
         self._CV = Quantity(value, "J kg^-1")
 
 
-class Electrical(AbstractPower):
+class Electrical(AbstractFlow):
     """
     Sinusoidal electrical power. Set frequency omega to zero for DC modelling.
 
@@ -226,7 +226,7 @@ class Electrical(AbstractPower):
         self.X = self.R * np.tan(value)
 
 
-class Mechanical(AbstractPower):
+class Mechanical(AbstractFlow):
     """
     Mechanical power delivered through a rotating shaft.
     """
@@ -266,21 +266,21 @@ class Mechanical(AbstractPower):
         self.omega = value * (2 * np.pi)
 
 
-class Thermal(AbstractPower):
+class Thermal(AbstractFlow):
     """
     Thermal power, i.e. power transferred through mass transport.
     """
     pass
 
 
-class Radiant(AbstractPower):
+class Radiant(AbstractFlow):
     """
     Electromagnetical power, i.e. power transferred via electromagnetic irradiance.
     """
     pass
 
 
-class Fluid(AbstractPower):
+class Fluid(AbstractFlow):
     """
     Fluidal power, i.e. the product of stagnation pressure and volumetric flow rate.
 
@@ -475,7 +475,7 @@ class IOCollection:
         return self._fluid
 
 
-def collect(*powers: AbstractPower) -> IOCollection:
+def collect(*powers: AbstractFlow) -> IOCollection:
     """
     Given instances of classes which inherit AbstractPower, collect similar types of power.
 
@@ -499,3 +499,14 @@ def collect(*powers: AbstractPower) -> IOCollection:
         setattr(collection, f"_{power_type}", getattr(collection, power_type) + [power])
 
     return collection
+
+
+class IOType:
+    AbstractPower = AbstractFlow
+    Chemical = Chemical
+    Electrical = Electrical
+    Mechanical = Mechanical
+    Thermal = Thermal
+    Radiant = Radiant
+    Fluid = Fluid
+    collect = collect

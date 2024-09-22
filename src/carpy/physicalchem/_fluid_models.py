@@ -1,8 +1,10 @@
 """Module for modelling fluids and wrapping thermodynamic state variables."""
 from copy import deepcopy
+from functools import cached_property
 import typing
 
 import numpy as np
+import periodictable as pt
 
 from carpy.physicalchem import ChemicalSpecies, EquationOfState, IdealGas
 from carpy.utility import Quantity, constants as co
@@ -18,6 +20,7 @@ class FluidModel:
     _EOS: EquationOfState
     _EOS_cls: EquationOfState.__class__
     _X: dict[ChemicalSpecies, float]
+    _Y: dict[ChemicalSpecies, float]
     _activity: typing.Callable
     _chemical_potential: typing.Callable
     _cryoscopic_constant: typing.Callable
@@ -353,7 +356,7 @@ class FluidModel:
     # Fluid attributes
 
     @property
-    def X(self):
+    def X(self) -> dict[ChemicalSpecies, float]:
         """Gas composition by mole fraction."""
         return self._X
 
@@ -368,6 +371,8 @@ class FluidModel:
         summation = sum(molar_composition.values())
         molar_composition = {species: Xi / summation for (species, Xi) in molar_composition.items()}
         self._X = molar_composition
+        if hasattr(self, "_Y"):
+            del self._Y  # Reset Y
 
         # Now that X has been defined, we can set the new equation of state
         new_EOS = self._EOS_cls()
@@ -391,11 +396,9 @@ class FluidModel:
     @property
     def Y(self) -> dict[ChemicalSpecies, float]:
         """Chemical composition by mass fraction."""
-        mass_composition = {
-            species: float(species.molar_mass / self.molar_mass * Xi)
-            for (species, Xi) in self.X.items()
-        }
-        return mass_composition
+        if not hasattr(self, "_Y"):
+            self._Y = {species: float(species.molar_mass / self.molar_mass * Xi) for (species, Xi) in self.X.items()}
+        return self._Y
 
     @Y.setter
     def Y(self, value: dict[ChemicalSpecies, float] | ChemicalSpecies):
@@ -408,8 +411,18 @@ class FluidModel:
         # Compute molar mass
         Wbar = 1 / sum([Yi / species.molar_mass for (species, Yi) in mass_composition.items()])
         molar_composition = {species: (Yi / species.molar_mass * Wbar).x for (species, Yi) in mass_composition.items()}
-        self.X = molar_composition
+        self._X = molar_composition
+        self._Y = mass_composition
         return
+
+    @property
+    def composition_formulaic(self) -> dict[pt.core.Element, float]:
+        """The species' formulaic composition, i.e. the effective number of constituent atoms as grouped by element."""
+        composition = dict()
+        for (species_i, X_i) in self.X.items():
+            for (element, element_count) in species_i.composition_formulaic.items():
+                composition[element] = composition.get(element, 0) + element_count * X_i
+        return composition
 
     @property
     def molar_mass(self) -> Quantity:
@@ -494,6 +507,7 @@ class FluidState:
     specific_volume: ...
     X: ...
     Y: ...
+    composition_formulaic: ...
     molar_mass: ...
     specific_gas_constant: ...
     specific_heat_ratio: ...
@@ -526,7 +540,7 @@ class FluidState:
         return super(FluidState, self).__getattribute__(item)
 
     def __repr__(self):
-        repr_str = f"{type(self).__name__} object @ {hex(id(self))}"
+        repr_str = f"<{type(self).__name__} object @ {hex(id(self))}>"
         return repr_str
 
     def __str__(self):

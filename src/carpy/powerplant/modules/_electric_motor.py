@@ -1,4 +1,4 @@
-from carpy.powerplant._io import IOType
+from carpy.powerplant import IOType
 from carpy.powerplant.modules import PlantModule
 
 __all__ = ["ElectricMotor"]

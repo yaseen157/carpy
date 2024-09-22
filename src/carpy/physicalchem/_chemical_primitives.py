@@ -16,7 +16,7 @@ import periodictable as pt
 
 from carpy.utility import LoadData, PathAnchor, Quantity, Unicodify
 
-__all__ = ["Atom", "CovalentBond"]
+__all__ = ["Atom", "CovalentBond", "organic_sort"]
 __author__ = "Yaseen Reza"
 
 anchor = PathAnchor()

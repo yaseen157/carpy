@@ -7,9 +7,7 @@ References:
 import numpy as np
 
 from carpy.powerplant import IOType
-from carpy.powerplant.modules import PlantModule
-
-from carpy.powerplant.modules._diffuser import Diffuser0d
+from carpy.powerplant.modules import PlantModule, Diffuser0d
 
 __all__ = ["AxialCompressorStage0d"]
 __author__ = "Yaseen Reza"
