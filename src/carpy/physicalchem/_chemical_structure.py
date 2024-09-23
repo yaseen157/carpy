@@ -125,10 +125,16 @@ class PartitionMethods:
         self._cv_1d = (co.PHYSICAL.R / self.molar_mass) / 2
 
     @property
+    def enthalpy_atomisation(self) -> Quantity:
+        """The energy per unit substance required to cleave all the bonds in the structure."""
+        H_at = sum([bond.enthalpy for bond in self.bonds])  # NumPy wouldn't return a Quantity object
+        return H_at  # noqa
+
+    @property
     def molecular_mass(self) -> Quantity:
         """Molecular mass of the structure."""
-        molecular_mass = Quantity(sum([atom.atomic_mass for atom in self.atoms]), "kg")
-        return molecular_mass
+        molecular_mass = sum([atom.atomic_mass for atom in self.atoms])  # NumPy wouldn't return a Quantity object
+        return molecular_mass  # noqa
 
     @property
     def molar_mass(self) -> Quantity:
@@ -178,7 +184,7 @@ class PartitionMethods:
         if len(self.atoms) == 1:  # Hack for monatomics (there is no freedom due to dissociation)
             return Quantity(np.inf, "K")
 
-        D = Quantity(sum([bond.enthalpy for bond in self.bonds]), "J mol^{-1}") / self.molar_mass
+        D = self.enthalpy_atomisation / self.molar_mass  # Dissociation enthalpy per unit mass
         R_specific = co.PHYSICAL.R / (self.molecular_mass * co.PHYSICAL.N_A)
         theta_diss = D / R_specific
         return theta_diss
@@ -359,7 +365,10 @@ class PartitionMethods:
         # Diagonalise the inertia tensor, i.e. get inertia for the principle axes
         # Solve for eigenvalues (and eigenvectors)
         if np.any(~np.isfinite(inertia_tensor)):
-            error_msg = f"Elements of the molecule's inertia tensor were deemed to be not finite (erroneous)"
+            error_msg = (
+                f"Elements of the molecule's inertia tensor were deemed to be not finite (erroneous). Perhaps data on "
+                f"bond enthalpies, force constants, or lengths are missing for constituents of {repr(self)}?"
+            )
             raise RuntimeError(error_msg)
         evalues, _ = np.linalg.eig(inertia_tensor)
 
@@ -379,8 +388,6 @@ class Structure(PartitionMethods):
     molecules like methane (CH4), but could allow users to describe the multiple resonant states of dinitrogen oxide.
 
     Do not directly instantiate this class - rather use one of the "from_<x>" static methods.
-
-    The class only supports simple molecules for now. Longer alkanes for example, are not supported at this time.
     """
     regex: re.Pattern
     _graph: nx.Graph
@@ -394,18 +401,14 @@ class Structure(PartitionMethods):
 
     def __init__(self, *args, **kwargs):
         super(Structure, self).__init__()
-        self._formula = kwargs.get("formula")
         return
 
     def __repr__(self):
-        if hasattr(self, "_formula") and self._formula is not None:
-            repr_str = f"<{type(self).__name__}(\"{self._formula}\")>"
-        else:
-            repr_str = f"<{type(self).__name__}>"
+        repr_str = f"<{type(self).__name__}({self.molecular_formula})>"
         return repr_str
 
     def __str__(self):
-        rtn_str = Unicodify.chemical_formula(self._formula)
+        rtn_str = Unicodify.chemical_formula(self.molecular_formula)
         return rtn_str
 
     @property
@@ -432,6 +435,11 @@ class Structure(PartitionMethods):
         """Get a list of the functional groups detected in the molecular structure."""
         groups = analyse_groups(chemical_structure=self)
         return groups
+
+    @property
+    def molecular_formula(self) -> str:
+        """A formula indicating the number of each type of atom in a molecule, with no structural significance."""
+        return "".join([f"{k}{v}" for (k, v) in self.composition_formulaic.items()])
 
     @staticmethod
     def from_atoms(atom: Atom, formula: str = None) -> Structure:

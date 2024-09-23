@@ -80,6 +80,13 @@ class ChemicalSpecies(ThermophysicalProperties):
         return self.structures[0].composition_formulaic
 
     @property
+    def enthalpy_atomisation(self) -> Quantity:
+        """The energy per unit substance required to cleave all the bonds in the species."""
+        structural_H_at = [structure.enthalpy_atomisation for structure in self.structures]
+        H_at = sum(structural_H_at) / len(structural_H_at)  # NumPy wouldn't return a Quantity object
+        return H_at  # noqa
+
+    @property
     def molar_mass(self) -> Quantity:
         """Molar mass of the species."""
         mass = Quantity(0, "g mol^-1")

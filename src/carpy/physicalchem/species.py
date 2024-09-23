@@ -152,7 +152,7 @@ def _1_methyldecalin() -> ChemicalSpecies:
     C1.bonds.add_covalent(atom=Cmethyl, order_limit=1)
     C1.bind_hydrogen()
     Cmethyl.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C11H20"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/27-791-4/1-Methyldecahydronaphthalene
     species.p_c = 2637.96e3
@@ -168,7 +168,7 @@ def _2_methyldecane() -> ChemicalSpecies:
     methyl = Atom("C")
     alkane[1].bonds.add_covalent(atom=methyl, order_limit=1)
     [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
 
     # https://www.chemeo.com/cid/25-589-1/Decane-2-methyl
     species.p_c = 1947.51e3
@@ -184,7 +184,7 @@ def _5_methylnonane() -> ChemicalSpecies:
     methyl = Atom("C")
     alkane[4].bonds.add_covalent(atom=methyl, order_limit=1)
     [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C10H22"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
 
     # https://www.chemeo.com/cid/59-163-6/Nonane-5-methyl
     species.p_c = 2140e3
@@ -202,7 +202,7 @@ def R_134a() -> ChemicalSpecies:
     [C1.bonds.add_covalent(Atom("F"), order_limit=1) for _ in range(3)]
     C2.bonds.add_covalent(Atom("F"), order_limit=1)
     C2.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2F4"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     species.p_c = (4055.42 * 17 - 4029) / 16 * 1e3  # Removed outlier(s)
     species.T_c = (374.07 * 15 - 373.05) / 14  # Removed outlier(s)
@@ -218,7 +218,7 @@ def carbon_dioxide() -> ChemicalSpecies:
     # carbon_dioxide
     C1 = Atom("C")
     [C1.bonds.add_covalent(Atom("O"), order_limit=2) for _ in range(2)]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CO2"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/25-906-8/Carbon-dioxide
     species.p_c = 7_381.94e3
@@ -233,7 +233,7 @@ def cyclohexane() -> ChemicalSpecies:
     for i, carbon in enumerate(carbons):
         carbon.bonds.add_covalent(atom=carbons[(i + 1) % len(carbons)], order_limit=1)  # Bond C-C
         carbon.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C6H12"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0]))
 
     # https://www.chemeo.com/cid/66-104-3/Cyclohexane
     species.p_c = (4079.98 * 11 - 4200) / 10 * 1e3  # Removed outlier(s)
@@ -250,13 +250,13 @@ def dinitrogen_oxide() -> ChemicalSpecies:
     O1 = Atom("O")
     N1.bonds.add_covalent(N2)
     N1.bonds.add_covalent(O1)
-    structure_1 = Structure.from_atoms(atom=N1, formula="N2O")
+    structure_1 = Structure.from_atoms(atom=N1)
     N1 = Atom("N")
     N2 = Atom("N")
     O1 = Atom("O")
     N1.bonds.add_covalent(N2, order_limit=2)
     N1.bonds.add_covalent(O1)
-    structure_2 = Structure.from_atoms(atom=N1, formula="N2O")
+    structure_2 = Structure.from_atoms(atom=N1)
     species = ChemicalSpecies(structures=(structure_1, structure_2))
 
     # https://www.chemeo.com/cid/17-856-3/Nitrous-oxide
@@ -272,7 +272,7 @@ def ethane() -> ChemicalSpecies:
     carbons = [Atom("C") for _ in range(2)]
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
     [carbon.bind_hydrogen() for carbon in carbons]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C2H6"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0]))
 
     # https://www.chemeo.com/cid/31-101-4/Ethane
     species.p_c = (4897.94 * 30 - 5090 - 5100 - 4580) / 27 * 1e3  # Removed outlier(s)
@@ -292,7 +292,7 @@ def ethanol() -> ChemicalSpecies:
     C2.bonds.add_covalent(atom=O1, order_limit=1)
     C2.bind_hydrogen()
     O1.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H5OH"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/35-653-8/Ethanol
     species.p_c = ((6569.98 * 21 - 12060) / 20) * 1e3  # Removed outlier(s)
@@ -309,7 +309,7 @@ def ethene() -> ChemicalSpecies:
     C1.bonds.add_covalent(atom=C2, order_limit=2)
     C1.bind_hydrogen()
     C2.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H4"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/56-863-2/Ethylene
     species.p_c = (5052.64 * 12 - 5119.95) / 11 * 1e3  # Removed outlier(s)
@@ -329,7 +329,7 @@ def ethyne() -> ChemicalSpecies:
     C1.bonds.add_covalent(atom=C2, order_limit=3)
     C1.bind_hydrogen()
     C2.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C2H2"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/24-570-2/Acetylene
     species.p_c = 6138e3
@@ -346,7 +346,7 @@ def methane() -> ChemicalSpecies:
     # methane
     C1 = Atom("C")
     C1.bind_hydrogen()
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="CH4"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/27-471-9/Methane
     species.p_c = 4_599e3
@@ -365,7 +365,7 @@ def n_heptylcyclohexane() -> ChemicalSpecies:
     ringC[0].bonds.add_covalent(atom=alkane[0], order_limit=1)
     # Saturate with hydrogen
     [carbon.bind_hydrogen() for carbon in ringC + alkane]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C13H26"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0]))
 
     # https://www.chemeo.com/cid/52-961-7/Heptylcyclohexane
     species.p_c = 1956.14e3
@@ -379,7 +379,7 @@ def n_hexadecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(16)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     [carbon.bind_hydrogen() for carbon in alkane]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C16H34"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
 
     # https://www.chemeo.com/cid/30-657-9/Hexadecane
     species.p_c = 1400.33e3
@@ -399,7 +399,7 @@ def n_hexylcyclohexane() -> ChemicalSpecies:
     ringC[0].bonds.add_covalent(atom=alkane[0], order_limit=1)
     # Saturate with hydrogen
     [carbon.bind_hydrogen() for carbon in ringC + alkane]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C12H24"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0]))
 
     # https://www.chemeo.com/cid/10-612-0/Cyclohexane-hexyl
     species.p_c = 2130e3
@@ -413,7 +413,7 @@ def n_tetradecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(14)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
     [carbon.bind_hydrogen() for carbon in alkane]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0], formula="C14H30"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
 
     # https://www.chemeo.com/cid/65-264-7/Tetradecane
     species.p_c = 1524.20e3
@@ -430,7 +430,7 @@ def ortho_xylene() -> ChemicalSpecies:
     ringC[1].bonds.add_covalent(atom=Cmethyl2, order_limit=1)
     [ringC[i].bonds.add_covalent(atom=ringC[(i + 1) % len(ringC)], order_limit=(i % 2) + 1) for i in range(len(ringC))]
     [carbon.bind_hydrogen() for carbon in ringC + [Cmethyl1, Cmethyl2]]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0], formula="C8H10"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=ringC[0]))
 
     # https://www.chemeo.com/cid/62-853-6/o-Xylene
     species.p_c = 3732e3
@@ -445,7 +445,7 @@ def propane() -> ChemicalSpecies:
     carbons = [Atom("C") for _ in range(3)]
     [carbons[i].bonds.add_covalent(atom=carbons[i + 1], order_limit=1) for i in range(len(carbons) - 1)]
     [carbon.bind_hydrogen() for carbon in carbons]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0], formula="C3H8"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=carbons[0]))
 
     # https://www.chemeo.com/cid/13-317-5/Propane
     species.p_c = 4251.67e3
@@ -474,7 +474,7 @@ def tetralin() -> ChemicalSpecies:
     #   ... bind free electrons with hydrogen
     [carbon.bind_hydrogen() for carbon in set(ring1 + ring2)]
 
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1, formula="C10H12"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=C1))
 
     # https://www.chemeo.com/cid/34-290-2/Naphthalene-1-2-3-4-tetrahydro
     species.p_c = 3682.50e3
@@ -488,7 +488,7 @@ def water() -> ChemicalSpecies:
     # water
     O1 = Atom("O")
     [O1.bonds.add_covalent(Atom("H"), order_limit=1) for _ in range(2)]
-    species = ChemicalSpecies(structures=Structure.from_atoms(atom=O1, formula="H2O"))
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=O1))
 
     species.p_c = 22_060e3
     species.T_c = 647.096

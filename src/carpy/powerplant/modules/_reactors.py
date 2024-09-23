@@ -91,13 +91,27 @@ class ConstPCombustor(PlantModule):
         O2_mdot = Z * species.oxygen().molar_mass
         not_CHO_mdot = {species_i: species_i.molar_mass * ndot for species_i, ndot in not_CHO_ndot.items()}
 
-        outflow = UnreactiveFluidModel(eos_class=primary_flow.state.EOS.__class__)
-        outflow.Y = {
+        product_model = UnreactiveFluidModel(eos_class=primary_flow.state.EOS.__class__)
+        product_model.Y = {
             species.water(): H2O_mdot,
             species.carbon_dioxide(): CO2_mdot,
             species.oxygen(): O2_mdot,
             **not_CHO_mdot
         }
+        # Provide an initial temperature, literally for the sake of argument
+        product_state = product_model(p=primary_flow.state.pressure, T=primary_flow.state.temperature)
+        product_flow = IOType.Fluid(
+            state=product_state,
+            mdot=(primary_flow.mdot + secondary_flow.mdot),
+            Mach=primary_flow.Mach
+        )
+
+        power_released = sum((
+            primary_flow.state.enthalpy_atomisation * primary_flow.ndot,  # Heat release in atomisation
+            secondary_flow.state.enthalpy_atomisation * secondary_flow.ndot,  # Heat release in atomisation
+            -product_flow.state.enthalpy_atomisation * product_flow.ndot  # Heat absorption in molecularisation(?)
+        ))
+
         # Pack output
         self.outputs.clear()
 

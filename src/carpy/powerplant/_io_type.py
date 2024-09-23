@@ -343,6 +343,15 @@ class Fluid(AbstractFlow):
         self._state = value
 
     @property
+    def ndot(self) -> Quantity:
+        """Molar flow rate."""
+        return self.mdot / self.state.molar_mass
+
+    @ndot.setter
+    def ndot(self, value) -> Quantity:
+        self.mdot = Quantity(value, "mol s^-1") * self.state.molar_mass
+
+    @property
     def Vdot(self) -> Quantity:
         """Volumetric flow rate."""
         return self.mdot / self.state.density

@@ -409,10 +409,15 @@ class FluidModel:
         summation = sum(mass_composition.values())
         mass_composition = {species: Yi / summation for (species, Yi) in mass_composition.items()}
 
+        # Now that X has been defined, we can set the new equation of state
+        new_EOS = self._EOS_cls()
+        if not hasattr(self, "_EOS"):
+            self._EOS = new_EOS  # If this is the first time we're setting the EOS, new_EOS *is* the only EOS
+
         # Compute molar mass
         Wbar = 1 / sum([Yi / species.molar_mass for (species, Yi) in mass_composition.items()])
         molar_composition = {species: (Yi / species.molar_mass * Wbar).x for (species, Yi) in mass_composition.items()}
-        self._X = molar_composition
+        self.X = molar_composition  # Set the public attribute, as this implicitly updates the equation of state model
         self._Y = mass_composition
         return
 
@@ -424,6 +429,13 @@ class FluidModel:
             for (element, element_count) in species_i.composition_formulaic.items():
                 composition[element] = composition.get(element, 0) + element_count * X_i
         return composition
+
+    @property
+    def enthalpy_atomisation(self) -> Quantity:
+        """The energy per unit substance required to cleave all the bonds in the fluid."""
+        H_at_per_species = [species_i.enthalpy_atomisation * Xi for species_i, Xi in self.X.items()]
+        H_at = sum(H_at_per_species)  # NumPy wouldn't return a Quantity object
+        return H_at  # noqa
 
     @property
     def molar_mass(self) -> Quantity:
@@ -509,6 +521,7 @@ class FluidState:
     X: ...
     Y: ...
     composition_formulaic: ...
+    enthalpy_atomisation: ...
     molar_mass: ...
     specific_gas_constant: ...
     specific_heat_ratio: ...
