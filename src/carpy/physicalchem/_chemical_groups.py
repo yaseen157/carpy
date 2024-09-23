@@ -9,10 +9,12 @@ import warnings
 
 import networkx as nx
 
+from carpy.physicalchem._chemical_primitives import Atom, BondTables
+
 if typing.TYPE_CHECKING:
     from ._chemical_structure import Structure
 
-__all__ = ["analyse_groups"]
+__all__ = ["analyse_groups", "update_bond_data"]
 __author__ = "Yaseen Reza"
 
 prefix_map = ['Meth', 'Eth', 'Prop', 'But', 'Pent', 'Hex', 'Hept', 'Oct', 'Non', 'Dec',
@@ -20,11 +22,18 @@ prefix_map = ['Meth', 'Eth', 'Prop', 'But', 'Pent', 'Hex', 'Hept', 'Oct', 'Non',
 prefix_map = {i: x for (i, x) in enumerate(prefix_map)}
 
 
-class FunctionalGroup:
-    pass
+def analyse_groups(chemical_structure: Structure) -> list[tuple[str, tuple[Atom, ...]]]:
+    """
+    Identify the functional groups in a molecule and constituent atoms of said groups.
 
+    Args:
+        chemical_structure: A Structure object, describing the connectivity of atoms in a molecular structure.
 
-def analyse_groups(chemical_structure: Structure):
+    Returns:
+        A list of the identified groups. Each identified group is presented as a tuple with the group name and a tuple
+            of all that comprise the group.
+
+    """
     groups = []
     halogen_map = {"F": "fluoro", "Cl": "chloro", "Br": "bromo", "I": "iodo"}
 
@@ -41,7 +50,9 @@ def analyse_groups(chemical_structure: Structure):
             # Generate the shortest paths, and record the longest chain of atoms observed
             path_generator = nx.all_shortest_paths(G=chemical_structure._graph, source=start, target=finish)
             [unclassified_paths.append(path) for path in path_generator]
-    del i, j, start, finish, path_generator
+
+            del j, finish
+        del i, start
 
     # Attempt to classify each path by functional group
     while unclassified_paths:
@@ -92,26 +103,50 @@ def analyse_groups(chemical_structure: Structure):
             # Root is oxygen
             elif (O1 := path[cursor]).symbol == "O":
 
-                O1_carbons = O1.get_neighbours(filter="C")
-                O1_hydrogens = O1.get_neighbours(filter="H")
+                O1_carbons = O1.get_neighbours(whitelist="C")
+                O1_hydrogens = O1.get_neighbours(whitelist="H")
 
                 # R-COH is present in hydroxyl, carboxyl, hemiacetal, and hemiketal
                 if len(O1_carbons) == 1 and len(O1_hydrogens) == 1:
 
                     # Hydroxyl
                     C1 = O1_carbons.pop()
-                    if len(C1_oxygens := C1.get_neighbours(filter="O")) == 1:
+                    if len(C1_oxygens := C1.get_neighbours(whitelist="O")) == 1:
                         groups.append(("hydroxyl", tuple(C1_oxygens | O1_hydrogens)))
 
                     else:
-                        warn_msg = f"Found a C-O bound but cannot yet determine the nature of the functional group"
+                        warn_msg = f"Found a C-O bond but cannot yet determine the nature of the functional group"
+                        warnings.warn(message=warn_msg, category=RuntimeWarning)
+
+                elif len(O1_carbons) == 1:
+
+                    # Carbonyl
+                    C1 = O1_carbons.pop()
+                    if O1.bonds[C1].pop().order == 2:
+                        groups.append(("carbonyl", (C1, O1)))
+
+                    else:
+                        warn_msg = f"Found a C=O bond but cannot yet determine the nature of the functional group"
+                        warnings.warn(message=warn_msg, category=RuntimeWarning)
+
+
+                elif len(O1_hydrogens) == 2:
+
+                    # Double hydroxyl (water)
+                    if O1.get_neighbours() == O1_hydrogens:
+                        H1, H2 = O1_hydrogens
+                        groups.append(("hydroxyl", (O1, H1)))
+                        groups.append(("hydroxyl", (O1, H2)))
+
+                    else:
+                        warn_msg = f"Found a O-H bond but cannot yet determine the nature of the functional group"
                         warnings.warn(message=warn_msg, category=RuntimeWarning)
 
             # Root is a halogen
             elif (X1 := path[cursor]).symbol in halogen_map:
 
                 # Haloalkanes
-                if X1.get_neighbours(filter="C"):
+                if X1.get_neighbours(whitelist="C"):
                     groups.append((halogen_map[X1.symbol], (X1,)))
 
             # By default, every time an atom in a path is considered, cursor should seek right to the next atom
@@ -176,3 +211,46 @@ def analyse_groups(chemical_structure: Structure):
             groups.remove(group)
 
     return groups
+
+
+def update_bond_data(chemical_structure: Structure) -> None:
+    """
+    Using information from the functional groups detected in the molecule, update estimates of bond parameters.
+
+    Args:
+        chemical_structure: A Structure object, describing the connectivity of atoms in a molecular structure.
+
+    Returns:
+        None
+
+    """
+    # Copy the molecular formula as it will help look for molecule-specific hacks
+    molecular_formula = chemical_structure.molecular_formula
+
+    # First, look for small molecule
+
+    # Identify the chemical groups in the structure
+    groups = chemical_structure.functional_groups
+
+    for group_name, members in groups:
+
+        if group_name == "carbonyl":
+
+            atom1, atom2 = members
+            bond = atom1.bonds[atom2].pop()
+
+            if molecular_formula == "CO2":
+                bond.enthalpy = BondTables.strengths["C-O"]["CO2"]
+
+        elif group_name == "hydroxyl":
+
+            atom1, atom2 = members
+            bond = atom1.bonds[atom2].pop()
+
+            if molecular_formula == "H2O":
+                bond.enthalpy = BondTables.strengths["H-O"]["H2O"]
+
+            elif molecular_formula == "CH4O":
+                bond.enthalpy = BondTables.strengths["H-O"]["CH3OH"]
+
+    return None

@@ -24,7 +24,7 @@ class Diffuser0d(PlantModule):
         )
         self.Cp = 0.6
 
-    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
+    def forward(self, *inputs) -> tuple[IOType.AbstractFlow, ...]:
         """
         References:
             R. D. Flack, “Diffusers,” in Fundamentals of Jet Propulsion with Applications, Cambridge: Cambridge

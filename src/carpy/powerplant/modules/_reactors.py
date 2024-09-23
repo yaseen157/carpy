@@ -39,7 +39,7 @@ class ConstPCombustor(PlantModule):
     def injector(self) -> FTypeGovernor:
         return self._injector
 
-    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
+    def forward(self, *inputs) -> tuple[IOType.AbstractFlow, ...]:
         # Input checks
         inputs += tuple(self.inputs)
         assert len(inputs) == 1, f"{type(self).__name__} is expecting exactly one input (got {inputs})"
@@ -73,9 +73,9 @@ class ConstPCombustor(PlantModule):
 
         # Compute the number of output moles of CO2 and H2O
         # H_m C_n O_o --> X. H2O + Y. CO2 + Z. O2
-        m = CHO_ndot.get(pt.H, 0)  # noqa
-        n = CHO_ndot.get(pt.C, 0)  # noqa
-        o = CHO_ndot.get(pt.O, 0)  # noqa
+        m = CHO_ndot.get(pt.H, Quantity(0, "mol s^-1"))  # noqa
+        n = CHO_ndot.get(pt.C, Quantity(0, "mol s^-1"))  # noqa
+        o = CHO_ndot.get(pt.O, Quantity(0, "mol s^-1"))  # noqa
         X = m / 2
         Y = n
         Z = (o - X - 2 * Y) / 2

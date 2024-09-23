@@ -66,12 +66,11 @@ class ChemicalSpecies(ThermophysicalProperties):
         self._structures = structures
 
     def __repr__(self):
-        structure_formulae = {structure._formula for structure in self._structures}
-        repr_str = f"{type(self).__name__}({'; '.join(structure_formulae)})"
+        repr_str = f"{type(self).__name__}({self.structures[0].molecular_formula})"
         return repr_str
 
     @property
-    def structures(self) -> tuple[Structure]:
+    def structures(self) -> tuple[Structure, ...]:
         return self._structures
 
     @property

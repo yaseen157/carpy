@@ -50,7 +50,7 @@ class Rotor0d(PlantModule):
             out_types=IOType.Fluid
         )
 
-    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
+    def forward(self, *inputs) -> tuple[IOType.AbstractFlow, ...]:
         # Input checks
         inputs += tuple(self.inputs)
         assert len(inputs) == 2, f"{type(self).__name__} is expecting exactly two inputs (got {inputs})"
@@ -134,7 +134,7 @@ class AxialCompressorStage0d(PlantModule):
         self.OGV.Cp = 0.6
         self.OGV.Yp = 0.2
 
-    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
+    def forward(self, *inputs) -> tuple[IOType.AbstractFlow, ...]:
         # Input checks
         inputs += tuple(self.inputs)
         assert len(inputs) == 2, f"{type(self).__name__} is expecting exactly two inputs (got {inputs})"

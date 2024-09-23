@@ -15,7 +15,7 @@ import numpy as np
 import periodictable as pt
 
 from carpy.physicalchem._chemical_primitives import Atom, organic_sort
-from carpy.physicalchem._chemical_groups import analyse_groups
+from carpy.physicalchem._chemical_groups import analyse_groups, update_bond_data
 from carpy.utility import Unicodify, Quantity, broadcast_vector, constants as co
 
 if typing.TYPE_CHECKING:
@@ -401,6 +401,9 @@ class Structure(PartitionMethods):
 
     def __init__(self, *args, **kwargs):
         super(Structure, self).__init__()
+
+        # Use a holistic view of the structure to better inform the properties of constituent bonds
+        update_bond_data(chemical_structure=self)
         return
 
     def __repr__(self):
@@ -439,7 +442,7 @@ class Structure(PartitionMethods):
     @property
     def molecular_formula(self) -> str:
         """A formula indicating the number of each type of atom in a molecule, with no structural significance."""
-        return "".join([f"{k}{v}" for (k, v) in self.composition_formulaic.items()])
+        return "".join([f"{k}{v}" if v != 1 else f"{k}" for (k, v) in self.composition_formulaic.items()])
 
     @staticmethod
     def from_atoms(atom: Atom, formula: str = None) -> Structure:
@@ -486,39 +489,6 @@ class Structure(PartitionMethods):
 
         # Try to instantiate from a list of subclasses, if the regex pattern is a match
         subclasses = [ABnStructure, DiatomicStructure, MonatomicStructure]
-        for subclass in subclasses:
-            if subclass.regex.fullmatch(formula):
-                obj = subclass(formula=formula)
-                break  # Don't continue the for loop and overwrite our successful subclass instantiation
-
-        if obj is None:
-            error_msg = f"Could not parse the condensed chemical formula '{formula}' from any of {subclasses=}"
-            raise ValueError(error_msg)
-
-        return obj
-
-    @staticmethod
-    def from_molecular_formula(formula: str) -> Structure:
-        """
-        Create a Structure object from a structurally-ambiguous molecular formula.
-
-        Args:
-            formula: Molecular formula for a molecule.
-
-        Returns:
-            Molecular structure object.
-
-        Notes:
-            The inherently structurally ambigious nature of a molecular formula means that the resulting 'Structure'
-            object cannot have any properties derived from the 3D arrangement of atoms in space. For a more accurate
-            estimate of chemical transport properties, consider for example, rigourously defining the atomic structure
-            or using condensed formula methods.
-
-        """
-        obj = None
-
-        # Try to instantiate from a list of subclasses, if the regex pattern is a match
-        subclasses = [UnstructuredAlkane]
         for subclass in subclasses:
             if subclass.regex.fullmatch(formula):
                 obj = subclass(formula=formula)
@@ -602,136 +572,6 @@ class DiatomicStructure(Structure):
 
         # Return the fully instantiated class to the user
         return obj
-
-
-class UnstructuredAlkane(Structure):
-    regex = re.compile(r"C([\d.]+)H([\d.]+)")
-
-    _num_C: float
-    _num_H: float
-    _ref_C = Atom("C")
-    _ref_H = Atom("H")
-
-    def __new__(cls, formula):
-        # Parse the formula
-        num_C, num_H = map(float, cls.regex.fullmatch(formula).groups())
-
-        # Create a new molecule object
-        obj = object.__new__(UnstructuredAlkane)
-        obj._num_C = num_C
-        obj._num_H = num_H
-
-        # Run the instantiation methods of the original Molecule class
-        Structure.__init__(obj, formula=formula)
-
-        # Return the fully instantiated class to the user
-        return obj
-
-    def __init__(self, *args, **kwargs):
-        super(Structure, self).__init__()
-        self._formula = kwargs.get("formula")
-        return
-
-    @property
-    def molecular_mass(self) -> Quantity:
-        """Molecular mass of the structure."""
-        molecular_mass = Quantity(
-            sum(
-                self._ref_C.atomic_mass * self._num_C,
-                self._ref_H.atomic_mass * self._num_H
-            ),
-            "kg"
-        )
-        return molecular_mass
-
-    @property
-    def theta_rot(self) -> None:
-        """
-        Characteristic rotational temperature.
-
-        Returns:
-            A quantity object with shape (3,), with each element representing the characteristic rotational temperature
-            for a principal axis of rotation. For a molecule with only 2 degrees of freedom, the third element has a
-            value of infinity (unreachable dimension).
-
-        """
-        error_msg = f"{type(self).__name__} has no 3D structure, so this property cannot be estimated"
-        raise NotImplementedError(error_msg)
-
-    @property
-    def theta_vib(self) -> None:
-        """Characteristic vibrational temperature."""
-        error_msg = f"{type(self).__name__} has no 3D structure, so this property cannot be estimated"
-        raise NotImplementedError(error_msg)
-
-    @property
-    def theta_diss(self) -> None:
-        """
-        Characteristic dissociation temperature.
-
-        This is the characteristic temperature of dissociation for the molecule.
-        """
-        error_msg = f"{type(self).__name__} has no 3D structure, so this property cannot be estimated"
-        raise NotImplementedError(error_msg)
-
-    def specific_internal_energy(self, p, T) -> None:
-        """
-        Args:
-            p: Pressure, in Pascal.
-            T: Absolute temperature, in Kelvin.
-
-        Returns:
-            Specific internal energy.
-
-        """
-        error_msg = f"{type(self).__name__} has no 3D structure, so this property cannot be estimated"
-        raise NotImplementedError(error_msg)
-
-    def specific_heat_V(self, p, T) -> None:
-        """
-        Args:
-            p: Pressure, in Pascal.
-            T: Absolute temperature, in Kelvin.
-
-        Returns:
-            Isochoric specific heat capacity.
-
-        Notes:
-            Alkane is assumed to be a normal, straight-chained alkane.
-
-        References:
-            Kuznetsov, N.M. and Frolov, S.M., 2021. Heat Capacities and Enthalpies of Normal Alkanes in an Ideal Gas
-            State. Energies, 14(9), p.2641.
-
-        """
-        assert self._num_C >= 4, "Isobaric heat capacity estimation is only valid for alkanes with more than 4 carbons"
-        tau = np.array(T) / 100
-
-        # Heat capacity in units of [cal /mol /K]
-        cp_n5 = -0.964_11 + 11.681 * tau - 0.620_63 * tau ** 2 + 0.012_82 * tau ** 3
-        fT = -0.156_02 + 2.241_85 * tau - 0.012_689 * tau ** 2 + 0.002_78 * tau ** 3
-        cp = cp_n5 + fT * (self._num_C - 5)
-        cp = Quantity(cp, "cal mol^-1 K^-1")
-
-        # Convert heat capacity to [J /kg /K]
-        cp = cp / self.molar_mass
-
-        # Invalidate any out of bounds np.nan
-        invalid = np.where((2.9816 <= tau) & (tau <= 15), False, True)
-        if np.any(invalid):
-            warn_msg = f"Encountered out-of-bounds temperatures for specific heat capacity model of normal alkanes"
-            warnings.warn(message=warn_msg, category=RuntimeWarning)
-
-        # Mayer's relation can be used because the heat capacity estimations assume ideal gas behaviour
-        Rspecific = co.PHYSICAL.R / self.molar_mass
-        cv = cp - Rspecific
-
-        return cv
-
-    @property
-    def inertia_tensor(self):
-        error_msg = f"{type(self).__name__} has no 3D structure, so this property cannot be estimated"
-        raise NotImplementedError(error_msg)
 
 # TODO: Use VSEPR theory and AXE method to describe locations of each atom w.r.t other atoms in 3D space.
 #   Then we can use that information to compute centre of mass, and therefore moments of inertia about that point

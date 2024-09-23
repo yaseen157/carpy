@@ -494,31 +494,3 @@ def water() -> ChemicalSpecies:
     species.T_c = 647.096
     species.T_boil = 373.15
     return species
-
-
-# ========
-# Mixtures
-
-
-def Jet_A_4658() -> ChemicalSpecies:
-    """
-    A representative model for Jet-A aviation turbine fuel.
-
-    This model is based on the findings of Huber et al. (2010) in creating a surrogate model for Jet-A-4658, which
-    is a composite mixture of several Jet-A samples from different manufacturers.
-
-    Notes:
-        Due to the infancy of the library, we do not yet have the ability to compose jet fuel from its constituent
-        species. As a result, this is at best a representation of the average properties of the fluid.
-
-    References:
-        Huber, M.L., Lemmon, E.W. and Bruno, T.J., 2010. Surrogate mixture models for the thermophysical properties of
-        aviation fuel Jet-A. Energy & Fuels, 24(6), pp.3565-3571. https://doi.org/10.1021/ef100208c
-
-    """
-    structure = Structure.from_molecular_formula("C11.3H21.1")
-    species = ChemicalSpecies(structures=structure)
-
-    species.p_c = 2_399e3  # 2,399 kPa
-    species.T_c = 676.2  # 676.2 K
-    return species

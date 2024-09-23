@@ -18,7 +18,7 @@ C-H:
   Vinyl: 464          # Vinyl bond CH2CH-H
   Acetylenic: 556     # Acetylenic bond HCC-H
   Phenyl: 473         # Phenyl bond C6H5-H
-  Alicylic: 372       # Alicylic bond CH2CHCH2-H
+  Allylic: 372        # Allylic bond CH2CHCH2-H
   Benzylic: 377       # Benzylic bond C6H5CH2−H
 C-C:
   Alkane: 362         # Alkane bond, between 347-377

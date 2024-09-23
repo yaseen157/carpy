@@ -27,8 +27,8 @@ class PlantModule:
 
     def __init__(
             self, name: str = None,
-            in_types: tuple[IOType.AbstractPower.__class__] | IOType.AbstractPower.__class__ = None,
-            out_types: tuple[IOType.AbstractPower.__class__] | IOType.AbstractPower.__class__ = None
+            in_types: tuple[IOType.AbstractFlow.__class__] | IOType.AbstractFlow.__class__ = None,
+            out_types: tuple[IOType.AbstractFlow.__class__] | IOType.AbstractFlow.__class__ = None
     ):
         """
         Args:
@@ -68,7 +68,7 @@ class PlantModule:
         """Use to indicate that other plant module feeds self."""
 
         # If other turns out to be a well-defined power magnitude, assert that its addition would be legal
-        if isinstance(other, IOType.AbstractPower):
+        if isinstance(other, IOType.AbstractFlow):
             error_msg = f"'{self}' does not allow input from '{type(other).__name__}' power type"
             assert type(other) in self.inputs.legal_types, error_msg
 
@@ -89,7 +89,7 @@ class PlantModule:
             other.inputs.add(self)
 
         # Elif other is a well-defined power magnitude, assert that its addition would be legal
-        elif isinstance(other, IOType.AbstractPower):
+        elif isinstance(other, IOType.AbstractFlow):
             error_msg = f"'{self}' does not allow output to '{type(other).__name__}' power type"
             assert type(other) in self.outputs.legal_types, error_msg
 
@@ -97,7 +97,7 @@ class PlantModule:
             self.outputs.add(other)
 
         else:
-            error_msg = f"{other} was deemed not to be of either type {cls.__name__} or {IOType.AbstractPower.__name__}"
+            error_msg = f"{other} was deemed not to be of either type {cls.__name__} or {IOType.AbstractFlow.__name__}"
             raise TypeError(error_msg)
 
         return self

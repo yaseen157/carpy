@@ -16,7 +16,7 @@ import periodictable as pt
 
 from carpy.utility import LoadData, PathAnchor, Quantity, Unicodify
 
-__all__ = ["Atom", "CovalentBond", "organic_sort"]
+__all__ = ["Atom", "BondTables", "CovalentBond", "organic_sort"]
 __author__ = "Yaseen Reza"
 
 anchor = PathAnchor()
@@ -44,12 +44,22 @@ for i, scale in enumerate(["Pauling", "Allen"]):
     # Otherwise, merge dataframes
     chi_lookup = pd.merge(chi_lookup, df, how="outer", on=["Z", "symbol", "element"])
 
+
 # -------------------------
 # Read bond properties data
-
-force_constants = LoadData.yaml(filepath=os.path.join(data_path, "bond_forceconstants.yaml"))
-lengths = LoadData.yaml(filepath=os.path.join(data_path, "bond_lengths.yaml"))
-strengths = LoadData.yaml(filepath=os.path.join(data_path, "bond_strengths.yaml"))
+class BondTables:
+    force_constants = {
+        l1_query: dict([(l2_query, Quantity(v2, "N cm^-1")) for l2_query, v2 in v1.items()])
+        for l1_query, v1 in LoadData.yaml(filepath=os.path.join(data_path, "bond_forceconstants.yaml")).items()
+    }
+    lengths = {
+        l1_query: dict([(l2_query, Quantity(v2, "pm")) for l2_query, v2 in v1.items()])
+        for l1_query, v1 in LoadData.yaml(filepath=os.path.join(data_path, "bond_lengths.yaml")).items()
+    }
+    strengths = {
+        l1_query: dict([(l2_query, Quantity(v2, "kJ mol^-1")) for l2_query, v2 in v1.items()])
+        for l1_query, v1 in LoadData.yaml(filepath=os.path.join(data_path, "bond_strengths.yaml")).items()
+    }
 
 
 class Atom:
@@ -124,15 +134,15 @@ class Atom:
         """The steric number of the atom, the sum of this atom's bonds (not their multiplicity) and lone pairs."""
         return len(self.bonds) + self.electrons.lone_pairs
 
-    def get_neighbours(self, filter=None) -> set[Atom]:
+    def get_neighbours(self, whitelist: [str | tuple[str, ...]] = None) -> set[Atom]:
         """Set of neighbouring atoms."""
-        if filter is not None and not isinstance(filter, tuple):
-            filter = (filter,)
+        if whitelist is not None and not isinstance(whitelist, tuple):
+            whitelist = (whitelist,)
 
         neighbours = set([
             atom
             for atoms in [bond.atoms for bond in self.bonds]
-            for atom in atoms if (filter is None or atom.symbol in filter)
+            for atom in atoms if (whitelist is None or atom.symbol in whitelist)
         ]) - {self}
         return neighbours
 
@@ -344,7 +354,7 @@ class LocalBonds(set):
     def pop(self):
         # It doesn't make sense to pop this set as the user can't guarantee which bond they're popping. If for some
         # reason this method is deemed necessary in future it needs to reflect the same change on both bond parent atoms
-        error_msg = f".pop() method should not be used directly on {type(self).__name__} for any reason"
+        error_msg = f".pop() method should not be used directly on {type(self).__name__}. Try casting to a list instead"
         raise RuntimeError(error_msg)
 
     def add_covalent(self, atom: Atom, order_limit: int = None) -> None:
@@ -415,6 +425,10 @@ class LocalBonds(set):
 class CovalentBond:
     """Use to record covalent bonding between atoms, and automatically assign (if possible) properties of the bond."""
 
+    _enthalpy = None
+    _force_constant = None
+    _length = None
+
     def __init__(self, A: Atom, B: Atom, order: int):
         """
         Args:
@@ -425,6 +439,15 @@ class CovalentBond:
         """
         self._atoms = organic_sort(A, B)
         self._order = order
+        # thermophysical properties
+        # self._enthalpy = None
+        # self._force_constant = None
+        # self._length = None
+
+        if self.order > 3:
+            error_msg = f"The bond order between {A} and {B} exceeds that allowed in this program ({order=} > 3)"
+            raise NotImplementedError(error_msg)
+
         return
 
     def __repr__(self):
@@ -444,84 +467,99 @@ class CovalentBond:
         return self._order
 
     @property
-    def force_constant(self) -> Quantity:
-        """
-        Bond force constant.
-
-        Notes:
-            Uncached to allow dynamic computation in changing molecular structures.
-
-        """
-        # Create an order agnostic bond label
-        atom_l, atom_r = self.atoms
-        l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
-
-        # Look-up bond data
-        # TODO: Look-up force constant by best fitting molecule
-        _k = np.nan  # default
-
-        if bond_data := force_constants.get(l1_query):
-            _k = np.mean(list(bond_data.values()))
-
-        if np.isnan(_k):
-            warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
-            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
-            # Make an assumption on the force constant
-            _k = 5 * self.order  # Assume 5 newtons per centimetre per order of the bond
-
-        k = Quantity(_k, units="N cm^{-1}")
-
-        return k
-
-    @cached_property
-    def length(self) -> Quantity:
-        """Bond length."""
-        # Create an order agnostic bond label
-        atom_l, atom_r = self.atoms
-        l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
-
-        # Create an order-dependent bond label
-        order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
-        l2_query = f"{atom_l.symbol}{order_symbol}{atom_r.symbol}"
-
-        _r = np.nan  # default
-
-        if bond_data := lengths.get(l1_query):
-            _r = bond_data.get(l2_query, np.mean(list(bond_data.values())))
-
-        if np.isnan(_r):
-            warn_msg = f"Could not find length data for the {type(self).__name__} type {self}"
-            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
-
-        r = Quantity(_r, "pm")
-
-        return r
-
-    @cached_property
     def enthalpy(self) -> Quantity:
         """Bond dissociative strength."""
-        # Create an order agnostic bond label
-        atom_l, atom_r = self.atoms
-        l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
+        # Compute an ansatz value, a better estimate has to come later when we have a better idea of molecule structure
+        if self._enthalpy is None:
 
-        # TODO: Look-up force constant by best fitting molecule/chemical group/bond
-        _D = np.nan  # default
+            # Create an order agnostic bond label
+            atom_l, atom_r = self.atoms
+            l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
 
-        if bond_data := strengths.get(l1_query):
-            # lowest priority: Bond data from order-dependent bond label
+            _D = np.nan  # default
+
+            if bond_data := BondTables.strengths.get(l1_query):
+                # lowest priority: Bond data from order-dependent bond label
+                order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
+                l2_query = f"{atom_l.symbol}{order_symbol}{atom_r.symbol}"
+                _D = bond_data.get(l2_query, np.mean(list(bond_data.values())))  # Assign *some* default value
+
+                # medium priority: Bond data relevant to the chemical group of the molecule
+                _ = NotImplemented
+
+                # highest priority: Bond data relevant to the specific molecule
+                _ = NotImplemented
+
+            if np.isnan(_D):
+                warn_msg = f"Could not find dissociative strength data for the {type(self).__name__} type {self}"
+                warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
+
+            self._enthalpy = _D
+
+        return self._enthalpy
+
+    @enthalpy.setter
+    def enthalpy(self, value):
+        self._enthalpy = Quantity(value, "J mol^-1")
+
+    @property
+    def force_constant(self) -> Quantity:
+        """Bond force constant."""
+        # Compute an ansatz value, a better estimate has to come later when we have a better idea of molecule structure
+        if self._force_constant is None:
+
+            # Create an order agnostic bond label
+            atom_l, atom_r = self.atoms
+            l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
+
+            # Look-up bond data
+            _k = np.nan  # default
+
+            if bond_data := BondTables.force_constants.get(l1_query):
+                bond_vals = list(bond_data.values())
+                _k = sum(bond_vals) / len(bond_vals)  # Don't use NumPy, Quantity objects aren't preserved with np.mean
+
+            if np.isnan(_k):
+                warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
+                warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
+                # Make an assumption on the force constant
+                _k = 5 * self.order  # Assume 5 newtons per centimetre per order of the bond
+
+            self._force_constant = _k
+
+        return self._force_constant
+
+    @force_constant.setter
+    def force_constant(self, value):
+        self._force_constant = Quantity(value, "N m^-1")
+
+    @property
+    def length(self) -> Quantity:
+        """Bond length."""
+        # Compute an ansatz value, a better estimate has to come later when we have a better idea of molecule structure
+        if self._length is None:
+
+            # Create an order agnostic bond label
+            atom_l, atom_r = self.atoms
+            l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
+
+            # Create an order-dependent bond label
             order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
             l2_query = f"{atom_l.symbol}{order_symbol}{atom_r.symbol}"
-            _D = bond_data.get(l2_query, np.mean(list(bond_data.values())))  # Assign *some* default value
 
-            # medium priority: Bond data relevant to the chemical group of the molecule
-            _ = NotImplemented
+            _r = np.nan  # default
 
-            # highest priority: Bond data relevant to the specific molecule
-            _ = NotImplemented
+            if bond_data := BondTables.lengths.get(l1_query):
+                _r = bond_data.get(l2_query, np.mean(list(bond_data.values())))
 
-        if np.isnan(_D):
-            warn_msg = f"Could not find dissociative strength data for the {type(self).__name__} type {self}"
-            warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
+            if np.isnan(_r):
+                warn_msg = f"Could not find length data for the {type(self).__name__} type {self}"
+                warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
 
-        D = Quantity(_D, "kJ mol^{-1}")
-        return D
+            self._length = _r
+
+        return self._length
+
+    @length.setter
+    def length(self, value):
+        self._length = Quantity(value, "m")

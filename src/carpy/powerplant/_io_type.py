@@ -48,36 +48,8 @@ class AbstractFlow:
 
 
 class Chemical(AbstractFlow):
-    """
-    Chemical power, defined by calorific value and mass flow rate.
-
-    This type is fully defined when 'CV' and 'mdot' attributes are set.
-    """
-
-    @property
-    def _power(self):
-        return self.CV * self.mdot
-
-    _CV = Quantity(np.nan, "J kg^-1")
-    _mdot = Quantity(np.nan, "kg s^-1")
-
-    @property
-    def mdot(self) -> Quantity:
-        """Mass flow rate."""
-        return self._mdot
-
-    @mdot.setter
-    def mdot(self, value):
-        self._mdot = Quantity(value, "kg s^-1")
-
-    @property
-    def CV(self) -> Quantity:
-        """Calorific value, i.e. gravimetric energy density."""
-        return self._CV
-
-    @CV.setter
-    def CV(self, value):
-        self._CV = Quantity(value, "J kg^-1")
+    """Chemical power, defined by calorific value and mass flow rate."""
+    pass
 
 
 class Electrical(AbstractFlow):
@@ -88,7 +60,7 @@ class Electrical(AbstractFlow):
     """
 
     @property
-    def _power(self):
+    def _power(self) -> Quantity:
         return self.V_rms * self.I_rms
 
     _I_rms = Quantity(np.nan, "A")
@@ -106,7 +78,7 @@ class Electrical(AbstractFlow):
         self._V_rms = Quantity(value, "V")
 
     @property
-    def omega(self):
+    def omega(self) -> Quantity:
         """Signal frequency."""
         return self._omega
 
@@ -155,7 +127,7 @@ class Electrical(AbstractFlow):
         self.X = Quantity(value, "H") * self.omega
 
     @property
-    def power_factor(self):
+    def power_factor(self) -> float:
         """Circuit power factor."""
         pf = np.cos(self.phi)
         return pf
@@ -217,7 +189,7 @@ class Electrical(AbstractFlow):
         self.X = Z.imag
 
     @property
-    def phi(self):
+    def phi(self) -> float:
         """Phase of voltage relative to current (phi = arg(V) - arg(I))."""
         return np.arctan2(self.X, self.R)
 
@@ -232,7 +204,7 @@ class Mechanical(AbstractFlow):
     """
 
     @property
-    def _power(self):
+    def _power(self) -> Quantity:
         return self.T * self.omega
 
     _T = Quantity(np.nan, "N m")
@@ -257,7 +229,7 @@ class Mechanical(AbstractFlow):
         self._omega = Quantity(value, "rad s^-1")
 
     @property
-    def nu(self):
+    def nu(self) -> Quantity:
         """Rotational frequency, i.e. the frequency with which one full rotation is completed."""
         return self.omega / (2 * np.pi)
 
@@ -289,7 +261,7 @@ class Fluid(AbstractFlow):
     """
 
     @property
-    def _power(self):
+    def _power(self) -> Quantity:
         # The total fluid power should come from the product of stagnation pressure and flow rate. Consider that in a
         #   U-tube of water static pressure contributes to the instantaneous pressure head, whereas the dynamic pressure
         #   is responsible for velocity head. Assuming no contribution from elevation head, their sum is the total head.
@@ -300,11 +272,11 @@ class Fluid(AbstractFlow):
         return total_power
 
     @property
-    def power_pressure(self):
+    def power_pressure(self) -> Quantity:
         return self.state.pressure * self.Vdot
 
     @property
-    def power_velocity(self):
+    def power_velocity(self) -> Quantity:
         # Compute dynamic pressure
         q = 0.5 * self.state.density * self.u ** 2
 
@@ -325,7 +297,7 @@ class Fluid(AbstractFlow):
         self._Mach = float(value)
 
     @property
-    def mdot(self) -> float:
+    def mdot(self) -> Quantity:
         """Mass flow rate."""
         return self._mdot
 
@@ -361,7 +333,7 @@ class Fluid(AbstractFlow):
         self.mdot = self.state.density * Quantity(value, "m^3 s^-1")
 
     @property
-    def u(self):
+    def u(self) -> Quantity:
         """Fluid velocity."""
         return self.Mach * self.state.speed_of_sound
 
@@ -370,7 +342,7 @@ class Fluid(AbstractFlow):
         self.Mach = Quantity(value, "m s^-1") / self.state.speed_of_sound
 
     @property
-    def A(self):
+    def A(self) -> Quantity:
         """Effective flow area."""
         return self.Vdot / self.u
 
@@ -383,7 +355,7 @@ class Fluid(AbstractFlow):
         raise AttributeError(error_msg)
 
     @property
-    def q(self):
+    def q(self) -> Quantity:
         """Dynamic pressure."""
         return 0.5 * self.state.density * self.u ** 2
 
@@ -392,7 +364,7 @@ class Fluid(AbstractFlow):
         self.u = (2 * Quantity(value, "Pa") / self.state.density) ** 0.5
 
     @property
-    def total_density(self):
+    def total_density(self) -> Quantity:
         gamma = self.state.specific_heat_ratio
         T_Tt = self.state.temperature / self.total_temperature
         r_rt = T_Tt ** (1 / (gamma - 1))
@@ -408,7 +380,7 @@ class Fluid(AbstractFlow):
         self.total_temperature = self.state.temperature / T_Tt
 
     @property
-    def total_enthalpy(self):
+    def total_enthalpy(self) -> Quantity:
         ht = self.state.specific_enthalpy + self.u ** 2 / 2
         return ht
 
@@ -418,7 +390,7 @@ class Fluid(AbstractFlow):
         self.u = ((ht - self.state.specific_enthalpy) * 2) ** 0.5
 
     @property
-    def total_pressure(self):
+    def total_pressure(self) -> Quantity:
         # For adiabatic (no heat addition or rejection) and isentropic flows (no entropy gain)
         gamma = self.state.specific_heat_ratio
         T_Tt = self.state.temperature / self.total_temperature
@@ -435,7 +407,7 @@ class Fluid(AbstractFlow):
         self.total_temperature = self.state.temperature / T_Tt
 
     @property
-    def total_temperature(self):
+    def total_temperature(self) -> Quantity:
         # For adiabatic flows (no heat addition or rejection)
         T_Tt = (1 + (self.state.specific_heat_ratio - 1) / 2 * self.Mach ** 2) ** -1
         Tt = self.state.temperature / T_Tt
@@ -511,7 +483,7 @@ def collect(*powers: AbstractFlow) -> IOCollection:
 
 
 class IOType:
-    AbstractPower = AbstractFlow
+    AbstractFlow = AbstractFlow
     Chemical = Chemical
     Electrical = Electrical
     Mechanical = Mechanical

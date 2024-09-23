@@ -182,9 +182,9 @@ class FluidModels(unittest.TestCase):
         fluid_state = my_model(p=101325, T=288.15)
 
         # ==============
-        # Ansatz-mixture
+        # Water
         my_model = UnreactiveFluidModel()
-        my_model.X = {species.Jet_A_4658(): 1.1}
+        my_model.X = {species.water(): 1.1}
 
         # Create fluid state object
         fluid_state = my_model(p=101325, T=288.15)

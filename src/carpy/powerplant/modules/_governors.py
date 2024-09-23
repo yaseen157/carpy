@@ -40,7 +40,7 @@ class FTypeGovernor(PlantModule):
             out_types=IOType.Fluid
         )
 
-    def forward(self, *inputs) -> tuple[IOType.AbstractPower, ...]:
+    def forward(self, *inputs) -> tuple[IOType.AbstractFlow, ...]:
         # Input checks
         inputs += tuple(self.inputs)
         assert len(inputs) == 1, f"{type(self).__name__} is expecting exactly one input (got {inputs})"
