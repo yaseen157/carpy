@@ -62,7 +62,7 @@ class FluidModel:
         for k, v in self.__dict__.items():
             # Special exception: the contents of _X should not be deepcopied as the keys refer to static library
             #   definitions for molecule structures
-            if k == ["_X", "_Y"]:
+            if k in ["_X", "_Y"]:
                 setattr(result, k, dict(v))
 
             else:
