@@ -11,8 +11,9 @@
 # the type of bond can be explored (based on steric number or # of bonds).
 # ==============================================================================
 
-# Fox, Marye Anne; Whitesell, James K. (1995). Organische Chemie: Grundlagen,
-# Mechanismen, Bioorganische Anwendungen. Springer. ISBN 978-3-86025-249-9.
+# References:
+#     Fox, Marye Anne; Whitesell, James K. (1995). Organische Chemie: Grundlagen,
+#         Mechanismen, Bioorganische Anwendungen. Springer. ISBN 978-3-86025-249-9.
 C-H:
   sp3-H: 110   # Carbon's Steric number SN=4 (sp3)
   sp2-H: 109   # Carbon's Steric number SN=3 (sp2)

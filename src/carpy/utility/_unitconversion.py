@@ -823,9 +823,9 @@ class Quantity(np.ndarray):
         """Reverse multiplication."""
         return self.__mul__(other)
 
-    def __round__(self, n=None):
+    def __round__(self, ndigits=None):
         """Round function."""
-        return np.round(self, decimals=n)
+        return Quantity(np.round(self, decimals=ndigits), units=self.u.units_si)
 
     def __rpow__(self, other):
         """Reverse raise power."""
@@ -873,14 +873,27 @@ class Quantity(np.ndarray):
             # Get the unit-less array result
             vanilla_result = func(*args, **kwargs)
 
-            # Ignore the warnings we get about recasting units, and then make sure we apply the original unit
+            # Ignore the warnings we get about recasting units, and then make sure we apply the SI unit to the SI result
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                remembered_quantity = Quantity(vanilla_result, self.u, safe_casting=False)
+                remembered_quantity = Quantity(vanilla_result, self.u.units_si, safe_casting=False)
 
             return remembered_quantity
 
         return wrapper
+
+    def __repr__(self):
+        """For debugging purposes, the repr string should display values in SI units."""
+        prefix = f"{type(self).__name__}("
+        middle = str(self.x)
+        suffix = ")" if ~np.any(self.u.dims) else f", {self.u.units_si})"
+        return prefix + middle + suffix
+
+    def __str__(self):
+        """For display purposes, the str string should display values in the original units of class instantiation."""
+        text = str(self.u.to_uom(self.x))
+        suffix = "" if ~np.any(self.u.dims) else f" {self.u.units}"
+        return text + suffix
 
     def __format__(self, format_spec):
         # If the input format_spec is undefined, use the original formatting rules
@@ -920,22 +933,17 @@ class Quantity(np.ndarray):
 
         return remembered_quantity
 
-    # =================================================
-    # Other methods not directly interacting with numpy
-    # -------------------------------------------------
+    # def mean(self, axis=..., dtype=..., out=..., keepdims=..., *, where=...):
+    #     result = np.mean(a=self.x, axis=axis, dtype=dtype, out=out, keepdims=keepdims, where=where)
+    #     return Quantity(result, units=self.u)
 
-    def __repr__(self):
-        """For debugging purposes, the repr string should display values in SI units."""
-        prefix = f"{type(self).__name__}("
-        middle = str(self.x)
-        suffix = ")" if ~np.any(self.u.dims) else f", {self.u.units_si})"
-        return prefix + middle + suffix
+    # def sum(self, axis=..., dtype=..., out=..., keepdims=..., initial=..., where=...):
+    #     result = np.sum(a=self.x, axis=axis, dtype=dtype, out=out, keepdims=keepdims, initial=initial, where=where)
+    #     return Quantity(result, units=self.u)
 
-    def __str__(self):
-        """For display purposes, the str string should display values in the original units of class instantiation."""
-        text = str(self.u.to_uom(self.x))
-        suffix = "" if ~np.any(self.u.dims) else f" {self.u.units}"
-        return text + suffix
+    # ===================================================
+    # Other methods not directly intercepting NumPy calls
+    # ---------------------------------------------------
 
     def to(self, units: str) -> np.ndarray:
         """Return a numpy array in the chosen units."""

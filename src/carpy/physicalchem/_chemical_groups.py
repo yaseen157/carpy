@@ -227,20 +227,43 @@ def update_bond_data(chemical_structure: Structure) -> None:
     # Copy the molecular formula as it will help look for molecule-specific hacks
     molecular_formula = chemical_structure.molecular_formula
 
-    # First, look for small molecule
+    # First, look for small molecules
 
     # Identify the chemical groups in the structure
     groups = chemical_structure.functional_groups
 
+    # ===========================
+    # Update bond force constants
+    # ---------------------------
+
+    pass
+
+    # ===================
+    # Update bond lengths
+    # -------------------
+
+    pass
+
+    # =============================================
+    # Update bond strengths (dissociation energies)
+    # ---------------------------------------------
+
     for group_name, members in groups:
 
-        if group_name == "carbonyl":
+        if group_name == "alkyl":
+
+            if molecular_formula == "CH4":
+                C1, = members
+                for bond in C1.bonds:
+                    bond.enthalpy = BondTables.strengths["C-H"]["CH4"].mean()
+
+        elif group_name == "carbonyl":
 
             atom1, atom2 = members
             bond = atom1.bonds[atom2].pop()
 
             if molecular_formula == "CO2":
-                bond.enthalpy = BondTables.strengths["C-O"]["CO2"]
+                bond.enthalpy = BondTables.strengths["C-O"]["CO2"].mean()
 
         elif group_name == "hydroxyl":
 
@@ -248,9 +271,9 @@ def update_bond_data(chemical_structure: Structure) -> None:
             bond = atom1.bonds[atom2].pop()
 
             if molecular_formula == "H2O":
-                bond.enthalpy = BondTables.strengths["H-O"]["H2O"]
+                bond.enthalpy = BondTables.strengths["H-O"]["H2O"].mean()
 
             elif molecular_formula == "CH4O":
-                bond.enthalpy = BondTables.strengths["H-O"]["CH3OH"]
+                bond.enthalpy = BondTables.strengths["H-O"]["CH3OH"].mean()
 
     return None

@@ -1,4 +1,6 @@
 """Module containing chemical species definitions for gases."""
+from functools import lru_cache
+
 from carpy.physicalchem import Atom, Structure, ChemicalSpecies
 
 __author__ = "Yaseen Reza"
@@ -10,7 +12,7 @@ __author__ = "Yaseen Reza"
 # ===============
 # Elemental gases
 
-
+@lru_cache(maxsize=1)
 def argon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ar"))
 
@@ -21,6 +23,7 @@ def argon() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def chlorine() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Cl2"))
 
@@ -31,6 +34,7 @@ def chlorine() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def fluorine() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("F2"))
 
@@ -41,6 +45,7 @@ def fluorine() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def helium() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("He"))
 
@@ -53,6 +58,7 @@ def helium() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def hydrogen() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("H2"))
 
@@ -63,6 +69,7 @@ def hydrogen() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def krypton() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Kr"))
 
@@ -73,6 +80,7 @@ def krypton() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def neon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Ne"))
 
@@ -83,6 +91,7 @@ def neon() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def nitrogen() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("N2"))
 
@@ -94,6 +103,7 @@ def nitrogen() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def oxygen() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("O2"))
 
@@ -104,6 +114,7 @@ def oxygen() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def radon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Rn"))
 
@@ -115,6 +126,7 @@ def radon() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def xenon() -> ChemicalSpecies:
     species = ChemicalSpecies(structures=Structure.from_condensed_formula("Xe"))
 
@@ -127,8 +139,7 @@ def xenon() -> ChemicalSpecies:
 
 # =========
 # Compounds
-
-
+@lru_cache(maxsize=1)
 def _1_methyldecalin() -> ChemicalSpecies:
     # 1-Methyldecalin
 
@@ -162,6 +173,7 @@ def _1_methyldecalin() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def _2_methyldecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(10)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
@@ -178,6 +190,7 @@ def _2_methyldecane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def _5_methylnonane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(9)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
@@ -194,6 +207,7 @@ def _5_methylnonane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def R_134a() -> ChemicalSpecies:
     # R-134a
     C1 = Atom("C")
@@ -214,6 +228,7 @@ HFA_134a = R_134a
 norflurane = R_134a
 
 
+@lru_cache(maxsize=1)
 def carbon_dioxide() -> ChemicalSpecies:
     # carbon_dioxide
     C1 = Atom("C")
@@ -227,6 +242,7 @@ def carbon_dioxide() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def cyclohexane() -> ChemicalSpecies:
     # C6H12 cyclohexane
     carbons = [Atom("C") for _ in range(6)]
@@ -243,6 +259,7 @@ def cyclohexane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def dinitrogen_oxide() -> ChemicalSpecies:
     # dinitrogen_oxide
     N1 = Atom("N")
@@ -267,6 +284,7 @@ def dinitrogen_oxide() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def ethane() -> ChemicalSpecies:
     # ethane
     carbons = [Atom("C") for _ in range(2)]
@@ -282,6 +300,7 @@ def ethane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def ethanol() -> ChemicalSpecies:
     # ethanol
     C1 = Atom("C")
@@ -302,6 +321,7 @@ def ethanol() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def ethene() -> ChemicalSpecies:
     # ethene
     C1 = Atom("C")
@@ -322,6 +342,7 @@ def ethene() -> ChemicalSpecies:
 ethylene = ethene
 
 
+@lru_cache(maxsize=1)
 def ethyne() -> ChemicalSpecies:
     # ethyne
     C1 = Atom("C")
@@ -342,6 +363,7 @@ def ethyne() -> ChemicalSpecies:
 acetylene = ethyne
 
 
+@lru_cache(maxsize=1)
 def methane() -> ChemicalSpecies:
     # methane
     C1 = Atom("C")
@@ -355,6 +377,7 @@ def methane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def n_heptylcyclohexane() -> ChemicalSpecies:
     # Form the cyclohexane ring's carbon bonds
     ringC = [Atom("C") for _ in range(6)]
@@ -375,6 +398,7 @@ def n_heptylcyclohexane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def n_hexadecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(16)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
@@ -389,6 +413,7 @@ def n_hexadecane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def n_hexylcyclohexane() -> ChemicalSpecies:
     # Form the cyclohexane ring's carbon bonds
     ringC = [Atom("C") for _ in range(6)]
@@ -409,6 +434,7 @@ def n_hexylcyclohexane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def n_tetradecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(14)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
@@ -423,6 +449,7 @@ def n_tetradecane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def ortho_xylene() -> ChemicalSpecies:
     ringC = [Atom("C") for _ in range(6)]
     Cmethyl1, Cmethyl2 = Atom("C"), Atom("C")
@@ -440,6 +467,7 @@ def ortho_xylene() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def propane() -> ChemicalSpecies:
     # propane
     carbons = [Atom("C") for _ in range(3)]
@@ -455,6 +483,7 @@ def propane() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def tetralin() -> ChemicalSpecies:
     C1 = Atom("C")  # Shared between both rings
     C2 = Atom("C")  # Shared between both rings
@@ -484,6 +513,7 @@ def tetralin() -> ChemicalSpecies:
     return species
 
 
+@lru_cache(maxsize=1)
 def water() -> ChemicalSpecies:
     # water
     O1 = Atom("O")

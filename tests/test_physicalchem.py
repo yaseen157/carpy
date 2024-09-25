@@ -170,6 +170,27 @@ class MolecularStructures(unittest.TestCase):
         return
 
 
+class BondProperties(unittest.TestCase):
+
+    def test_methane(self):
+        """
+        The bonds cleaved and formed during combustion of methane should approximate LCV in the reaction:
+            CH4(g) + 2 O2(g) --> CO2(g) + 2H20 (g)
+
+        """
+        CH4 = species.methane()
+        O2 = species.oxygen()
+        CO2 = species.carbon_dioxide()
+        H2O = species.water()
+
+        atomisation_reactants = CH4.enthalpy_atomisation + 2 * O2.enthalpy_atomisation
+        atomisation_products = CO2.enthalpy_atomisation + 2 * H2O.enthalpy_atomisation
+        dHreaction = atomisation_products - atomisation_reactants
+
+        # Methane's LCV is ~ 50 MJ/kg
+        self.assertAlmostEqual((dHreaction / CH4.molar_mass) / 1e6, 5, places=-1)
+
+
 class FluidModels(unittest.TestCase):
 
     def test_unreactive_ideal(self):

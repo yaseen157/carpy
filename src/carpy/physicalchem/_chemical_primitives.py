@@ -444,14 +444,14 @@ class CovalentBond:
         # self._force_constant = None
         # self._length = None
 
-        if self.order > 3:
+        if self.order > 4:
             error_msg = f"The bond order between {A} and {B} exceeds that allowed in this program ({order=} > 3)"
             raise NotImplementedError(error_msg)
 
         return
 
     def __repr__(self):
-        order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
+        order_symbol = {1: "-", 2: "=", 3: "#", 4: "$"}.get(self.order)
         atom_l, atom_r = self.atoms
         repr_str = f"{str(atom_l)}{order_symbol}{str(atom_r)}"
         return repr_str
@@ -479,16 +479,10 @@ class CovalentBond:
             _D = np.nan  # default
 
             if bond_data := BondTables.strengths.get(l1_query):
-                # lowest priority: Bond data from order-dependent bond label
-                order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
-                l2_query = f"{atom_l.symbol}{order_symbol}{atom_r.symbol}"
-                _D = bond_data.get(l2_query, np.mean(list(bond_data.values())))  # Assign *some* default value
-
-                # medium priority: Bond data relevant to the chemical group of the molecule
-                _ = NotImplemented
-
-                # highest priority: Bond data relevant to the specific molecule
-                _ = NotImplemented
+                # Bond data from order-dependent bond label
+                l2_query = repr(self)
+                ansatz = sum(arr := [x for sublist in list(bond_data.values()) for x in sublist]) / len(arr)
+                _D = bond_data.get(l2_query, ansatz)  # Assign *some* default value
 
             if np.isnan(_D):
                 warn_msg = f"Could not find dissociative strength data for the {type(self).__name__} type {self}"
@@ -516,8 +510,7 @@ class CovalentBond:
             _k = np.nan  # default
 
             if bond_data := BondTables.force_constants.get(l1_query):
-                bond_vals = list(bond_data.values())
-                _k = sum(bond_vals) / len(bond_vals)  # Don't use NumPy, Quantity objects aren't preserved with np.mean
+                _k = ansatz = sum(arr := [x for sublist in list(bond_data.values()) for x in sublist]) / len(arr)
 
             if np.isnan(_k):
                 warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
@@ -544,13 +537,13 @@ class CovalentBond:
             l1_query = f"{atom_l.symbol}-{atom_r.symbol}"
 
             # Create an order-dependent bond label
-            order_symbol = {1: "-", 2: "=", 3: "#"}.get(self.order)
-            l2_query = f"{atom_l.symbol}{order_symbol}{atom_r.symbol}"
+            l2_query = repr(self)
 
             _r = np.nan  # default
 
             if bond_data := BondTables.lengths.get(l1_query):
-                _r = bond_data.get(l2_query, np.mean(list(bond_data.values())))
+                ansatz = sum(arr := [x for sublist in list(bond_data.values()) for x in sublist]) / len(arr)
+                _r = bond_data.get(l2_query, ansatz)
 
             if np.isnan(_r):
                 warn_msg = f"Could not find length data for the {type(self).__name__} type {self}"

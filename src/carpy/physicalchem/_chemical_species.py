@@ -86,12 +86,19 @@ class ChemicalSpecies(ThermophysicalProperties):
         return H_at  # noqa
 
     @property
+    def molecular_mass(self) -> Quantity:
+        """Molecular mass of the species."""
+        cum_mass = 0
+        for structure in self.structures:
+            cum_mass += structure.molecular_mass
+        mass = cum_mass / len(self.structures)
+        return mass
+
+    @property
     def molar_mass(self) -> Quantity:
         """Molar mass of the species."""
-        mass = Quantity(0, "g mol^-1")
-        for structure in self.structures:
-            mass += structure.molar_mass
-        return mass
+        relative_molecular_mass = Quantity(self.molecular_mass.to("Da"), "g mol^{-1}")
+        return relative_molecular_mass
 
     def specific_heat_V(self, p, T) -> Quantity:
         """
