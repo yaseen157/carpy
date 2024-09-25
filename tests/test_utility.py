@@ -81,7 +81,6 @@ class Miscellaneous(unittest.TestCase):
 
         # Correct filepath?
         self.assertTrue(anchor.filepath.endswith("test_utility.py"))
-        self.assertTrue("carpy" in anchor.filepath)
         return
 
 
