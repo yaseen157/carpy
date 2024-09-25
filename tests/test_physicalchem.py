@@ -188,7 +188,7 @@ class BondProperties(unittest.TestCase):
         dHreaction = atomisation_products - atomisation_reactants
 
         # Methane's LCV is ~ 50 MJ/kg
-        self.assertAlmostEqual((dHreaction / CH4.molar_mass) / 1e6, 5, places=-1)
+        self.assertAlmostEqual((dHreaction / CH4.molar_mass) / 1e6, 50, places=-1)
 
 
 class FluidModels(unittest.TestCase):

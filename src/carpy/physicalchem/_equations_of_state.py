@@ -85,7 +85,7 @@ class EquationOfState:
         # Dong and Lienhard's relation
         numerator = np.log(p_rs) - 5.372_70 * (1 - 1 / T_r)
         denominator = 7.494_08 - 11.181_777 * T_r ** 3 + 3.687_69 * T_r ** 6 + 17.929_98 * np.log(T_r)
-        omega = float(numerator / denominator)
+        omega = (numerator / denominator).item()
         return omega
 
     @omega.setter

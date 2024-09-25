@@ -221,12 +221,17 @@ class PartitionMethods:
         int_e = (self._cv_1d * T) * dof_trans
 
         # Rotation contribution
-        dof_rot = np.isfinite(self.theta_rot.x).sum()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing
-            principal_activations = partition_function(Tcharacteristic=self.theta_rot)
-        # Slice the 3D principle activations by degree of freedoms to ignore the np.posinf 2 DoF linear molecules get
-        int_e += (self._cv_1d * T) * np.nansum(principal_activations[:dof_rot], axis=0)
+        try:
+            dof_rot = np.isfinite(self.theta_rot.x).sum()
+        except NotImplementedError:
+            dof_rot = 3
+            int_e += (self._cv_1d * T) * 3  # Assume molecule is so complex that it must have 3 DoF at reasonable temps
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing
+                principal_activations = partition_function(Tcharacteristic=self.theta_rot)
+            # Slice the 3D principle activations by degree of freedoms to ignore the np.posinf 2 DoF linear molecules get
+            int_e += (self._cv_1d * T) * np.nansum(principal_activations[:dof_rot], axis=0)
 
         # Vibration contribution
         dof_vib = 2 * (3 * len(self.atoms) - (dof_trans + dof_rot))
@@ -277,7 +282,7 @@ class PartitionMethods:
             dof_rot = np.isfinite(self.theta_rot.x).sum()
         except NotImplementedError:
             dof_rot = 3
-            cv += self._cv_1d * dof_rot  # Assume molecule is so complicated, it must have three DoF at reasonable temps
+            cv += self._cv_1d * dof_rot  # Assume molecule is so complex that it must have 3 DoF at reasonable temps
         else:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")  # will get sad for linear molecules where 1 DoF is missing

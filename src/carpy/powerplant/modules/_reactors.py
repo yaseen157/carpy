@@ -9,17 +9,6 @@ __all__ = ["ConstPCombustor"]
 __author__ = "Yaseen Reza"
 
 
-def find_CHO_species(composition_dict: dict[ChemicalSpecies, float]) -> list[ChemicalSpecies]:
-    """Identify chemical species in a chemical composition that are only made of carbon, hydrogen, and oxygen."""
-    is_CHO = []
-    for i, species in enumerate(composition_dict):
-        if set(species.composition_formulaic) - {pt.C, pt.H, pt.O}:  # noqa
-            pass
-        else:
-            is_CHO.append(species)
-    return is_CHO
-
-
 class ConstPCombustor(PlantModule):
     """
     Constant pressure through-flow (continuous) reactor. Energy from chemical heat release is added to incident flow.
@@ -66,7 +55,7 @@ class ConstPCombustor(PlantModule):
         for species_i, species_mdot in mdot_reactants.items():
 
             for element, count in species_i.composition_formulaic.items():
-                mfrac = float(count * element.mass / species_i.molecular_mass.to("Da"))
+                mfrac = (count * element.mass / species_i.molecular_mass.to("Da")).item()
                 mdot_elements[element] = mdot_elements.get(element, 0) + species_mdot * mfrac
 
         # Convert mass flow of reactant elements into molar flow, and then determine the quantity of product produced
@@ -85,15 +74,26 @@ class ConstPCombustor(PlantModule):
             species.oxygen(): nu_O2 * species.oxygen().molar_mass
         }
 
-        power_raised = sum([
-                               -nu_H2O * species.water().enthalpy_atomisation,
-                               -nu_CO2 * species.carbon_dioxide().enthalpy_atomisation,
-                               -nu_O2 * species.oxygen().enthalpy_atomisation,
-                           ] + [
-                               (mdot / species_i.molar_mass) * species_i.enthalpy_atomisation
-                               for species_i, mdot in mdot_reactants.items()
-                           ])
+        dP_products = sum([
+            (mdot / species_i.molar_mass) * species_i.enthalpy_atomisation
+            for species_i, mdot in mdot_products.items()
+        ])
+        dP_reactants = sum([
+            (mdot / species_i.molar_mass) * species_i.enthalpy_atomisation
+            for species_i, mdot in mdot_reactants.items()
+        ])
 
-        # TODO: Need to work out internal energy capacity to temperature conversion
+        # Since bonds are broken in atomisation, the enthalpy is positive. For a reaction the reactants must be
+        #   atomised (hence the power developed is -ve in nature), and the products develop power in the reverse process
+        power_raised = (-dP_reactants) + dP_products
+        LCV_secondary = power_raised / secondary_flow.mdot  # Defining lower calorific/heating value based on 2nd flow
+
+        # Compute the output flow state
+        out_model = UnreactiveFluidModel(eos_class=primary_flow.state.EOS.__class__)
+
+        # Power consumption - the secondary flow is heated to the primary flow's temperature
+        print(secondary_flow.state.model.specific_enthalpy(p=101325, T=298))
+
+        # Power consumption - the flow of product is heated by the thermal power raised in combustion
 
         return NotImplemented

@@ -513,10 +513,12 @@ class CovalentBond:
                 _k = ansatz = sum(arr := [x for sublist in list(bond_data.values()) for x in sublist]) / len(arr)
 
             if np.isnan(_k):
-                warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
-                warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("once")
+                    warn_msg = f"Could not find force constant data for the {type(self).__name__} type {self}"
+                    warnings.warn(message=warn_msg, category=RuntimeWarning, stacklevel=2)
                 # Make an assumption on the force constant
-                _k = 5 * self.order  # Assume 5 newtons per centimetre per order of the bond
+                _k = Quantity(5 * self.order, "N cm^-1")  # Assume 5 newtons per centimetre per order of the bond
 
             self._force_constant = _k
 
