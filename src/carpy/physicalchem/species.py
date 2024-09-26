@@ -191,6 +191,59 @@ def _2_methyldecane() -> ChemicalSpecies:
 
 
 @lru_cache(maxsize=1)
+def _2_4_dimethylnonane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(9)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    methyl1, methyl2 = Atom("C"), Atom("C")
+    alkane[1].bonds.add_covalent(atom=methyl1, order_limit=1)
+    alkane[3].bonds.add_covalent(atom=methyl2, order_limit=1)
+    [carbon.bind_hydrogen() for carbon in alkane + [methyl1, methyl2]]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/48-384-3/Octane-2-6-dimethyl
+    species.p_c = 1961.34e3
+    species.T_c = 618.81
+    species.T_boil = 450.20
+
+    return species
+
+
+@lru_cache(maxsize=1)
+def _2_6_dimethyloctane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(8)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    methyl1, methyl2 = Atom("C"), Atom("C")
+    alkane[1].bonds.add_covalent(atom=methyl1, order_limit=1)
+    alkane[5].bonds.add_covalent(atom=methyl2, order_limit=1)
+    [carbon.bind_hydrogen() for carbon in alkane + [methyl1, methyl2]]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/48-384-3/Octane-2-6-dimethyl
+    species.p_c = 2150e3
+    species.T_c = 603.10
+    species.T_boil = 432.44
+
+    return species
+
+
+@lru_cache(maxsize=1)
+def _3_methyldecane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(10)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    methyl = Atom("C")
+    alkane[2].bonds.add_covalent(atom=methyl, order_limit=1)
+    [carbon.bind_hydrogen() for carbon in alkane + [methyl]]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/51-097-8/Decane-3-methyl
+    species.p_c = 1947.51e3
+    species.T_c = 615.77
+    species.T_boil = 450.64
+
+    return species
+
+
+@lru_cache(maxsize=1)
 def _5_methylnonane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(9)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
@@ -378,6 +431,21 @@ def methane() -> ChemicalSpecies:
 
 
 @lru_cache(maxsize=1)
+def n_dodecane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(12)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    [carbon.bind_hydrogen() for carbon in alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/30-657-9/Hexadecane
+    species.p_c = 1824.67e3
+    species.T_c = 658
+    species.T_boil = 484.31
+
+    return species
+
+
+@lru_cache(maxsize=1)
 def n_heptylcyclohexane() -> ChemicalSpecies:
     # Form the cyclohexane ring's carbon bonds
     ringC = [Atom("C") for _ in range(6)]
@@ -435,6 +503,36 @@ def n_hexylcyclohexane() -> ChemicalSpecies:
 
 
 @lru_cache(maxsize=1)
+def n_nonane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(9)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    [carbon.bind_hydrogen() for carbon in alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/65-577-0/Nonane
+    species.p_c = (2295.95 * 11 - 2357.30) / 10 * 1e3  # Removed outlier(s)
+    species.T_c = 594.53
+    species.T_boil = 423.68
+
+    return species
+
+
+@lru_cache(maxsize=1)
+def n_pentadecane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(15)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    [carbon.bind_hydrogen() for carbon in alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/37-928-1/Pentadecane
+    species.p_c = 1486.33e3
+    species.T_c = 708
+    species.T_boil = (537.61 * 10 - 510) / 9  # Removed outlier(s)
+
+    return species
+
+
+@lru_cache(maxsize=1)
 def n_tetradecane() -> ChemicalSpecies:
     alkane = [Atom("C") for _ in range(14)]
     [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
@@ -445,6 +543,21 @@ def n_tetradecane() -> ChemicalSpecies:
     species.p_c = 1524.20e3
     species.T_c = (693.16 * 12 - 696.90) / 11  # Removed outlier(s)
     species.T_boil = (523.11 * 10 - 510) / 9  # Removed outlier(s)
+
+    return species
+
+
+@lru_cache(maxsize=1)
+def n_tridecane() -> ChemicalSpecies:
+    alkane = [Atom("C") for _ in range(13)]
+    [alkane[i].bonds.add_covalent(atom=alkane[i + 1], order_limit=1) for i in range(len(alkane) - 1)]
+    [carbon.bind_hydrogen() for carbon in alkane]
+    species = ChemicalSpecies(structures=Structure.from_atoms(atom=alkane[0]))
+
+    # https://www.chemeo.com/cid/43-884-3/Tridecane
+    species.p_c = 1700.80e3
+    species.T_c = 675.52
+    species.T_boil = 507.29
 
     return species
 
