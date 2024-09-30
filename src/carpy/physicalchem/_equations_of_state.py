@@ -9,7 +9,9 @@ from carpy.utility import Quantity, constants as co, gradient1d
 
 __all__ = [
     "EquationOfState", "IdealGas", "VanderWaals", "RedlichKwong",
-    "SoaveRedlichKwong", "SRKmodPeneloux", "PengRobinson", "BaigangH2"
+    "SoaveRedlichKwong", "SRKmodPeneloux",
+    "PengRobinson", "PRmodPeneloux", "PRmodMathias",
+    "BaigangH2"
 ]
 __author__ = "Yaseen Reza"
 
@@ -486,10 +488,10 @@ class SoaveRedlichKwong(RedlichKwong):
             alpha = (1 + (0.480 + 1.574 * self.omega - 0.176 * self.omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
 
             # Polynomial to solve for molar volume
-            par_a = (p / alpha).item()
-            par_b = (-co.PHYSICAL.R * T / alpha).item()
-            par_c = (a.x + b.x * par_b - b.x ** 2 * par_a).item()
-            par_d = -(a * b).item()
+            par_a = p.item()
+            par_b = (-co.PHYSICAL.R * T).item()
+            par_c = (a.x * alpha + b.x * par_b * - b.x ** 2 * par_a).item()
+            par_d = -(a * b * alpha).item()
             roots = np.roots((par_a, par_b, par_c, par_d))
 
             # Ignore negative solution, non-physical
@@ -503,67 +505,6 @@ class SoaveRedlichKwong(RedlichKwong):
                 molar_volumes.flat[i] = np.nanmin(roots)
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
-
-
-class SRKmodPeneloux(SoaveRedlichKwong):
-    """A class implementing the Peneloux-Rauzy-Freze (1982) modification to Soave-Redlich-Kwong volumes."""
-
-    def __init__(self, p_c=None, T_c=None, T_boil=None, *, c=None, **kwargs):
-        """
-        Args:
-            p_c: Critical pressure of the fluid, in Pascal.
-            T_c: Critical temperature of the fluid, in Kelvin.
-            T_boil: Normal boiling temperature, i.e. temperature of phase transition under 1 atmosphere of pressure.
-            c: Molar volume offset in metres cubed per mole. Optional, uses estimate for petroleum gas and oil.
-        """
-        super().__init__(p_c=p_c, T_c=T_c, T_boil=T_boil)
-
-        self.c = c if c is not None else np.nan
-
-        if c is not None:
-            self.c = c
-        else:
-            # c parameter for petroleum gas and oils can be estimated with Rackett compressibility factor Z_RA
-            Z_RA = 0.290_56 - 0.08775 * self.omega
-            self.c = 0.40768 * co.PHYSICAL.R * self.T_c / self.p_c * (0.294_41 - Z_RA)
-
-        return
-
-    @property
-    def c(self):
-        """Peneloux et al. volume correction parameter"""
-        c = self._eos_parameters.get("c", np.nan)
-        if np.isfinite(c):
-            pass
-        else:
-            c = Quantity(0, "m^3 mol^-1")
-
-        return c
-
-    @c.setter
-    def c(self, value):
-        self._eos_parameters["c"] = Quantity(value, "m^3 mol^-1")
-
-    @property
-    def constants(self) -> dict[str, Quantity]:
-        """Parameters as defined in the Soave-Redlich-Kwong equation of state."""
-        a = self._Omega_a * co.PHYSICAL.R ** 2 * self.T_c ** 2 / self.p_c
-        b = (self._Omega_b * co.PHYSICAL.R * self.T_c / self.p_c) - self.c
-        return dict([("a", a), ("b", b), ("c", self.c)])
-
-    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
-        a, b, c = (constants := self.constants)["a"], constants["b"], constants["c"]
-
-        # Compute Soave modification for hydrocarbons, alpha, from acentric factor, omega
-        alpha = (1 + (0.480 + 1.574 * self.omega - 0.176 * self.omega ** 2) * (1 - self.T_r(T) ** 0.5)) ** 2
-
-        p = co.PHYSICAL.R * T / (Vm - b) - a * alpha / ((Vm + c) * (Vm + b + 2 * c))
-        return p
-
-    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
-        Vm_tilda = super(SRKmodPeneloux, self)._molar_volume(p=p, T=T)
-        Vm = Vm_tilda - self.c
-        return Vm
 
 
 class PengRobinson(SoaveRedlichKwong):
@@ -691,3 +632,107 @@ class BaigangH2(EquationOfState):
                 molar_volumes.flat[i] = np.nanmin(roots)
 
         return Quantity(molar_volumes, "m^{3} mol^{-1}")
+
+
+class ModPeneloux(EquationOfState):
+    """Any equation of state inheriting from ModPeneloux becomes a volume-translated equation of state."""
+
+    def __new__(cls, *args, **kwargs):
+
+        obj = super(ModPeneloux, cls).__new__(cls)  # The object that would have returned originally
+
+        # Find the class that actually uniquely defines a base equation of state, and not a modification to the EOS
+        unmodded_classes = [x for x in cls.__mro__ if not issubclass(x, ModPeneloux)]
+        if not unmodded_classes:
+            error_msg = f"Couldn't find an unmodded Equation of State in the method resolution order for {cls.__name__}"
+            raise RuntimeError(error_msg)
+        unmodded_cls = unmodded_classes.pop(0)
+
+        # Keep an "unmodded" version of the class handy
+        obj._unmodded_ref = unmodded_cls()
+        return obj
+
+    def __init__(self, p_c=None, T_c=None, T_boil=None, *, c=None, **kwargs):
+        """
+        Args:
+            p_c: Critical pressure of the fluid, in Pascal.
+            T_c: Critical temperature of the fluid, in Kelvin.
+            T_boil: Normal boiling temperature, i.e. temperature of phase transition under 1 atmosphere of pressure.
+            c: Molar volume offset in metres cubed per mole. Optional, uses estimate for petroleum gas and oil.
+        """
+        EquationOfState.__init__(self, p_c=p_c, T_c=T_c, T_boil=T_boil)
+
+        self._unmodded_ref._eos_parameters = self.parameters  # Tie the unmodded reference class' parameters to our own
+
+        # Define the Peneloux-Rauzy (1982) volume correction
+        if c is None:
+            c = 0
+        elif isinstance(c, bool) and c is True:
+            # c parameter for petroleum gas and oils can be estimated with Rackett compressibility factor Z_RA
+            Z_RA = 0.290_56 - 0.08775 * self.omega
+            c = 0.40768 * co.PHYSICAL.R * self.T_c / self.p_c * (0.294_41 - Z_RA)
+        self.parameters["c"] = Quantity(c, "m^3 mol^-1")
+
+        return
+
+    @EquationOfState.Vm_c.setter
+    def Vm_c(self, value):
+        new_Vm_c = Quantity(value, "m^3 mol^-1")
+        self.parameters["c"] = (self.Vm_c + self.parameters["c"]) - new_Vm_c
+
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
+        Vm_SRK = Vm + self.parameters["c"]
+        p = super()._pressure(T=T, Vm=Vm_SRK)
+        return p
+
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+        Vm_tilda = super()._molar_volume(p=p, T=T)
+        Vm = Vm_tilda - self.parameters["c"]
+        return Vm
+
+
+class SRKmodPeneloux(ModPeneloux, SoaveRedlichKwong):
+    """A class implementing the Peneloux-Rauzy (1982) modification to Soave-Redlich-Kwong volumes."""
+
+
+class PRmodPeneloux(ModPeneloux, PengRobinson):
+    """A class implementing the Peneloux-Rauzy (1982) modification to Peng-Robinson volumes."""
+
+
+class ModMathias(ModPeneloux):
+    """Any equation of state inheriting from ModMathias becomes a volume-translated equation of state."""
+
+    @EquationOfState.Vm_c.setter
+    def Vm_c(self, value):
+        self._eos_parameters["Vm_c"] = Quantity(value, "m^3 mol^-1")
+
+    def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
+        Vm_SRK = Vm + self.parameters["c"]
+        p = super()._pressure(T=T, Vm=Vm_SRK)
+        return p
+
+    def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
+        # Temporarily hold Peneloux correction in limbo
+        c_cached = self.parameters.get("c", (c_default := Quantity(0, "m^3 mol^-1")))
+        self.parameters["c"] = c_default
+
+        # Compute isothermal compressibility and delta term from uncorrected parameters
+        beta_T = self._unmodded_ref.compressibility_isothermal(p=self.p_c, T=self.T_c)
+        Vm_c_EOS = self._unmodded_ref.Vm_c
+        delta = (Vm_c_EOS / co.PHYSICAL.R / self.T_c) / beta_T  # delta term related to inverse of beta_T.
+
+        # Reassign Peneloux correction
+        self.parameters["c"] = c_cached
+
+        # Compute the critical point correction factor. Careful, looks like "s" is oppositely signed to Peneloux's "c"
+        s = -1.0 * self.parameters["c"]
+        f_c = self.parameters.get("Vm_c", Vm_c_EOS) - (Vm_c_EOS + s)
+
+        Vm_peneloux = ModPeneloux._molar_volume(self, p=p, T=T)  # Use the molar volume translation method of Peneloux
+        Vm_mathias = Vm_peneloux + f_c * (0.41 / (0.41 + delta))
+
+        return Vm_mathias
+
+
+class PRmodMathias(ModMathias, PengRobinson):
+    """A class implementing the Mathias-Naheiri-Oh (1988) modification to Peng-Robinson volumes."""

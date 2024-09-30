@@ -7,6 +7,9 @@ __author__ = "Yaseen Reza"
 VdW = VanderWaals
 RK = RedlichKwong
 SRK = SoaveRedlichKwong
-SRKmP = SRKmodPeneloux
 PR = PengRobinson
 BH2 = BaigangH2
+
+SRKmP = SRKmodPeneloux
+PRmP = PRmodPeneloux
+PRmM = PRmodMathias
