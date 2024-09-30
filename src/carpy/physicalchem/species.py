@@ -2,6 +2,7 @@
 from functools import lru_cache
 
 from carpy.physicalchem import Atom, Structure, ChemicalSpecies
+from carpy.utility import Quantity
 
 __author__ = "Yaseen Reza"
 
@@ -636,4 +637,5 @@ def water() -> ChemicalSpecies:
     species.p_c = 22_060e3
     species.T_c = 647.096
     species.T_boil = 373.15
+
     return species

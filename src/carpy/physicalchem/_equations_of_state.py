@@ -681,13 +681,13 @@ class ModPeneloux(EquationOfState):
         self.parameters["c"] = (self.Vm_c + self.parameters["c"]) - new_Vm_c
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
-        Vm_SRK = Vm + self.parameters["c"]
+        Vm_SRK = Vm + self.parameters.get("c", 0)
         p = super()._pressure(T=T, Vm=Vm_SRK)
         return p
 
     def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
         Vm_tilda = super()._molar_volume(p=p, T=T)
-        Vm = Vm_tilda - self.parameters["c"]
+        Vm = Vm_tilda - self.parameters.get("c", 0)
         return Vm
 
 
@@ -707,28 +707,28 @@ class ModMathias(ModPeneloux):
         self._eos_parameters["Vm_c"] = Quantity(value, "m^3 mol^-1")
 
     def _pressure(self, T: Quantity, Vm: Quantity) -> Quantity:
-        Vm_SRK = Vm + self.parameters["c"]
-        p = super()._pressure(T=T, Vm=Vm_SRK)
-        return p
+        # If we don't have a defined molar volume at the critical point, just return the Peneloux modified result
+        p_peneloux = ModPeneloux._pressure(self, T=T, Vm=Vm)
+        if "Vm_c" not in self.parameters:
+            return p_peneloux
+
+        error_msg = f"The {ModMathias.__name__} superclass of {self} does not yet have a method to compute p = f(T, Vm)"
+        raise NotImplementedError(error_msg)
 
     def _molar_volume(self, p: Quantity, T: Quantity) -> Quantity:
-        # Temporarily hold Peneloux correction in limbo
-        c_cached = self.parameters.get("c", (c_default := Quantity(0, "m^3 mol^-1")))
-        self.parameters["c"] = c_default
+        # If we don't have a defined molar volume at the critical point, just return the Peneloux modified result
+        Vm_peneloux = ModPeneloux._molar_volume(self, p=p, T=T)
+        if "Vm_c" not in self.parameters:
+            return Vm_peneloux
 
         # Compute isothermal compressibility and delta term from uncorrected parameters
-        beta_T = self._unmodded_ref.compressibility_isothermal(p=self.p_c, T=self.T_c)
+        beta_T = self._unmodded_ref.compressibility_isothermal(p=p, T=T)
         Vm_c_EOS = self._unmodded_ref.Vm_c
         delta = (Vm_c_EOS / co.PHYSICAL.R / self.T_c) / beta_T  # delta term related to inverse of beta_T.
 
-        # Reassign Peneloux correction
-        self.parameters["c"] = c_cached
-
         # Compute the critical point correction factor. Careful, looks like "s" is oppositely signed to Peneloux's "c"
-        s = -1.0 * self.parameters["c"]
-        f_c = self.parameters.get("Vm_c", Vm_c_EOS) - (Vm_c_EOS + s)
-
-        Vm_peneloux = ModPeneloux._molar_volume(self, p=p, T=T)  # Use the molar volume translation method of Peneloux
+        s = -1.0 * self.parameters.get("c", Quantity(0, "m^3 mol^-1"))
+        f_c = self.parameters["Vm_c"] - (Vm_c_EOS + s)
         Vm_mathias = Vm_peneloux + f_c * (0.41 / (0.41 + delta))
 
         return Vm_mathias

@@ -357,6 +357,21 @@ class FluidModel:
     # Fluid attributes
 
     @property
+    def p_c(self):
+        """Liquid-vapour critical equilibrium point pressure."""
+        return self.EOS.p_c
+
+    @property
+    def T_c(self):
+        """Liquid-vapour critical equilibrium point temperature."""
+        return self.EOS.T_c
+
+    @property
+    def T_boil(self):
+        """Fluid normal boiling temperature."""
+        return self.EOS.T_boil
+
+    @property
     def X(self) -> dict[ChemicalSpecies, float]:
         """Gas composition by mole fraction."""
         return self._X

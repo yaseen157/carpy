@@ -166,6 +166,8 @@ class PartitionMethods:
         """Characteristic vibrational temperature."""
         # Characteristic vibrational temperature
         theta_vib = dict()
+        # with warnings.catch_warnings():
+        # warnings.simplefilter("once")
         for bond in self.bonds:
             atom_l, atom_r = bond.atoms
             mu = 1 / (1 / atom_l.atomic_mass + 1 / atom_r.atomic_mass)

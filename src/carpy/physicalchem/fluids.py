@@ -21,7 +21,7 @@ def Jet_A_3638(eos_class=None) -> UnreactiveFluidModel:
 
     """
     if eos_class is None:
-        eos_class = eostate.PRmodMathias
+        eos_class = eostate.PRmodPeneloux
 
     fluid_model = UnreactiveFluidModel(eos_class=eos_class)
     fluid_model.X = {
@@ -33,6 +33,13 @@ def Jet_A_3638(eos_class=None) -> UnreactiveFluidModel:
         species.ortho_xylene(): 0.094,
         species.tetralin(): 0.125
     }
+
+    # Correction terms
+    Vm_crit = fluid_model.molar_mass / Quantity(249.4, "kg m^-3")
+    Vm_ref1 = fluid_model.molar_mass / Quantity(804.2, "kg m^-3")
+    fluid_model.EOS.parameters["Vm_c"] = Vm_crit
+    fluid_model.EOS.parameters["c"] = fluid_model.molar_volume(p=0.083e6, T=278.15) - Vm_ref1
+
     return fluid_model
 
 
@@ -49,7 +56,7 @@ def Jet_A_4658(eos_class=None) -> UnreactiveFluidModel:
 
     """
     if eos_class is None:
-        eos_class = eostate.PRmodMathias
+        eos_class = eostate.PRmodPeneloux
 
     fluid_model = UnreactiveFluidModel(eos_class=eos_class)
     fluid_model.X = {
@@ -63,11 +70,12 @@ def Jet_A_4658(eos_class=None) -> UnreactiveFluidModel:
         species.tetralin(): 0.228
     }
 
-    fluid_model.EOS.parameters["c"] = fluid_model.EOS.parameters.get("c", 0) + (
-            (fluid_model.molar_mass / fluid_model.density(p=0.083e6, T=278.15))
-            - (fluid_model.molar_mass / Quantity(814.1, "kg m^-3"))
-    )
-    fluid_model.EOS.parameters["Vm_c"] = fluid_model.molar_mass / Quantity(249.4, "kg m^-3")
+    # Correction terms
+    Vm_crit = fluid_model.molar_mass / Quantity(250.5, "kg m^-3")
+    Vm_ref1 = fluid_model.molar_mass / Quantity(814.1, "kg m^-3")
+    fluid_model.EOS.parameters["Vm_c"] = Vm_crit
+    fluid_model.EOS.parameters["c"] = fluid_model.molar_volume(p=0.083e6, T=278.15) - Vm_ref1
+
     return fluid_model
 
 
@@ -82,7 +90,7 @@ def RP_1(eos_class=None) -> UnreactiveFluidModel:
 
     """
     if eos_class is None:
-        eos_class = eostate.PRmodMathias
+        eos_class = eostate.PRmodPeneloux
 
     fluid_model = UnreactiveFluidModel(eos_class=eos_class)
     fluid_model.X = {
@@ -105,7 +113,7 @@ def RP_2(eos_class=None) -> UnreactiveFluidModel:
 
     """
     if eos_class is None:
-        eos_class = eostate.PRmodMathias
+        eos_class = eostate.PRmodPeneloux
 
     fluid_model = UnreactiveFluidModel(eos_class=eos_class)
     fluid_model.X = {
@@ -129,7 +137,7 @@ def S_8(eos_class=None) -> UnreactiveFluidModel:
 
     """
     if eos_class is None:
-        eos_class = eostate.PRmodMathias
+        eos_class = eostate.PRmodPeneloux
 
     fluid_model = UnreactiveFluidModel(eos_class=eos_class)
     fluid_model.X = {
@@ -141,4 +149,9 @@ def S_8(eos_class=None) -> UnreactiveFluidModel:
         species.n_pentadecane(): 0.015,
         species.n_hexadecane(): 0.005
     }
+
+    # Correction terms
+    Vm_ref1 = fluid_model.molar_mass / Quantity(762.9, "kg m^-3")
+    fluid_model.EOS.parameters["c"] = fluid_model.molar_volume(p=0.083e6, T=278.15) - Vm_ref1
+
     return fluid_model
