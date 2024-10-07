@@ -886,13 +886,15 @@ class Quantity(np.ndarray):
         """For debugging purposes, the repr string should display values in SI units."""
         prefix = f"{type(self).__name__}("
         middle = str(self.x)
-        suffix = ")" if ~np.any(self.u.dims) else f", {self.u.units_si})"
+        # "not any" avoids np.__version < 2.0.0 behaviour where ~np.any(array (dtype=object)) does not return boolean
+        suffix = ")" if not any(self.u.dims) else f", {self.u.units_si})"
         return prefix + middle + suffix
 
     def __str__(self):
         """For display purposes, the str string should display values in the original units of class instantiation."""
         text = str(self.u.to_uom(self.x))
-        suffix = "" if ~np.any(self.u.dims) else f" {self.u.units}"
+        # "not any" avoids np.__version < 2.0.0 behaviour where ~np.any(array (dtype=object)) does not return boolean
+        suffix = "" if not any(self.u.dims) else f" {self.u.units}"
         return text + suffix
 
     def __format__(self, format_spec):

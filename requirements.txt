@@ -11,7 +11,7 @@ fastexcel  # Used by polars to read excel
 # fsspec
 matplotlib
 networkx
-numpy >= 2.0.0
+numpy
 pandas
 periodictable
 polars
